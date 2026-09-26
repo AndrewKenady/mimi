@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------------------
+# MIMI keeps its source and its portable runtime in one tree.
+# Everything below is large, generated, or personal and is NOT committed:
+# it is fetched by scripts/setup.ps1 and scripts/fetch.py (see manifests/).
+# ---------------------------------------------------------------------------
+
+# Runtimes and binaries
+/bin/
+/python/
+/.tools/
+
+# Content: models, offline libraries, map data
+/models/
+/zim/
+/maps/
+
+# Personal data and logs (never commit)
+/data/
+/logs/
+
+# Build outputs
+/MIMI.exe
+/*.dll
+/ui/build/
+/ui/node_modules/
+/ui/.svelte-kit/
+/shell/obj/
+/shell/bin/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

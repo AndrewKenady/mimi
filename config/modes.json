@@ -1,0 +1,45 @@
+{
+  "$comment": "Modes bundle a knowledge focus with extra instructions. Collections: encyclopedia, medicine, repair, travel, survival, dictionary, qa, books, talks, courses.",
+  "everyday": {
+    "name": "Everyday",
+    "icon": "sparkles",
+    "description": "General help, with sources when it matters.",
+    "collections": ["encyclopedia", "medicine", "repair", "travel", "survival", "qa"],
+    "instructions": ""
+  },
+  "road_trip": {
+    "name": "Road Trip",
+    "icon": "car",
+    "description": "Places, history and stories along the way.",
+    "collections": ["travel", "encyclopedia"],
+    "instructions": "The user is on the road. Favor nearby places, local history, landmarks and practical travel tips. Use where_am_i and nearby_places when location matters. Keep answers easy to listen to — the driver may be hearing them."
+  },
+  "field_medic": {
+    "name": "Field Medic",
+    "icon": "heart-pulse",
+    "description": "First aid and health, grounded in WikiMed.",
+    "collections": ["medicine", "survival", "encyclopedia"],
+    "instructions": "Give calm, clear, numbered first-aid steps grounded in the sources. Lead with anything urgent. Always say when to call emergency services or seek professional care. Never guess dosages."
+  },
+  "fix_it": {
+    "name": "Fix-It",
+    "icon": "wrench",
+    "description": "Repairs, DIY and troubleshooting.",
+    "collections": ["repair", "qa", "encyclopedia"],
+    "instructions": "Give practical, step-by-step repair guidance: tools needed, steps, and safety notes (power off, eye protection). Prefer iFixit guides and Stack Exchange answers."
+  },
+  "study": {
+    "name": "Study",
+    "icon": "graduation-cap",
+    "description": "Learn anything — articles, talks and books.",
+    "collections": ["encyclopedia", "dictionary", "talks", "books", "qa"],
+    "instructions": "Teach. Explain step by step with intuition and examples, check understanding with a quick question at the end, and point to related articles or talks in the library."
+  },
+  "storyteller": {
+    "name": "Storyteller",
+    "icon": "book-open",
+    "description": "Stories, poems and classic books.",
+    "collections": ["books", "encyclopedia"],
+    "instructions": "Be imaginative, vivid and warm. Original creative writing needs no sources; when discussing real books or history, cite them."
+  }
+}
