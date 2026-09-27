@@ -192,3 +192,44 @@ class Auth:
             "WHERE s.ip NOT IN ('127.0.0.1','::1','') AND s.last_seen > ? ORDER BY s.last_seen DESC",
             (dbm.now() - since_seconds,),
         )
+
+
+class FailureGuard:
+    """Slows down guessing: after a few wrong PINs/passwords for a (source, account) pair,
+    further tries are refused for a lockout that doubles each time (up to 15 minutes).
+    A success clears the record."""
+
+    FREE_TRIES = 5
+    BASE_LOCK = 30.0
+    MAX_LOCK = 900.0
+    MAX_KEYS = 5000
+
+    def __init__(self) -> None:
+        import threading
+
+        self._lock = threading.Lock()
+        self._state: dict[tuple[str, str], tuple[int, float]] = {}  # key -> (failures, locked_until)
+
+    def check(self, source: str, account: str) -> float:
+        """Seconds until another try is allowed (0 = go ahead)."""
+        import time
+
+        with self._lock:
+            n, until = self._state.get((source, account.lower()), (0, 0.0))
+            return max(0.0, until - time.monotonic())
+
+    def failed(self, source: str, account: str) -> None:
+        import time
+
+        key = (source, account.lower())
+        with self._lock:
+            if len(self._state) >= self.MAX_KEYS:
+                self._state.clear()  # crude bound; a flood of sources shouldn't grow memory forever
+            n, _ = self._state.get(key, (0, 0.0))
+            n += 1
+            lock = 0.0 if n < self.FREE_TRIES else min(self.MAX_LOCK, self.BASE_LOCK * 2 ** (n - self.FREE_TRIES))
+            self._state[key] = (n, time.monotonic() + lock)
+
+    def succeeded(self, source: str, account: str) -> None:
+        with self._lock:
+            self._state.pop((source, account.lower()), None)

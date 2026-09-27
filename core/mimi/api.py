@@ -121,8 +121,20 @@ async def events_ws(ws: WebSocket):
     local = is_local(ws)  # type: ignore[arg-type]  # same rule as HTTP: loopback on the app port
     if not user and local and svc.settings.device("general").local_auto_login and not svc.settings.device("general").require_pin:
         user = svc.auth.owner()
+    # WebSocket handshakes skip CORS, so check the page's origin here: only Mimi's own pages
+    # may subscribe (on the share listener that means same host; locally is_local checked it).
+    origin = ws.headers.get("origin")
+    if origin and not local:
+        from urllib.parse import urlsplit
+
+        if urlsplit(origin).netloc != ws.headers.get("host"):
+            await ws.close(code=1008)
+            return
+    if not user:
+        await ws.close(code=4401)  # like HTTP: sign in first (live events include the device's location)
+        return
     await ws.accept()
-    sub = svc.events.subscribe(user["id"] if user else None, user["role"] if user else "anon", local=local)
+    sub = svc.events.subscribe(user["id"], user["role"], local=local)
     try:
         for ev in list(svc.events.last.values()):
             await ws.send_text(json.dumps(ev))
@@ -211,11 +223,17 @@ async def login(body: LoginIn, request: Request):
         # Today's sign-in page asks the device instead of sending a blank PIN; only a page opened before
         # that update gets here, so say how to get the no-PIN path rather than "doesn't match".
         raise HTTPException(401, "To sign in without a PIN, reload this page, leave the PIN blank and choose “Ask the Mimi device”.")
+    src = request.client.host if request.client else ""
+    wait = svc.guard.check(src, body.name)
+    if wait:
+        raise HTTPException(429, f"Too many wrong tries. Try again in {int(wait) + 1} seconds.")
     u = svc.auth.by_name(body.name)
     if not u or u["role"] == "guest" or not svc.auth.verify(u, body.secret):
+        svc.guard.failed(src, body.name)
         await asyncio.sleep(0.8)
         raise HTTPException(401, "That name and password/PIN don't match.")
-    token = svc.auth.create_session(u["id"], request.headers.get("user-agent", ""), request.client.host if request.client else "")
+    svc.guard.succeeded(src, body.name)
+    token = svc.auth.create_session(u["id"], request.headers.get("user-agent", ""), src)
     resp = JSONResponse({"user": public_user(u)})
     _cookie(resp, token, request)
     return resp
@@ -235,15 +253,26 @@ async def pair_request(body: PairIn, request: Request):
     svc = S(request)
     if is_local(request):
         raise HTTPException(400, "You're on the Mimi device already.")
-    u = svc.auth.by_name(body.name.strip())
-    if not u or u["role"] == "guest":
-        await asyncio.sleep(0.5)
-        raise HTTPException(404, "There's no account with that name on this Mimi.")
+    ip = request.client.host if request.client else ""
     try:
-        r = svc.pairing.request(u, request.headers.get("user-agent", ""), request.client.host if request.client else "")
+        svc.pairing.throttle(ip)  # before the lookup: probing names is as slow as asking
+        u = svc.auth.by_name(body.name.strip())
+        if not u or u["role"] == "guest":
+            await asyncio.sleep(0.5)
+            raise HTTPException(404, "There's no account with that name on this Mimi.")
+        r = svc.pairing.request(u, request.headers.get("user-agent", ""), ip)
     except ValueError as e:
         raise HTTPException(429, str(e))
     return {**r, "device_screen": _device_screen(svc)}
+
+
+@router.post("/auth/pair/pause")
+async def pair_pause(request: Request, ctx: Ctx = Depends(owner_ctx)):
+    """Owner on the device: stop sign-in requests for 10 minutes and decline the open ones."""
+    if not is_local(request):
+        raise HTTPException(403, "Sign-in requests are managed on the Mimi device.")
+    S(request).pairing.pause(600)
+    return {"ok": True}
 
 
 def _device_screen(svc: Services) -> bool:
@@ -283,11 +312,20 @@ async def pair_poll(rid: str, request: Request, poll: str = ""):
 
 @router.post("/auth/unlock")
 async def unlock(body: UnlockIn, request: Request):
+    """The device's lock screen. Only the device itself may use it (network sign-in goes
+    through /auth/login or approve-on-device), and wrong PINs lock it out for a while."""
     svc = S(request)
+    if not is_local(request):
+        raise HTTPException(403, "Unlock Mimi on the device itself.")
     owner = svc.auth.owner()
+    wait = svc.guard.check("device", "owner")
+    if wait:
+        raise HTTPException(429, f"Too many wrong PINs. Try again in {int(wait) + 1} seconds.")
     if not owner or not svc.auth.verify(owner, body.pin):
+        svc.guard.failed("device", "owner")
         await asyncio.sleep(0.8)
         raise HTTPException(401, "Wrong PIN.")
+    svc.guard.succeeded("device", "owner")
     token = svc.auth.create_session(owner["id"], "device", "127.0.0.1")
     resp = JSONResponse({"user": public_user(owner)})
     _cookie(resp, token, request)

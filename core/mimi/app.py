@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from . import __version__, hardware, log
-from .auth import SESSION_COOKIE, Auth, Ctx
+from .auth import SESSION_COOKIE, Auth, Ctx, FailureGuard
 from .catalog import Catalog
 from .chat import ChatService
 from .db import Database
@@ -48,6 +48,7 @@ class Services:
         self.events = EventBus()
         self.auth = Auth(self.db)
         self.pairing = PairingService(self.auth, self.events)
+        self.guard = FailureGuard()  # wrong PIN/password lockouts
         self.catalog = Catalog(paths)
         self.hw = hardware.detect(paths, use_cache=True, max_age=10**9) if (paths.data / "hardware.json").exists() else {
             "profile": "standard", "backend": "vulkan", "cores": os.cpu_count() or 4, "gpus": [], "battery": hardware.battery()}
@@ -148,12 +149,32 @@ class Services:
 
 
 # --------------------------------------------------------------------------- request context
+LOOPBACK_NAMES = ("127.0.0.1", "localhost", "::1")
+
+
 def is_local(request: Request) -> bool:
+    """The device's own screen: a loopback peer on the app port, addressed by a loopback name.
+
+    Checking the Host header stops DNS rebinding (a web page whose domain resolves to
+    127.0.0.1 would otherwise count as the device and be signed in as the owner), and a
+    foreign Origin means some other site's page. The port isn't compared in Host so the
+    Vite dev proxy (localhost:5173) keeps working.
+    """
     server = request.scope.get("server") or ("", 0)
     client = request.client.host if request.client else ""
     if client == "testclient":  # Starlette's TestClient: local only when talking to the default test host
         return server[0] == "testserver"
-    return server[1] == MAIN_PORT and client in ("127.0.0.1", "::1", "localhost")
+    if server[1] != MAIN_PORT or client not in LOOPBACK_NAMES:
+        return False
+    if (request.url.hostname or "").strip("[]").lower() not in LOOPBACK_NAMES:
+        return False
+    origin = request.headers.get("origin")
+    if origin:  # "null" (sandboxed frames, file pages) counts as foreign too
+        from urllib.parse import urlsplit
+
+        if (urlsplit(origin).hostname or "").lower() not in LOOPBACK_NAMES:
+            return False
+    return True
 
 
 def ctx_or_none(request: Request) -> Ctx | None:
@@ -219,6 +240,9 @@ def create_app(paths: Paths | None = None) -> FastAPI:
         resp: Response = await call_next(request)
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
         resp.headers.setdefault("Referrer-Policy", "no-referrer")
+        # Nothing frames Mimi; refusing it stops other pages clickjacking buttons like Allow.
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'")
         if request.url.path.startswith("/api/"):
             resp.headers.setdefault("Cache-Control", "no-store")
         return resp

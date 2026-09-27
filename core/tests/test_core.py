@@ -297,7 +297,7 @@ def test_approve_on_device_sign_in(client, monkeypatch):
 
     from mimi import pairing
 
-    monkeypatch.setattr(pairing, "MIN_INTERVAL", 0)
+    monkeypatch.setattr(pairing, "ATTEMPTS_PER_MIN", 100)
     client.post("/api/auth/setup", json={"name": "Ada"})  # no PIN
     phone = TestClient(client.app, base_url="https://phone", headers={"user-agent": "Mozilla/5.0 (iPhone) Version/19 Safari/605"})
     assert phone.post("/api/auth/login", json={"name": "Ada", "secret": ""}).status_code == 401
@@ -341,11 +341,30 @@ def test_pairing_rate_limits():
         def publish(self, t, d=None, **kw):
             self.sent.append(t)
 
-    svc = PairingService(FakeAuth(), FakeEvents())
+    from mimi import pairing
+
+    ev = FakeEvents()
+    svc = PairingService(FakeAuth(), ev)
     u = {"id": "o", "name": "Ada"}
-    svc.request(u, "", "10.0.0.5")
+    for _ in range(pairing.ATTEMPTS_PER_MIN):
+        svc.throttle("10.0.0.5")
     with pytest.raises(ValueError):
-        svc.request(u, "", "10.0.0.5")  # too soon from the same address
+        svc.throttle("10.0.0.5")  # too many asks from one address, counted before any name lookup
+    svc.throttle("10.0.0.6")  # other addresses are unaffected
+    # one open request per address: asking again replaces it
+    a = svc.request(u, "", "10.0.0.7")
+    b = svc.request(u, "", "10.0.0.7")
+    assert [r["id"] for r in svc.pending()] == [b["id"]] and a["id"] != b["id"]
+    # Deny silences that address for a while
+    assert svc.decide(b["id"], False) == "denied"
+    with pytest.raises(ValueError):
+        svc.request(u, "", "10.0.0.7")
+    # the owner can pause all requests; open ones are declined
+    c = svc.request(u, "", "10.0.0.8")
+    svc.pause(600)
+    assert svc.pending() == [] and svc.claim(c["id"], c["poll"])[0] == "denied"
+    with pytest.raises(ValueError):
+        svc.request(u, "", "10.0.0.9")
     assert describe_client("Mozilla/5.0 (Linux; Android 15) Chrome/140 Mobile") == "Chrome on Android"
     assert describe_client("Mozilla/5.0 (Windows NT 10.0) Chrome/140 Edg/140") == "Edge on Windows"
 
@@ -368,7 +387,7 @@ def test_no_pin_sign_in_explains_what_is_missing(client, monkeypatch):
 
     from mimi import pairing
 
-    monkeypatch.setattr(pairing, "MIN_INTERVAL", 0)
+    monkeypatch.setattr(pairing, "ATTEMPTS_PER_MIN", 100)
     owner = client.post("/api/auth/setup", json={"name": "Ada", "pin": "2468"}).json()["user"]
     phone = TestClient(client.app, base_url="https://phone")
     r = phone.post("/api/auth/login", json={"name": "Ada", "secret": ""})
@@ -403,3 +422,51 @@ def test_ui_build_fingerprint(client, tmp_path):
     first = ui_build(svc)
     (tmp_path / "index.html").write_text('<script src="/_app/bb.js"></script>')
     assert first and ui_build(svc) != first
+
+
+def test_security_hardening(client):
+    """DNS rebinding, network unlock, brute force, cross-site event sockets and framing."""
+    from fastapi.testclient import TestClient
+    from starlette.websockets import WebSocketDisconnect
+
+    from mimi.app import is_local
+
+    client.post("/api/auth/setup", json={"name": "Ada", "pin": "2468"})
+
+    # a page whose domain resolves to 127.0.0.1 is not the device
+    class Req:
+        def __init__(self, host, origin=None, port=7600, peer="127.0.0.1"):
+            from starlette.datastructures import URL, Headers
+
+            self.scope = {"server": ("127.0.0.1", port)}
+            self.client = type("C", (), {"host": peer})()
+            self.url = URL(f"http://{host}/api/x")
+            self.headers = Headers({"host": host, **({"origin": origin} if origin else {})})
+
+    from mimi.app import MAIN_PORT
+
+    assert is_local(Req(f"127.0.0.1:{MAIN_PORT}", port=MAIN_PORT))
+    assert is_local(Req("localhost:5173", origin="http://localhost:5173", port=MAIN_PORT))  # Vite dev proxy
+    assert not is_local(Req("evil.example:7600", port=MAIN_PORT))
+    assert not is_local(Req(f"127.0.0.1:{MAIN_PORT}", origin="https://evil.example", port=MAIN_PORT))
+    assert not is_local(Req(f"127.0.0.1:{MAIN_PORT}", origin="null", port=MAIN_PORT))
+
+    phone = TestClient(client.app, base_url="https://phone")
+    assert phone.post("/api/auth/unlock", json={"pin": "2468"}).status_code == 403  # device-only
+    for _ in range(5):
+        assert phone.post("/api/auth/login", json={"name": "Ada", "secret": "0000"}).status_code == 401
+    r = phone.post("/api/auth/login", json={"name": "Ada", "secret": "2468"})
+    assert r.status_code == 429  # locked out for a while even with the right PIN
+
+    # event sockets: no session -> refused; a foreign page -> refused
+    with pytest.raises(WebSocketDisconnect):
+        with phone.websocket_connect("wss://phone/api/events") as ws:
+            ws.receive_text()
+    other = TestClient(client.app, base_url="https://phone2")
+    other.post("/api/auth/login", json={"name": "Ada", "secret": "2468"})
+    with pytest.raises(WebSocketDisconnect):
+        with other.websocket_connect("wss://phone2/api/events", headers={"origin": "https://evil.example"}) as ws:
+            ws.receive_text()
+
+    h = client.get("/api/ping").headers
+    assert h["x-frame-options"] == "DENY" and "frame-ancestors 'none'" in h["content-security-policy"]

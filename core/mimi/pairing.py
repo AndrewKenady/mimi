@@ -19,12 +19,14 @@ import re
 import secrets
 import threading
 import time
+from collections import deque
 
-TTL = 120           # seconds a request waits for a decision
-CLAIM_WINDOW = 60   # seconds an approved request can still be claimed
-MAX_PER_IP = 2      # open requests per network address (older ones are replaced)
-MAX_OPEN = 6        # open requests overall
-MIN_INTERVAL = 3    # seconds between new requests from one address
+TTL = 120              # seconds a request waits for a decision
+CLAIM_WINDOW = 60      # seconds an approved request can still be claimed
+MAX_OPEN = 6           # open requests overall (one per network address)
+ATTEMPTS_PER_MIN = 6   # sign-in asks per address per minute, counted before the account lookup
+DENY_BLOCK = 600       # after Deny, that address can't ask again for 10 minutes
+TRACKED_IPS = 2000     # bound on per-address bookkeeping (many spoofed/IPv6 sources)
 
 
 def describe_client(user_agent: str) -> str:
@@ -46,12 +48,17 @@ def _hash(token: str) -> str:
 
 
 class PairingService:
+    """Pending sign-in requests. All timing uses the monotonic clock, so changing the
+    system time can't freeze expiries or lock phones out."""
+
     def __init__(self, auth, events):
         self.auth = auth
         self.events = events
         self._lock = threading.Lock()
         self._reqs: dict[str, dict] = {}
-        self._last_by_ip: dict[str, float] = {}
+        self._attempts: dict[str, deque] = {}
+        self._blocked: dict[str, float] = {}
+        self._paused_until = 0.0
 
     # ------------------------------------------------------------------ helpers
     def _purge(self, now: float) -> None:
@@ -61,33 +68,59 @@ class PairingService:
                 if r["status"] == "pending":
                     self._announce_done(r, "expired")
                 del self._reqs[rid]
+        for ip, until in list(self._blocked.items()):
+            if until <= now:
+                del self._blocked[ip]
 
     @staticmethod
     def public(r: dict) -> dict:
+        left = max(0.0, r["created"] + TTL - time.monotonic())
         return {"id": r["id"], "name": r["user_name"], "code": r["code"], "client": r["client"], "ip": r["ip"],
-                "created": r["created"], "expires": r["created"] + TTL}
+                "expires": time.time() + left}  # wall-clock expiry for the device's countdown
 
     def _announce_done(self, r: dict, status: str) -> None:
         owner = self.auth.owner()
         if owner:
             self.events.publish("auth.request.done", {"id": r["id"], "status": status}, user_id=owner["id"])
 
+    def _refuse_if_blocked(self, ip: str, now: float) -> None:
+        if self._paused_until > now:
+            raise ValueError("The Mimi device isn't taking sign-in requests right now. Use your PIN, or try again later.")
+        if self._blocked.get(ip, 0) > now:
+            raise ValueError("The Mimi device declined. Try again in a few minutes, or use your PIN.")
+
     # ------------------------------------------------------------------ API
-    def request(self, user: dict, user_agent: str, ip: str) -> dict:
-        """Open a request. Raises ValueError with a friendly message when rate-limited."""
-        now = time.time()
+    def throttle(self, ip: str) -> None:
+        """Count one sign-in ask from this address, before the account lookup, so the 404 for
+        unknown names can't be probed quickly and hits and misses are limited alike."""
+        now = time.monotonic()
         with self._lock:
             self._purge(now)
-            if now - self._last_by_ip.get(ip, 0) < MIN_INTERVAL:
+            self._refuse_if_blocked(ip, now)
+            q = self._attempts.get(ip)
+            if q is None:
+                if len(self._attempts) >= TRACKED_IPS:  # forget the stalest addresses
+                    for k in sorted(self._attempts, key=lambda k: self._attempts[k][-1] if self._attempts[k] else 0)[: TRACKED_IPS // 4]:
+                        del self._attempts[k]
+                q = self._attempts[ip] = deque(maxlen=ATTEMPTS_PER_MIN)
+            while q and now - q[0] > 60:
+                q.popleft()
+            if len(q) >= ATTEMPTS_PER_MIN:
                 raise ValueError("Please wait a moment before asking again.")
-            mine = sorted((r for r in self._reqs.values() if r["ip"] == ip and r["status"] == "pending"), key=lambda r: r["created"])
-            while len(mine) >= MAX_PER_IP:  # replace this address's oldest open request
-                old = mine.pop(0)
+            q.append(now)
+
+    def request(self, user: dict, user_agent: str, ip: str) -> dict:
+        """Open a request (one per address: a new ask replaces that address's open one).
+        Raises ValueError with a friendly message when refused."""
+        now = time.monotonic()
+        with self._lock:
+            self._purge(now)
+            self._refuse_if_blocked(ip, now)
+            for old in [r for r in self._reqs.values() if r["ip"] == ip and r["status"] == "pending"]:
                 self._reqs.pop(old["id"], None)
                 self._announce_done(old, "replaced")
             if sum(1 for r in self._reqs.values() if r["status"] == "pending") >= MAX_OPEN:
                 raise ValueError("Mimi has too many sign-in requests waiting. Try again in a minute.")
-            self._last_by_ip[ip] = now
             poll = secrets.token_urlsafe(24)
             r = {
                 "id": secrets.token_urlsafe(12), "user_id": user["id"], "user_name": user["name"],
@@ -102,26 +135,48 @@ class PairingService:
 
     def pending(self) -> list[dict]:
         with self._lock:
-            self._purge(time.time())
+            self._purge(time.monotonic())
             return [self.public(r) for r in self._reqs.values() if r["status"] == "pending"]
 
     def decide(self, rid: str, approve: bool) -> str:
+        """Allow or deny. Deny also silences that address for a while and drops its other asks,
+        so one device on the network can't keep a dialog over the screen."""
+        now = time.monotonic()
+        done: list[tuple[dict, str]] = []
         with self._lock:
-            self._purge(time.time())
+            self._purge(now)
             r = self._reqs.get(rid)
             if not r:
                 return "expired"
             if r["status"] != "pending":
                 return r["status"]
             r["status"] = "approved" if approve else "denied"
-            r["decided_at"] = time.time()
-        self._announce_done(r, r["status"])
+            r["decided_at"] = now
+            done.append((r, r["status"]))
+            if not approve:
+                self._blocked[r["ip"]] = now + DENY_BLOCK
+                for other in [x for x in self._reqs.values() if x["ip"] == r["ip"] and x["status"] == "pending"]:
+                    other["status"], other["decided_at"] = "denied", now
+                    done.append((other, "denied"))
+        for x, status in done:
+            self._announce_done(x, status)
         return r["status"]
+
+    def pause(self, seconds: float = 600) -> None:
+        """Owner asked for quiet: refuse new asks for a while and decline the open ones."""
+        now = time.monotonic()
+        with self._lock:
+            self._paused_until = now + seconds
+            open_ = [r for r in self._reqs.values() if r["status"] == "pending"]
+            for r in open_:
+                r["status"], r["decided_at"] = "denied", now
+        for r in open_:
+            self._announce_done(r, "denied")
 
     def claim(self, rid: str, poll: str) -> tuple[str, dict | None]:
         """Poll a request. Returns (status, user); user is set once, when an approval is claimed."""
         with self._lock:
-            self._purge(time.time())
+            self._purge(time.monotonic())
             r = self._reqs.get(rid)
             if not r or not hmac.compare_digest(r["poll_hash"], _hash(poll or "")):
                 return "expired", None

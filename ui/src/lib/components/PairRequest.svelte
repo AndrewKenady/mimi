@@ -7,12 +7,22 @@
 	import { fade, scale } from 'svelte/transition';
 	import { app } from '$lib/app.svelte';
 	import { post } from '$lib/api';
-	import { MonitorSmartphone, Check, X } from '@lucide/svelte';
+	import { MonitorSmartphone, Check, X, BellOff } from '@lucide/svelte';
 
 	const req = $derived(app.pairRequests[0]);
 	let busy = $state(false);
 	let now = $state(Date.now() / 1000);
-	let allowBtn: HTMLButtonElement | undefined = $state();
+	let denyBtn: HTMLButtonElement | undefined = $state();
+	// The buttons arm only once the request on screen has been visible for a moment, so a
+	// stray key, gamepad A or a double tap can't approve a request that just replaced another.
+	let armedFor = $state<string | null>(null);
+	$effect(() => {
+		const id = req?.id;
+		armedFor = null;
+		if (!id) return;
+		const t = setTimeout(() => (armedFor = id), 1000);
+		return () => clearTimeout(t);
+	});
 
 	$effect(() => {
 		const t = setInterval(() => {
@@ -22,21 +32,34 @@
 		return () => clearInterval(t);
 	});
 	$effect(() => {
-		if (req) setTimeout(() => allowBtn?.focus({ preventScroll: true }), 80);
+		if (req) setTimeout(() => denyBtn?.focus({ preventScroll: true }), 80); // never Allow
 	});
 
 	async function decide(approve: boolean) {
-		if (!req || busy) return;
+		if (!req || busy || armedFor !== req.id) return;
 		busy = true;
 		const r = req;
 		try {
-			await post(`/api/auth/pair/${r.id}/decide`, { approve });
-			app.toast(approve ? `${r.name} is signed in on ${r.client}` : 'Sign-in request declined', approve ? 'ok' : 'info');
+			const { status } = await post(`/api/auth/pair/${r.id}/decide`, { approve });
+			if (status === 'approved' && approve) app.toast(`${r.client} can now sign in as ${r.name}`, 'ok');
+			else if (status === 'denied' && !approve) app.toast('Sign-in request declined. That device must wait 10 minutes to ask again.', 'info');
+			else if (status === 'expired') app.toast('That request had already expired', 'error');
+			else app.toast(`That request was already ${status}`, 'info');
 		} catch (e: any) {
 			app.toast(e.message || 'That request has expired', 'error');
 		} finally {
 			app.pairRequests = app.pairRequests.filter((x) => x.id !== r.id);
 			busy = false;
+		}
+	}
+
+	async function pause() {
+		try {
+			await post('/api/auth/pair/pause');
+			app.pairRequests = [];
+			app.toast('Sign-in requests paused for 10 minutes. PINs still work.', 'info');
+		} catch (e: any) {
+			app.toast(e.message || 'Could not pause requests', 'error');
 		}
 	}
 </script>
@@ -49,10 +72,13 @@
 		<p id="pr-desc"><b>{req.client}</b> at {req.ip} wants to sign in as <b>{req.name}</b>.</p>
 		<p class="lbl">Check that this code matches the one on that screen</p>
 		<div class="code" aria-label="Code {req.code.split('').join(' ')}">{#each req.code.split('') as d}<span>{d}</span>{/each}</div>
-		<div class="acts">
-			<button class="btn btn-lg" onclick={() => decide(false)} disabled={busy}><X size={17} /> Deny</button>
-			<button class="btn btn-lg btn-primary" bind:this={allowBtn} onclick={() => decide(true)} disabled={busy}><Check size={17} /> Allow</button>
-		</div>
+		{#key req.id}
+			<div class="acts">
+				<button class="btn btn-lg" bind:this={denyBtn} onclick={() => decide(false)} disabled={busy || armedFor !== req.id}><X size={17} /> Deny</button>
+				<button class="btn btn-lg btn-primary" onclick={() => decide(true)} disabled={busy || armedFor !== req.id}><Check size={17} /> Allow</button>
+			</div>
+		{/key}
+		<button class="pause" onclick={pause}><BellOff size={14} /> Pause sign-in requests for 10 minutes</button>
 		<p class="fine">
 			Expires in {Math.max(0, Math.round(req.expires - now))} s{#if app.pairRequests.length > 1} · {app.pairRequests.length - 1} more waiting{/if}. Only allow devices you recognise.
 		</p>
@@ -128,6 +154,20 @@
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 10px;
+	}
+	.pause {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 12px;
+		font-size: 0.8rem;
+		color: var(--text-3);
+		padding: 6px 10px;
+		border-radius: 999px;
+	}
+	.pause:hover {
+		color: var(--text);
+		background: var(--surface-2);
 	}
 	.fine {
 		margin-top: 14px;
