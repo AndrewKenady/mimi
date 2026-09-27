@@ -490,7 +490,7 @@ class _Anchor:
     lat: float
     lon: float
     radius: float
-    kind: str  # "postcode" | "place" | "near"
+    kind: str  # "postcode" | "place" | "feature" | "near"
     rank: int = 0
     name: str | None = None
     admin1: str | None = None
@@ -574,6 +574,13 @@ def _key_variants(street: str, key: str, country: str | None) -> list[str]:
     Boulevard des Acadiens reads in English.
     """
     words = fold(street).split()
+    if key.startswith("co rd "):
+        # Ontario files one road as "County Road 2" and as "County 2 Rd" (or "County 2 Road")
+        m = re.fullmatch(r"co rd (\w+)(?: (?:rd|road))?((?: [nsew])?)", key)
+        if not m:
+            return []
+        num, d = m.group(1), m.group(2)
+        return sorted({f"co rd {num}{d}", f"co rd {num} rd{d}", f"co rd {num} road{d}"} - {key})
     if len(words) < 2 or key.startswith(_ROUTE_PREFIXES):
         return []
     out = set()
@@ -790,10 +797,12 @@ class AddressIndex:
             chosen = (exact[:3 if p["region"] or pc_row else 8] or self._misspelt_towns(alt["locality"], p, resolve_place)
                       or towns[:1] or usable[:1])
             for rank, pl in enumerate(chosen):
-                # a hotel or museum can still locate the search, but it isn't the town to name in the label
-                town = pl.get("name") if (pl.get("fcode") or "").startswith(("PPL", "ADM")) else None
-                anchors.append(_Anchor(float(pl["lat"]), float(pl["lon"]), _place_radius(pl), "place", rank,
-                                       town, pl.get("admin1"), pl.get("country")))
+                # a hotel, museum or headland can still locate the search, but it isn't the town: it
+                # names nothing in the label and doesn't stop the look across the whole province
+                # ("Point Roberts, BC" offers only Roberts Point, a headland 40 km from the street)
+                is_town = (pl.get("fcode") or "").startswith(("PPL", "ADM"))
+                anchors.append(_Anchor(float(pl["lat"]), float(pl["lon"]), _place_radius(pl), "place" if is_town else "feature",
+                                       rank, pl.get("name") if is_town else None, pl.get("admin1"), pl.get("country")))
         if not anchors and near is not None:
             anchors.append(_Anchor(near[0], near[1], 60.0, "near"))
         return anchors
@@ -902,7 +911,9 @@ class AddressIndex:
         # known). Also when only the device's surroundings were searched and the number wasn't
         # there: "169 Bridger St" typed in Cheyenne may well be the one in Gillette.
         missing = not results or (p["number"] is not None and not any(r["precision"] in _GOOD for r in results))
-        if missing and not any(a.kind in ("place", "postcode") for a in anchors):
+        # Also when the named town has no such street at all: better the only "Rue des Frères-Vachon"
+        # in the province (the town was a namesake, or the neighbour across a border) than nothing.
+        if (missing and not any(a.kind in ("place", "postcode") for a in anchors)) or (not results and anchors):
             for col, value, pen in probes:
                 rows = [r for r in self._street_rows(col, value, None, p["region"])
                         if value is key or r["key"] != key]
@@ -915,10 +926,17 @@ class AddressIndex:
                     # the streets that have the number, however far away: nearest-first would
                     # keep only the 40 closest cells of a long road such as US 26
                     spots = self._number_spots(rows, p["number"])
+                    if not any(r["id"] in spots for r in rows):
+                        # none has it: the ones whose numbers come closest go first (of 55 County Road 2s,
+                        # the one numbered in the 19000s for 19207), before the list is cut short
+                        gap = self._number_gaps(rows, p["number"])
+                        rows.sort(key=lambda r: (r["_fit"], gap.get(r["id"], 1 << 30)))
                     rows = [r for r in rows if r["id"] in spots] or rows
                 if rows:
                     results += self._evaluate(p, rows, pen + 25.0 + 12.0 * ai, near)
-                    break
+                    # the number may be on the same road filed under another spelling ("County 2 Rd")
+                    if p["number"] is None or any(r["precision"] in _GOOD for r in results):
+                        break
         return results
 
     def _number_spots(self, rows: list[dict], n: int) -> dict[int, tuple[float, float]]:
@@ -935,6 +953,18 @@ class AddressIndex:
             for sid, geom in self._all(f"SELECT sid, geom FROM ranges WHERE sid IN ({ids}) AND lo <= ? AND hi >= ?", (n, n)):
                 spots.setdefault(sid, _along(geom, 0.5))
         return spots
+
+    def _number_gaps(self, rows: list[dict], n: int) -> dict[int, int]:
+        """Street row id -> how far its closest known number is from ``n``."""
+        gaps: dict[int, int] = {}
+        for i in range(0, len(rows), 5000):
+            ids = ",".join(str(r["id"]) for r in rows[i:i + 5000])
+            for sid, g in self._all(f"SELECT sid, MIN(ABS(num - ?)) FROM points WHERE sid IN ({ids}) GROUP BY sid", (n,)):
+                gaps[sid] = g
+            for sid, g in self._all(f"SELECT sid, MIN(CASE WHEN ? < lo THEN lo - ? WHEN ? > hi THEN ? - hi ELSE 0 END) "
+                                    f"FROM ranges WHERE sid IN ({ids}) GROUP BY sid", (n, n, n, n)):
+                gaps[sid] = min(g, gaps.get(sid, g))
+        return gaps
 
     @staticmethod
     def _fit(r: dict, anchors: list[_Anchor], mult: float) -> tuple[float, _Anchor] | None:
@@ -988,7 +1018,9 @@ class AddressIndex:
             # "123 King St W, Toronto" is 121 downtown, not the exact 123 in Bolton, 30 km out.
             # Only rows fitting the anchors better than every exact hit can win, so only they are tried.
             best_fit = min((r["_fit"] for r in rows if r["id"] in found), default=None)
-            for r in rows[:8]:
+            # with nothing to tell the rows apart (no town, no device position) the number decides
+            tied = len({r["_fit"] for r in rows}) == 1
+            for r in rows[:40 if tied else 8]:
                 if r["id"] not in found and (best_fit is None or r["_fit"] < best_fit - 4.0):
                     near_hit = self._nearest_number(r["id"], n)
                     if near_hit:
@@ -1101,8 +1133,14 @@ class AddressIndex:
                         L.debug("describe failed: %s", e)
                         cache[k] = {}
                 w = cache[k]
-                if w.get("place") and (w.get("distance_km") or 0) <= 25:
+                # the nearest town can be across a border (Orléans, Ontario for a street in Gatineau;
+                # Point Roberts, Washington for one in Delta, BC): then name the locality instead
+                same = lambda x: not r.get("admin1") or not x.get("admin1") or x["admin1"] == r["admin1"]
+                loc = w.get("locality") if isinstance(w.get("locality"), dict) else {}
+                if w.get("place") and (w.get("distance_km") or 0) <= 25 and same(w):
                     town = w["place"]
+                elif loc.get("name") and same(loc):
+                    town = loc["name"]
                 if not r.get("admin1") and w.get("admin1"):
                     r["admin1"] = w["admin1"]
                 if not r.get("country") and w.get("country"):

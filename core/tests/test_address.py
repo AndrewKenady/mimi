@@ -810,3 +810,75 @@ def test_close_neighbour_on_the_named_side_beats_exact_number_on_the_other(tmp_p
         assert r["name"] == "769 Grand Ave E"
     finally:
         ix.close()
+
+
+def test_a_non_town_match_does_not_stop_the_province_wide_look(tmp_path):
+    """"Point Roberts, BC": the place search offers only Roberts Point, a headland 40 km off;
+    the street is still found across the province."""
+    headland = {"name": "Roberts Point", "fcode": "PT", "lat": 48.6623, "lon": -123.3934, "admin1": "British Columbia", "country": "CA", "population": 0}
+
+    def build(b):
+        st = b.street("Sandbar Pl", 49.0116, -123.0405, "bc")
+        b.point(st, "475", 49.0115, -123.0406, source="nar")
+        b.point(st, "479", 49.0114, -123.0404, source="nar")
+
+    ix = _index(tmp_path, build)
+    try:
+        r = ix.search("477 Sandbar Place, Point Roberts, BC", resolve_place=lambda q: [dict(headland)], describe=None)[0]
+        assert r["name"] == "477 Sandbar Pl" and abs(r["lat"] - 49.0115) < 0.001
+        assert "Roberts Point" not in r["label"]
+    finally:
+        ix.close()
+
+
+def test_county_road_spellings_find_each_other(tmp_path):
+    """Ontario files one road as "County Road 2" and "County 2 Rd"; with no town, the one whose
+    numbers come closest wins among many roads of that name."""
+    def build(b):
+        for i in range(60):  # other County Road 2s, numbered low
+            s = b.street("County Road 2", 42.0 + i * 0.05, -82.0, "on")
+            b.point(s, "100", 42.0 + i * 0.05, -82.0, source="nar")
+        east = b.street("County 2 Rd", 45.056, -74.569, "on")
+        b.point(east, "19205", 45.0560, -74.5700, source="nar")
+        b.point(east, "19209", 45.0560, -74.5680, source="nar")
+
+    ix = _index(tmp_path, build)
+    try:
+        for q in ("19207 County Road 2, ON", "19207 County Rd 2, ON", "19207 County 2 Rd, ON"):
+            r = ix.search(q, resolve_place=lambda q: [], describe=None)[0]
+            assert r["precision"] == "interpolated" and abs(r["lon"] - -74.569) < 0.001, q
+    finally:
+        ix.close()
+
+
+def test_street_missing_from_the_named_town_is_found_in_the_province(tmp_path):
+    """"Orléans, QC" resolves to a Quebec namesake far from the only Rue des Frères-Vachon."""
+    namesake = {"name": "Orléans", "fcode": "PPL", "lat": 46.96, "lon": -70.95, "admin1": "Quebec", "country": "CA", "population": 2000}
+
+    def build(b):
+        st = b.street("Rue des Frères-Vachon", 45.51, -75.575, "qc")
+        b.point(st, "126", 45.51, -75.575, source="nar")
+
+    ix = _index(tmp_path, build)
+    try:
+        r = ix.search("126 Rue des Frères-Vachon, Orléans, QC", resolve_place=lambda q: [dict(namesake)], describe=None)[0]
+        assert r["precision"] == "exact" and abs(r["lat"] - 45.51) < 0.001
+    finally:
+        ix.close()
+
+
+def test_label_skips_a_nearest_town_across_a_border(tmp_path):
+    def build(b):
+        st = b.street("Sandbar Pl", 49.0116, -123.0405, "bc")
+        b.point(st, "477", 49.0115, -123.0406, source="nar")
+
+    def across(lat, lon):
+        return {"place": "Point Roberts", "admin1": "Washington", "country": "US", "distance_km": 4.0,
+                "locality": {"name": "Boundary Bay", "admin1": "British Columbia", "country": "CA"}}
+
+    ix = _index(tmp_path, build)
+    try:
+        r = ix.search("477 Sandbar Pl, BC", resolve_place=lambda q: [], describe=across)[0]
+        assert r["label"].startswith("477 Sandbar Pl, Boundary Bay, British Columbia")
+    finally:
+        ix.close()
