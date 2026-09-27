@@ -170,7 +170,7 @@
 				<h2>You're all set, {name.trim()}.</h2>
 				<div class="tips">
 					<div><Sparkles size={18} /><span>Ask anything. I'll look it up in the offline library and show you my sources.</span></div>
-					<div><AudioLines size={18} /><span>Tap Talk to have a spoken conversation, or hold the left trigger on the controller.</span></div>
+					<div><AudioLines size={18} /><span>Tap Talk and just speak. I'll answer out loud and listen for your follow-up.</span></div>
 					<div><Gamepad2 size={18} /><span>D-pad moves, A selects, B goes back, Start opens the quick menu.</span></div>
 					<div><Keyboard size={18} /><span>Press Ctrl + K to jump anywhere.</span></div>
 				</div>

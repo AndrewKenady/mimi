@@ -1,6 +1,8 @@
 <!--
-  Full-screen voice conversation: hold to talk (button, Space, or the left
-  trigger), MIMI answers out loud while the Well reacts to both voices.
+  Full-screen voice conversation. Tap to talk (the mic button, Space, or the
+  controller's talk button): MIMI listens right away, notices when you stop
+  speaking, answers out loud, then listens again for a follow-up. Long-press is
+  deliberately not used: phones turn long presses into text selection.
 -->
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
@@ -23,39 +25,87 @@
 	const v = app.settings.user?.voice || {};
 	const speaker = new Speaker(v.voice, v.speed);
 	let abort: AbortController | null = null;
-	let pressAt = 0;
+	let startedAt = 0;
+	let vadTimer: ReturnType<typeof setInterval> | undefined;
+	// Hands-free: after MIMI finishes speaking, listen again for a follow-up.
+	let followUp = false;
 
+	// End-of-turn detection from the mic level (tuned for a handheld held at arm's length).
+	const SPEECH = 0.09; // louder than this counts as talking
+	const QUIET = 0.05; // quieter than this counts as a pause
+	const END_PAUSE = 1200; // ms of quiet after speech that ends the turn
+	const NO_SPEECH = 8000; // give up if nothing is said
+	const MAX_TURN = 60000;
+
+	// While the answer is still streaming, the audio queue can briefly run dry between
+	// sentences; only an idle speaker after the stream has ended means MIMI is done.
+	let streaming = false;
 	speaker.onIdle = () => {
-		if (phase === 'speaking') phase = 'idle';
+		if (phase !== 'speaking' || streaming) return;
+		finishedSpeaking();
 	};
+	function finishedSpeaking() {
+		phase = 'idle';
+		if (followUp) startListening(true);
+	}
 
 	const wellState = $derived(phase === 'listening' ? 'listening' : phase === 'speaking' ? 'speaking' : phase === 'thinking' || phase === 'transcribing' ? 'thinking' : 'idle');
 	const level = () => (phase === 'listening' ? rec.level() : phase === 'speaking' ? speaker.level() : 0);
 
-	async function startListening() {
+	async function startListening(auto = false) {
 		if (phase === 'listening') return;
-		speaker.stop(); // barge in
+		speaker.stop(); // tapping while MIMI talks interrupts it
 		abort?.abort();
-		heard = '';
-		reply = '';
+		if (!auto) {
+			heard = '';
+			reply = '';
+		}
 		tool = '';
+		hint = '';
 		try {
 			await rec.start();
 			phase = 'listening';
-			pressAt = performance.now();
+			startedAt = performance.now();
+			watchForEndOfTurn(auto);
 		} catch (e) {
 			phase = 'error';
 			hint = 'Microphone unavailable. Check that MIMI is allowed to use it.';
 		}
 	}
 
+	function watchForEndOfTurn(auto: boolean) {
+		clearInterval(vadTimer);
+		let spoke = 0; // ms of speech heard so far
+		let quietSince = 0;
+		vadTimer = setInterval(() => {
+			if (phase !== 'listening') return clearInterval(vadTimer);
+			const now = performance.now();
+			const lv = rec.level();
+			if (lv > SPEECH) {
+				spoke += 100;
+				quietSince = 0;
+			} else if (lv < QUIET && spoke >= 300) {
+				quietSince ||= now;
+				if (now - quietSince > END_PAUSE) stopListening();
+			}
+			if (spoke < 300 && now - startedAt > NO_SPEECH) {
+				// nobody spoke: a hands-free follow-up just goes quiet, a tap says so
+				rec.cancel();
+				phase = 'idle';
+				hint = auto ? '' : "I didn't hear anything. Tap the mic and speak.";
+				clearInterval(vadTimer);
+			} else if (now - startedAt > MAX_TURN) stopListening();
+		}, 100);
+	}
+
 	async function stopListening() {
 		if (phase !== 'listening') return;
-		const held = performance.now() - pressAt;
+		clearInterval(vadTimer);
+		const long = performance.now() - startedAt;
 		const blob = await rec.stop();
-		if (!blob || held < 350) {
+		if (!blob || long < 400) {
 			phase = 'idle';
-			hint = 'Hold to talk, then let go.';
+			hint = 'Tap the mic and speak.';
 			return;
 		}
 		phase = 'transcribing';
@@ -87,6 +137,7 @@
 		phase = 'thinking';
 		hint = '';
 		abort = new AbortController();
+		streaming = true;
 		try {
 			for await (const ev of stream(`/api/chats/${chatId || 'new'}/messages`, { content: text, voice: true }, abort.signal)) {
 				if (ev.event === 'meta' && !chatId) {
@@ -108,13 +159,17 @@
 					hint = ev.data.message;
 				}
 			}
+			streaming = false;
 			speaker.flush();
 			if (!reply) phase = 'idle';
+			else if (phase === 'speaking' && !speaker.busy) finishedSpeaking(); // it already said everything
 		} catch (e: any) {
 			if (e.name !== 'AbortError') {
 				phase = 'error';
 				hint = e.message;
 			}
+		} finally {
+			streaming = false;
 		}
 		app.chatsVersion++;
 	}
@@ -125,6 +180,7 @@
 	}
 
 	function close() {
+		clearInterval(vadTimer);
 		speaker.stop();
 		abort?.abort();
 		rec.cancel();
@@ -139,18 +195,13 @@
 	}
 
 	onMount(() => {
-		const down = () => startListening();
-		const up = () => stopListening();
+		followUp = true;
+		startListening(); // opening voice mode means "I want to talk"
+		const down = () => toggle();
 		const key = (e: KeyboardEvent) => {
 			if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement)) {
 				e.preventDefault();
-				if (e.type === 'keydown') startListening();
-			}
-		};
-		const keyup = (e: KeyboardEvent) => {
-			if (e.code === 'Space') {
-				e.preventDefault();
-				stopListening();
+				toggle();
 			}
 		};
 		const back = (e: Event) => {
@@ -158,25 +209,22 @@
 			close();
 		};
 		addEventListener('mimi:ptt-down', down);
-		addEventListener('mimi:ptt-up', up);
 		addEventListener('keydown', key);
-		addEventListener('keyup', keyup);
 		addEventListener('mimi:back', back);
 		return () => {
 			removeEventListener('mimi:ptt-down', down);
-			removeEventListener('mimi:ptt-up', up);
 			removeEventListener('keydown', key);
-			removeEventListener('keyup', keyup);
 			removeEventListener('mimi:back', back);
 		};
 	});
 	onDestroy(() => {
+		clearInterval(vadTimer);
 		speaker.stop();
 		rec.cancel();
 	});
 
 	const status = $derived(
-		phase === 'listening' ? 'Listening…' : phase === 'transcribing' ? 'Got it…' : phase === 'thinking' ? tool || 'Thinking…' : phase === 'speaking' ? '' : phase === 'error' ? '' : 'Hold to talk'
+		phase === 'listening' ? 'Listening…' : phase === 'transcribing' ? 'Got it…' : phase === 'thinking' ? tool || 'Thinking…' : phase === 'speaking' ? '' : phase === 'error' ? '' : 'Tap the mic to talk'
 	);
 </script>
 
@@ -201,15 +249,12 @@
 		<button
 			class="talk"
 			class:on={phase === 'listening'}
-			onpointerdown={(e) => { e.preventDefault(); startListening(); }}
-			onpointerup={stopListening}
-			onpointerleave={() => phase === 'listening' && stopListening()}
-			onkeydown={(e) => e.key === 'Enter' && toggle()}
-			aria-label="Hold to talk"
+			onclick={toggle}
+			aria-label={phase === 'listening' ? 'Done talking' : phase === 'speaking' ? 'Interrupt and talk' : 'Start talking'}
 		>
 			{#if phase === 'listening'}<Square size={26} />{:else}<Mic size={28} />{/if}
 		</button>
-		<p class="fine">Hold the button, Space, or the left trigger · B to close</p>
+		<p class="fine">{phase === 'listening' ? 'Pause when you’re done, or tap to send' : phase === 'speaking' ? 'Tap to interrupt' : 'Tap the mic or press Space'} · B to close</p>
 	</div>
 </div>
 

@@ -138,6 +138,11 @@ export class Speaker {
 		if (s) this.say(s);
 	}
 
+	/** Audio is still being synthesized or played. */
+	get busy() {
+		return this.inflight > 0;
+	}
+
 	say(text: string) {
 		const gen = this.gen;
 		const ctx = this.ensure();

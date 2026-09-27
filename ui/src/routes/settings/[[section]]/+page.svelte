@@ -193,7 +193,7 @@
 	const ACCENTS = ['#6EE7D2', '#8AB4FF', '#B69CFF', '#F28FAD', '#F5B971', '#7DD3A8', '#F6E27A', '#FF9E7A'];
 	const ACTIONS: [string, string][] = [
 		['', 'Nothing'], ['select', 'Select'], ['back', 'Back'], ['voice', 'Talk to MIMI'], ['lens', 'Open Lens'], ['prev_surface', 'Previous screen'],
-		['next_surface', 'Next screen'], ['push_to_talk', 'Push to talk (hold)'], ['quick_menu', 'Quick menu'], ['command_palette', 'Search / jump']
+		['next_surface', 'Next screen'], ['push_to_talk', 'Talk (tap to start or stop)'], ['quick_menu', 'Quick menu'], ['command_palette', 'Search / jump']
 	];
 	const BUTTONS = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Start', 'Back'];
 	const WIDGETS: [string, string][] = [['onthisday', 'Discover'], ['nearby', 'Nearby'], ['continue', 'Continue'], ['notes', 'Recent notes']];

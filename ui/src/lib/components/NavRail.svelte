@@ -37,7 +37,7 @@
 		{/each}
 	</div>
 	<div class="bottom">
-		<button class="item talk" onclick={() => (app.voice = true)} title="Talk to MIMI · hold Space, or X on a controller">
+		<button class="item talk" onclick={() => (app.voice = true)} title="Talk to MIMI: tap and speak (X on a controller)">
 			<span class="ico"><AudioLines size={20} strokeWidth={2.2} /></span>
 			<span class="lbl">Talk</span>
 		</button>
