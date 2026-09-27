@@ -230,7 +230,7 @@
 
 			{#if section === 'general' && D.general}
 				<div class="group card">
-					<Row label="Launch MIMI at startup" hint={inShell || app.boot?.local ? 'Opens MIMI when you sign in to Windows.' : 'Change this on the device.'}>
+					<Row label="Launch MIMI at startup" hint={!(inShell || app.boot?.local) ? 'Change this on the device.' : app.boot?.portable ? 'Portable drive: this adds a startup entry to this PC that points at the drive, so only use it on your own computer.' : 'Opens MIMI when you sign in to Windows.'}>
 						<Toggle checked={D.general.launch_at_startup} onchange={(v) => dev('general', { launch_at_startup: v })} label="Launch at startup" />
 					</Row>
 					<Row label="Open full screen" hint="Start in immersive full-screen mode. F11 toggles anytime.">
@@ -586,7 +586,7 @@
 			{:else if section === 'system'}
 				{#if sys}
 					<div class="group card">
-						<Row label="MIMI" hint={`Version ${sys.version} · ${sys.root}`}><span class="tag live">Offline</span></Row>
+						<Row label="MIMI" hint={`Version ${sys.version} · ${sys.root}${sys.portable ? ' · portable drive' : ''}`}><span class="tag live">Offline</span></Row>
 						<Row label="Device" hint={`${sys.hardware.cpu} · ${sys.hardware.ram_installed_gb} GB RAM`}><span class="muted">{sys.hardware.device}</span></Row>
 						<Row label="Graphics" hint={(sys.hardware.gpus || []).map((g: any) => `${g.name} (${Math.round(g.total_mb / 1024)} GB)`).join(', ') || 'CPU only'}>
 							<span class="muted">{sys.hardware.backend} · {sys.hardware.profile}</span>

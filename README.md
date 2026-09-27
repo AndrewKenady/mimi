@@ -10,7 +10,7 @@ MIMI turns a small PC into an assistant that works with **zero internet**. The r
 - **Reads photos.** Lens does instant on-device OCR, and the vision model can explain, translate or identify what it sees.
 - **Talks.** Full-screen voice conversation (Whisper and Kokoro, all on the device), or push-to-talk on the controller.
 - **Takes notes.** Scribe records, transcribes, and writes the summary, key points and action items.
-- **Knows where you are.** Offline maps of the US and Canada, "what's near me" (GeoNames plus 1.2M geotagged Wikipedia articles), and **turn-by-turn driving directions** with time and distance (Valhalla).
+- **Knows where you are.** Offline maps of the US and Canada, "what's near me" (GeoNames plus 1.2M geotagged Wikipedia articles), and **turn-by-turn driving directions** with time and distance (Valhalla). Location comes from a USB GPS or the place you set. **Live GPS** also lets a phone riding along stream its position, so the map, directions and "near me" follow you.
 - **Remembers you, transparently.** Suggested memories wait for your OK. Every one can be seen, edited, pinned, paused or erased.
 - **Shares.** Phones join the MIMI Wi-Fi and open `https://mimi.local` as guests or users. Or, with no hotspot hardware, any phone or laptop on the same network opens the address shown in Settings and signs in with full access.
 - **Extensible.** Slash commands in the chat box (`/eli5`, `/translate spanish …`, `/steps`, `/quiz`…). Drop a Python file into `tools/` to give MIMI a new ability, like the included sunrise/sunset and unit-conversion tools. See [tools/README.md](tools/README.md).
@@ -48,6 +48,16 @@ cd core; ..\python\python.exe -m pytest               # tests
 | `shell/` MIMI.exe | WinForms + WebView2, compiled with the C# compiler that ships with Windows |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), the original [plan](docs/PLAN.md), [design decisions](docs/DECISIONS.md) (including where we deviated from the plan) and [benchmarks](docs/BENCHMARKS.md).
+
+## Portable drive
+
+Make a copy that runs from a USB drive on any Windows 10/11 PC, with nothing installed on it:
+
+```powershell
+python\python.exe scripts\make_drive.py E:\ --edition standard     # lite | standard | full; --dry-run to preview
+```
+
+The drive must be exFAT or NTFS. Books that don't fit are left out, largest and least essential first; medicine, repair, travel and survival always stay. Your accounts and chats stay behind unless you pass `--include-my-data`. Re-running the same command resumes the copy. `--map-bbox west,south,east,north` copies just one region of the map.
 
 ## Sharing with phones
 

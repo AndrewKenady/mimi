@@ -40,6 +40,11 @@ class Paths:
 
     # --- source / config -------------------------------------------------
     @property
+    def portable(self) -> bool:
+        """True for a drive made by scripts/make_drive.py (it leaves a portable.json marker)."""
+        return (self.root / "portable.json").exists()
+
+    @property
     def config(self) -> Path:
         return self.root / "config"
 

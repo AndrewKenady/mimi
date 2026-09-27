@@ -53,6 +53,7 @@ async def bootstrap(request: Request):
     base = {
         "version": __version__,
         "local": local,
+        "portable": svc.paths.portable,
         "needs_setup": not svc.auth.has_owner(),
         "locked": bool(local and svc.auth.has_owner() and ctx is None),
         "me": public_user(ctx.user) if ctx else None,
@@ -1056,7 +1057,7 @@ async def system_info(request: Request, ctx: Ctx = Depends(owner_ctx)):
     usage = await asyncio.to_thread(system.disk_usage, svc.paths)
     return {
         "version": __version__, "root": str(svc.paths.root), "hardware": svc.hw, "health": svc.health(), "disk": usage,
-        "autostart": system.autostart_enabled(), "shell_built": system.shell_exe(svc.paths).exists(),
+        "autostart": system.autostart_enabled(), "shell_built": system.shell_exe(svc.paths).exists(), "portable": svc.paths.portable,
         "logs": sorted(p.name for p in svc.paths.logs.glob("*.log")),
     }
 

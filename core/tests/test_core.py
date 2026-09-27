@@ -278,3 +278,14 @@ def test_live_location_from_a_browser(client):
     assert r.json()["current"]["source"] == "device" and r.json()["current"]["lat"] == 43.48
     r = client.delete("/api/location/live")  # streaming stopped: fall back to the pinned place at once
     assert r.json()["current"]["source"] == "manual" and r.json()["current"]["label"] == "Old Faithful"
+
+
+def test_repeated_paragraphs_are_dropped():
+    from mimi.chat import drop_repeated_paragraphs
+
+    a = ("Stay calm and keep the bitten limb still. Do not cut, suck out venom or use a tourniquet [1]. Get to a hospital.\n\n"
+         "Keep calm and keep the limb still. Do not use a tourniquet, cut or suck out venom [2]. Get to a hospital for antivenom.\n\n"
+         "Call emergency services if you can.")
+    assert drop_repeated_paragraphs(a).count("\n\n") == 1
+    b = "Old Faithful erupts about every 90 minutes, shooting water up to 180 feet.\n\nGrand Prismatic Spring is the largest hot spring in the United States."
+    assert drop_repeated_paragraphs(b) == b

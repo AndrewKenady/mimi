@@ -109,6 +109,21 @@ def sanitize_citations(text: str, n_sources: int) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
+def drop_repeated_paragraphs(text: str) -> str:
+    """Small models sometimes restate the whole answer after a tool call; keep the first telling."""
+    paras = re.split(r"\n\s*\n", text)
+    seen: list[set[str]] = []
+    out = []
+    for p in paras:
+        words = set(re.findall(r"[a-z']{3,}", p.lower()))
+        if len(words) >= 10 and any(len(words & s) / len(words | s) >= 0.55 for s in seen):
+            continue
+        if len(words) >= 10:
+            seen.append(words)
+        out.append(p)
+    return "\n\n".join(out)
+
+
 class ChatService:
     def __init__(self, svc):
         self.svc = svc
@@ -480,7 +495,7 @@ class ChatService:
         finally:
             self.active.pop(chat_id, None)
 
-        answer = sanitize_citations(answer, len(state.sources))
+        answer = sanitize_citations(drop_repeated_paragraphs(answer), len(state.sources))
         used = memories_referenced(memories, answer)
         if used:
             svc.memory.mark_used([m["id"] for m in used])
