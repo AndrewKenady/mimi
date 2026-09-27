@@ -1,4 +1,4 @@
-"""Unit and API tests for MIMI Core (no model or network needed)."""
+"""Unit and API tests for Mimi Core (no model or network needed)."""
 
 import json
 
@@ -348,3 +348,58 @@ def test_pairing_rate_limits():
         svc.request(u, "", "10.0.0.5")  # too soon from the same address
     assert describe_client("Mozilla/5.0 (Linux; Android 15) Chrome/140 Mobile") == "Chrome on Android"
     assert describe_client("Mozilla/5.0 (Windows NT 10.0) Chrome/140 Edg/140") == "Edge on Windows"
+
+
+def _eventually(check, timeout: float = 3.0) -> bool:
+    import time
+
+    end = time.time() + timeout
+    while time.time() < end:
+        if check():
+            return True
+        time.sleep(0.02)
+    return False
+
+
+def test_no_pin_sign_in_explains_what_is_missing(client, monkeypatch):
+    """Signing in with the PIN left blank never fails silently: an outdated page is told to reload,
+    and the phone learns when Mimi isn't open on the device, where the owner would tap Allow."""
+    from fastapi.testclient import TestClient
+
+    from mimi import pairing
+
+    monkeypatch.setattr(pairing, "MIN_INTERVAL", 0)
+    owner = client.post("/api/auth/setup", json={"name": "Ada", "pin": "2468"}).json()["user"]
+    phone = TestClient(client.app, base_url="https://phone")
+    r = phone.post("/api/auth/login", json={"name": "Ada", "secret": ""})
+    assert r.status_code == 401 and "reload" in r.json()["detail"]
+
+    req = phone.post("/api/auth/pair", json={"name": "Ada"}).json()
+    assert req["device_screen"] is False
+
+    def screen() -> bool:
+        return phone.get(f"/api/auth/pair/{req['id']}?poll={req['poll']}").json()["device_screen"]
+
+    laptop = TestClient(client.app, base_url="https://laptop")
+    assert laptop.post("/api/auth/login", json={"name": "Ada", "secret": "2468"}).status_code == 200
+    with laptop.websocket_connect("wss://laptop/api/events"):  # the owner elsewhere on the network can't approve
+        assert _eventually(lambda: client.app.state.svc.events.watching(owner["id"]))
+        assert not screen()
+    with client.websocket_connect("/api/events"):  # Mimi open on the device itself
+        assert _eventually(screen)
+    assert _eventually(lambda: not screen())
+
+
+def test_ui_build_fingerprint(client, tmp_path):
+    """Windows left open across an update compare this to know they're running an old app."""
+    from types import SimpleNamespace
+
+    from mimi.api import ui_build
+
+    assert client.get("/api/ping").json()["build"] == client.get("/api/bootstrap").json()["build"]
+    svc = SimpleNamespace(paths=SimpleNamespace(ui_build=tmp_path))
+    assert ui_build(svc) == ""
+    (tmp_path / "index.html").write_text('<script src="/_app/a.js"></script>')
+    first = ui_build(svc)
+    (tmp_path / "index.html").write_text('<script src="/_app/bb.js"></script>')
+    assert first and ui_build(svc) != first

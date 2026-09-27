@@ -16,6 +16,7 @@ from typing import Any
 class Subscriber:
     user_id: str | None
     role: str
+    local: bool = False  # connected from the device's own screen (loopback app port)
     queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=500))
 
 
@@ -28,13 +29,17 @@ class EventBus:
     def bind(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop = loop
 
-    def subscribe(self, user_id: str | None, role: str) -> Subscriber:
-        s = Subscriber(user_id, role)
+    def subscribe(self, user_id: str | None, role: str, local: bool = False) -> Subscriber:
+        s = Subscriber(user_id, role, local)
         self._subs.add(s)
         return s
 
     def unsubscribe(self, s: Subscriber) -> None:
         self._subs.discard(s)
+
+    def watching(self, user_id: str, *, local: bool = False) -> bool:
+        """Whether this user has a live window open (on the device's own screen, with local=True)."""
+        return any(s.user_id == user_id and (s.local or not local) for s in list(self._subs))
 
     def publish(self, type_: str, data: Any = None, *, user_id: str | None = None, owner_only: bool = False, sticky: bool = False) -> None:
         event = {"type": type_, "data": data, "ts": time.time()}

@@ -1,4 +1,4 @@
-"""MIMI Core application: service container, lifecycle and HTTP app assembly."""
+"""Mimi Core application: service container, lifecycle and HTTP app assembly."""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ class Services:
         self.app = app
         loop = asyncio.get_running_loop()
         self.events.bind(loop)
-        L.info("MIMI Core %s starting at %s", __version__, self.paths.root)
+        L.info("Mimi Core %s starting at %s", __version__, self.paths.root)
         # Fresh hardware probe in the background (the cached one is used meanwhile).
         self._tasks.append(asyncio.create_task(self._refresh_hardware()))
         await self.kiwix_service.start()
@@ -126,7 +126,7 @@ class Services:
         await self.kiwix_service.stop()
         await self.models.shutdown()
         self.db.close()
-        L.info("MIMI Core stopped")
+        L.info("Mimi Core stopped")
 
     async def shutdown_hook(self) -> None:
         if self._stop_server:
@@ -174,7 +174,7 @@ def ctx_or_none(request: Request) -> Ctx | None:
 def get_ctx(request: Request) -> Ctx:
     ctx = ctx_or_none(request)
     if ctx is None:
-        raise HTTPException(401, "Sign in to MIMI to continue.")
+        raise HTTPException(401, "Sign in to Mimi to continue.")
     return ctx
 
 
@@ -206,7 +206,7 @@ def create_app(paths: Paths | None = None) -> FastAPI:
         finally:
             await svc.shutdown()
 
-    app = FastAPI(title="MIMI Core", version=__version__, lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+    app = FastAPI(title="Mimi Core", version=__version__, lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
     app.state.svc = svc
 
     from .api import router as api_router, public_router
@@ -241,8 +241,8 @@ def create_app(paths: Paths | None = None) -> FastAPI:
     return app
 
 
-PLACEHOLDER = """<!doctype html><html><head><meta charset=utf-8><title>MIMI</title>
+PLACEHOLDER = """<!doctype html><html><head><meta charset=utf-8><title>Mimi</title>
 <style>body{margin:0;height:100vh;display:grid;place-items:center;background:#060a12;color:#dfe8f5;font:16px/1.5 system-ui}
 .o{width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#b8fff2,#39c3b0 45%,#0b3b4a 75%);box-shadow:0 0 80px #2ad3bf66;margin:0 auto 24px}</style>
-</head><body><div><div class=o></div><h1 style="font-weight:300;letter-spacing:.3em;text-align:center">MIMI</h1>
+</head><body><div><div class=o></div><h1 style="font-weight:300;letter-spacing:.3em;text-align:center">Mimi</h1>
 <p style="opacity:.7;text-align:center">Core is running. The app UI hasn't been built yet — run <code>scripts/build-ui.ps1</code>.</p></div></body></html>"""

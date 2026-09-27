@@ -9,7 +9,7 @@ export type Me = { id: string; name: string; role: 'owner' | 'user' | 'guest'; c
 class AppState {
 	boot = $state<any>(null);
 	ready = $state(false);
-	offline = $state(false); // Core unreachable (not "internet" — MIMI never needs that)
+	offline = $state(false); // Core unreachable (not "internet" — Mimi never needs that)
 	me = $state<Me | null>(null);
 	settings = $state<{ device: any; user: any }>({ device: {}, user: {} });
 	modes = $state<Record<string, any>>({});
@@ -18,7 +18,7 @@ class AppState {
 	hardware = $state<any>({});
 	library = $state<any>(null);
 	location = $state<any>(null);
-	/** This browser is streaming its GPS position to MIMI (a phone in the car, or a device with a sensor). */
+	/** This browser is streaming its GPS position to Mimi (a phone in the car, or a device with a sensor). */
 	live = $state(false);
 	/** Sign-in requests from browsers on the network, waiting for the owner's OK (device only). */
 	pairRequests = $state<any[]>([]);
@@ -43,6 +43,7 @@ class AppState {
 	private lastFix = { t: 0, lat: 0, lon: 0, accuracy: 0 };
 	private retry = 0;
 	private toastId = 0;
+	private watchingBuild = false;
 
 	get isOwner() {
 		return this.me?.role === 'owner';
@@ -68,10 +69,10 @@ class AppState {
 			this.applyAppearance();
 			if (b.me) this.connect();
 			if (b.me && this.readLive()) this.startLive(true);
-			if (b.local && b.me?.role === 'owner') {
-				api('/api/auth/pair/pending')
-					.then((r: any) => (this.pairRequests = r.requests || []))
-					.catch(() => {});
+			this.refreshPairRequests();
+			if (!this.watchingBuild) {
+				this.watchingBuild = true;
+				document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && this.checkBuild());
 			}
 		} catch {
 			this.offline = true;
@@ -88,6 +89,10 @@ class AppState {
 		const ws = new WebSocket(`${proto}://${location.host}/api/events`);
 		this.ws = ws;
 		ws.onopen = () => {
+			if (this.retry > 0) {
+				this.checkBuild(); // back after a drop: Core may have restarted onto a new build
+				this.refreshPairRequests(); // requests announced while we were disconnected aren't replayed
+			}
 			this.retry = 0;
 			this.offline = false;
 		};
@@ -104,6 +109,28 @@ class AppState {
 			const wait = Math.min(8000, 500 * 2 ** this.retry++);
 			setTimeout(() => this.connect(), wait);
 		};
+	}
+
+	/** Sign-in requests waiting for the owner (only shown on the device's own screen). */
+	refreshPairRequests() {
+		if (!this.boot?.local || this.me?.role !== 'owner') return;
+		api('/api/auth/pair/pending')
+			.then((r: any) => (this.pairRequests = r.requests || []))
+			.catch(() => {});
+	}
+
+	/** A window opened before an update keeps running the old app (no sign-in approvals, for one).
+	 *  Signed out there is nothing to lose, so reload; otherwise offer it. */
+	async checkBuild() {
+		try {
+			const p = await api('/api/ping');
+			if (!p.build || !this.boot?.build || p.build === this.boot.build) return;
+			this.boot.build = p.build; // ask once per update
+			if (!this.me) location.reload();
+			else this.toast('Mimi was updated.', 'info', { label: 'Reload', run: () => location.reload() }, 20000);
+		} catch {
+			/* Core unreachable: the reconnect logic handles it */
+		}
 	}
 
 	private onEvent(ev: { type: string; data: any }) {
@@ -207,7 +234,7 @@ class AppState {
 	}
 
 	/**
-	 * Stream this browser's position to MIMI. Directions, "near me" and the map then follow
+	 * Stream this browser's position to Mimi. Directions, "near me" and the map then follow
 	 * the device as it moves. Fixes are sent at most every 10 s unless we moved 50 m, plus a
 	 * heartbeat so a parked car doesn't go stale (Core forgets a device fix after 10 minutes).
 	 */
@@ -233,7 +260,7 @@ class AppState {
 			},
 			(err) => {
 				if (!quiet || err.code === err.PERMISSION_DENIED) {
-					this.toast(err.code === err.PERMISSION_DENIED ? 'Location permission was denied for this browser.' : 'No location fix yet. MIMI will keep trying.', 'error');
+					this.toast(err.code === err.PERMISSION_DENIED ? 'Location permission was denied for this browser.' : 'No location fix yet. Mimi will keep trying.', 'error');
 				}
 				if (err.code === err.PERMISSION_DENIED) this.stopLive();
 			},
@@ -247,7 +274,7 @@ class AppState {
 		try {
 			localStorage.setItem('mimi.live', '1');
 		} catch {}
-		if (!quiet) this.toast('Sharing this device’s live location with MIMI', 'ok');
+		if (!quiet) this.toast('Sharing this device’s live location with Mimi', 'ok');
 		return true;
 	}
 

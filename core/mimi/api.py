@@ -1,8 +1,10 @@
-"""HTTP API for the MIMI app (all JSON under /api, plus a few public routes)."""
+"""HTTP API for the Mimi app (all JSON under /api, plus a few public routes)."""
 
 from __future__ import annotations
 
 import asyncio
+import functools
+import hashlib
 import json
 import os
 import re
@@ -15,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from pydantic import BaseModel
 
 from . import __version__, log, system, tools
-from .app import MAIN_PORT, Services, ctx_or_none, get_ctx, is_local, member_ctx, owner_ctx
+from .app import Services, ctx_or_none, get_ctx, is_local, member_ctx, owner_ctx
 from .auth import SESSION_COOKIE, AuthError, Ctx, public_user
 from .kiwix import COLLECTION_LABELS, book_dict, hit_dict
 from .settings import DEVICE_SECTIONS, USER_SECTIONS, SettingsError
@@ -33,10 +35,26 @@ def _cookie(resp: Response, token: str, request: Request) -> None:
     resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", secure=request.url.scheme == "https", max_age=60 * 60 * 24 * 180)
 
 
+@functools.lru_cache(maxsize=4)
+def _fingerprint(path: str, mtime_ns: int, size: int) -> str:
+    return hashlib.sha1(Path(path).read_bytes()).hexdigest()[:12]
+
+
+def ui_build(svc: Services) -> str:
+    """Fingerprint of the built UI. A window left open across an update (or a Core restart onto a new
+    build) compares it and reloads, so it isn't stuck without new screens such as sign-in approvals."""
+    f = svc.paths.ui_build / "index.html"
+    try:
+        st = f.stat()
+        return _fingerprint(str(f), st.st_mtime_ns, st.st_size)
+    except OSError:
+        return ""
+
+
 # =========================================================================== basics
 @router.get("/ping")
-async def ping():
-    return {"ok": True, "version": __version__}
+async def ping(request: Request):
+    return {"ok": True, "version": __version__, "build": ui_build(S(request))}
 
 
 @router.get("/health")
@@ -52,6 +70,7 @@ async def bootstrap(request: Request):
     local = is_local(request)
     base = {
         "version": __version__,
+        "build": ui_build(svc),
         "local": local,
         "portable": svc.paths.portable,
         "needs_setup": not svc.auth.has_owner(),
@@ -99,12 +118,11 @@ async def events_ws(ws: WebSocket):
     svc: Services = ws.app.state.svc
     token = ws.cookies.get(SESSION_COOKIE)
     user = svc.auth.resolve(token) if token else None
-    server = ws.scope.get("server") or ("", 0)
-    local = server[1] == MAIN_PORT and (ws.client.host if ws.client else "") in ("127.0.0.1", "::1", "testclient")
+    local = is_local(ws)  # type: ignore[arg-type]  # same rule as HTTP: loopback on the app port
     if not user and local and svc.settings.device("general").local_auto_login and not svc.settings.device("general").require_pin:
         user = svc.auth.owner()
     await ws.accept()
-    sub = svc.events.subscribe(user["id"] if user else None, user["role"] if user else "anon")
+    sub = svc.events.subscribe(user["id"] if user else None, user["role"] if user else "anon", local=local)
     try:
         for ev in list(svc.events.last.values()):
             await ws.send_text(json.dumps(ev))
@@ -173,9 +191,9 @@ async def me(request: Request):
 async def setup(body: SetupIn, request: Request):
     svc = S(request)
     if svc.auth.has_owner():
-        raise HTTPException(409, "MIMI is already set up.")
+        raise HTTPException(409, "Mimi is already set up.")
     if not is_local(request):
-        raise HTTPException(403, "Set up MIMI on the device itself.")
+        raise HTTPException(403, "Set up Mimi on the device itself.")
     try:
         u = svc.auth.create(body.name, "owner", pin=body.pin or None)
     except AuthError as e:
@@ -189,6 +207,10 @@ async def setup(body: SetupIn, request: Request):
 @router.post("/auth/login")
 async def login(body: LoginIn, request: Request):
     svc = S(request)
+    if not body.secret:
+        # Today's sign-in page asks the device instead of sending a blank PIN; only a page opened before
+        # that update gets here, so say how to get the no-PIN path rather than "doesn't match".
+        raise HTTPException(401, "To sign in without a PIN, reload this page, leave the PIN blank and choose “Ask the Mimi device”.")
     u = svc.auth.by_name(body.name)
     if not u or u["role"] == "guest" or not svc.auth.verify(u, body.secret):
         await asyncio.sleep(0.8)
@@ -212,21 +234,28 @@ async def pair_request(body: PairIn, request: Request):
     """A browser on the network asks the device to let it sign in (no PIN needed)."""
     svc = S(request)
     if is_local(request):
-        raise HTTPException(400, "You're on the MIMI device already.")
+        raise HTTPException(400, "You're on the Mimi device already.")
     u = svc.auth.by_name(body.name.strip())
     if not u or u["role"] == "guest":
         await asyncio.sleep(0.5)
-        raise HTTPException(404, "There's no account with that name on this MIMI.")
+        raise HTTPException(404, "There's no account with that name on this Mimi.")
     try:
-        return svc.pairing.request(u, request.headers.get("user-agent", ""), request.client.host if request.client else "")
+        r = svc.pairing.request(u, request.headers.get("user-agent", ""), request.client.host if request.client else "")
     except ValueError as e:
         raise HTTPException(429, str(e))
+    return {**r, "device_screen": _device_screen(svc)}
+
+
+def _device_screen(svc: Services) -> bool:
+    """Is Mimi open on the device's own screen, where the owner can tap Allow? Otherwise the requester is told."""
+    owner = svc.auth.owner()
+    return bool(owner and svc.events.watching(owner["id"], local=True))
 
 
 @router.get("/auth/pair/pending")
 async def pair_pending(request: Request, ctx: Ctx = Depends(owner_ctx)):
     if not is_local(request):
-        raise HTTPException(403, "Sign-in requests are approved on the MIMI device.")
+        raise HTTPException(403, "Sign-in requests are approved on the Mimi device.")
     return {"requests": S(request).pairing.pending()}
 
 
@@ -234,7 +263,7 @@ async def pair_pending(request: Request, ctx: Ctx = Depends(owner_ctx)):
 async def pair_decide(rid: str, body: DecideIn, request: Request, ctx: Ctx = Depends(owner_ctx)):
     # Only the owner, on the device's own screen, can let someone in.
     if not is_local(request):
-        raise HTTPException(403, "Sign-in requests are approved on the MIMI device.")
+        raise HTTPException(403, "Sign-in requests are approved on the Mimi device.")
     return {"status": S(request).pairing.decide(rid, body.approve)}
 
 
@@ -242,6 +271,8 @@ async def pair_decide(rid: str, body: DecideIn, request: Request, ctx: Ctx = Dep
 async def pair_poll(rid: str, request: Request, poll: str = ""):
     svc = S(request)
     status, user = svc.pairing.claim(rid, poll)
+    if status == "pending":
+        return {"status": status, "device_screen": _device_screen(svc)}
     if status != "approved" or not user:
         return {"status": status}
     token = svc.auth.create_session(user["id"], request.headers.get("user-agent", ""), request.client.host if request.client else "")
@@ -271,7 +302,7 @@ async def guest(body: GuestIn, request: Request):
         raise HTTPException(403, "Guest access is turned off.")
     active_guests = [s for s in svc.auth.active_remote_sessions(3600) if s["role"] == "guest"]
     if len(active_guests) >= share.max_guests:
-        raise HTTPException(429, "MIMI is busy with other guests right now.")
+        raise HTTPException(429, "Mimi is busy with other guests right now.")
     try:
         u = svc.auth.create((body.name or "Guest").strip()[:30] or "Guest", "guest")
     except AuthError as e:
@@ -579,7 +610,7 @@ async def export_chat(chat_id: str, request: Request, format: str = "md", ctx: C
         return JSONResponse(chat, headers={"Content-Disposition": f'attachment; filename="chat-{chat_id}.json"'})
     lines = [f"# {chat.get('title') or 'Chat'}", ""]
     for m in chat["messages"]:
-        who = ctx.user["name"] if m["role"] == "user" else "MIMI"
+        who = ctx.user["name"] if m["role"] == "user" else "Mimi"
         lines += [f"**{who}:**", "", m["content"], ""]
         for s in (m["meta"] or {}).get("sources") or []:
             lines.append(f"> [{s['n']}] {s['title']} — {s.get('book_title') or s.get('type')}")
@@ -647,7 +678,7 @@ async def clear_memories(request: Request, ctx: Ctx = Depends(member_ctx)):
 async def export_memories(request: Request, format: str = "json", ctx: Ctx = Depends(member_ctx)):
     mems = S(request).memory.export(ctx.id)
     if format == "md":
-        text = "# What MIMI remembers\n\n" + "\n".join(f"- {m['text']} _({m['category']})_" for m in mems if m["status"] == "active")
+        text = "# What Mimi remembers\n\n" + "\n".join(f"- {m['text']} _({m['category']})_" for m in mems if m["status"] == "active")
         return PlainTextResponse(text, media_type="text/markdown", headers={"Content-Disposition": 'attachment; filename="mimi-memories.md"'})
     return JSONResponse(mems, headers={"Content-Disposition": 'attachment; filename="mimi-memories.json"'})
 
@@ -1142,9 +1173,9 @@ async def share_hotspot(body: HotspotIn, request: Request, ctx: Ctx = Depends(ow
 
 @public_router.get("/cert", include_in_schema=False)
 async def ca_cert(request: Request):
-    """The MIMI local certificate authority, for installing on phones."""
+    """The Mimi local certificate authority, for installing on phones."""
     der = await asyncio.to_thread(S(request).share.ca_der)
-    return Response(der, media_type="application/x-x509-ca-cert", headers={"Content-Disposition": 'attachment; filename="MIMI-Local-CA.crt"'})
+    return Response(der, media_type="application/x-x509-ca-cert", headers={"Content-Disposition": 'attachment; filename="Mimi-Local-CA.crt"'})
 
 
 # =========================================================================== system

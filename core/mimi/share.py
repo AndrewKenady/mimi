@@ -1,4 +1,4 @@
-"""Share MIMI with phones nearby: "Connect to MIMI" → https://mimi.local
+"""Share Mimi with phones nearby: "Connect to Mimi" → https://mimi.local
 
 * A local certificate authority (generated on first use) signs a certificate
   for mimi.local and the device's IP addresses. Phones can install the CA once
@@ -25,7 +25,8 @@ import psutil
 from . import log
 
 L = log.get("share")
-RULE_NAME = "MIMI Share"
+RULE_NAME = "Mimi Share"
+LEGACY_RULE_NAMES = ("MIMI Share",)  # rules created before the rename still count
 
 
 def interfaces() -> list[dict]:
@@ -46,7 +47,7 @@ def interfaces() -> list[dict]:
             if ip.is_loopback or ip.is_link_local:
                 continue
             kind = "hotspot" if a.address.startswith("192.168.137.") else ("wifi" if ("wi-fi" in low or "wlan" in low or "wireless" in low) else ("ethernet" if "ethernet" in low else "network"))
-            label = {"hotspot": "MIMI hotspot", "wifi": "Wi-Fi", "ethernet": "Ethernet"}.get(kind, name)
+            label = {"hotspot": "Mimi hotspot", "wifi": "Wi-Fi", "ethernet": "Ethernet"}.get(kind, name)
             out.append({"ip": a.address, "interface": name, "kind": kind, "label": label})
     order = {"wifi": 0, "ethernet": 1, "hotspot": 2, "network": 3}
     return sorted(out, key=lambda i: (order[i["kind"]], i["ip"]))
@@ -97,7 +98,7 @@ class ShareService:
         now = dt.datetime.now(dt.timezone.utc)
         if not ca_pem.exists() or not ca_key_path.exists():
             key = ec.generate_private_key(ec.SECP256R1())
-            name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "MIMI Local Authority"), x509.NameAttribute(NameOID.ORGANIZATION_NAME, "MIMI")])
+            name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Mimi Local Authority"), x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Mimi")])
             cert = (
                 x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
                 .serial_number(x509.random_serial_number()).not_valid_before(now - dt.timedelta(days=1)).not_valid_after(now + dt.timedelta(days=3650))
@@ -156,7 +157,7 @@ class ShareService:
         return self.task is not None and not self.task.done()
 
     async def start(self, app) -> None:
-        """Serve MIMI to the local network over HTTPS (+ an HTTP → HTTPS redirect)."""
+        """Serve Mimi to the local network over HTTPS (+ an HTTP → HTTPS redirect)."""
         if self.running:
             return
         import uvicorn
@@ -249,9 +250,9 @@ class ShareService:
                 return
             self.zc = Zeroconf(ip_version=IPVersion.V4Only)
             self.zc_info = ServiceInfo(
-                "_https._tcp.local.", "MIMI._https._tcp.local.", port=port,
+                "_https._tcp.local.", "Mimi._https._tcp.local.", port=port,
                 addresses=[socket.inet_aton(i) for i in ips], server="mimi.local.",
-                properties={"path": "/", "name": "MIMI"},
+                properties={"path": "/", "name": "Mimi"},
             )
             self.zc.register_service(self.zc_info, allow_name_change=True)
             L.info("mDNS: mimi.local → %s", ", ".join(ips))
@@ -310,14 +311,17 @@ class ShareService:
         if sys.platform != "win32":
             return None
         try:
-            r = subprocess.run(["netsh", "advfirewall", "firewall", "show", "rule", f"name={RULE_NAME} (HTTPS)"], capture_output=True, text=True,
-                               timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)  # type: ignore[attr-defined]
-            return r.returncode == 0 and "Enabled" in (r.stdout or "")
+            for name in (RULE_NAME, *LEGACY_RULE_NAMES):
+                r = subprocess.run(["netsh", "advfirewall", "firewall", "show", "rule", f"name={name} (HTTPS)"], capture_output=True, text=True,
+                                   timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)  # type: ignore[attr-defined]
+                if r.returncode == 0 and "Enabled" in (r.stdout or ""):
+                    return True
+            return False
         except Exception:
             return None
 
     def request_firewall_rule(self) -> bool:
-        """Ask Windows (UAC prompt) to allow inbound HTTPS + mDNS for MIMI on local networks."""
+        """Ask Windows (UAC prompt) to allow inbound HTTPS + mDNS for Mimi on local networks."""
         if sys.platform != "win32":
             return False
         ports = ",".join(str(p) for p in dict.fromkeys([self.port or self.svc.settings.device("sharing").https_port, 8443, 80, 8080]))
@@ -333,7 +337,7 @@ class ShareService:
         return rc > 32
 
     def hotspot(self, on: bool) -> dict:
-        """Start/stop Windows Mobile Hotspot with MIMI's SSID (best effort; see docs/SHARING.md)."""
+        """Start/stop Windows Mobile Hotspot with Mimi's SSID (best effort; see docs/SHARING.md)."""
         cfg = self.svc.settings.device("sharing")
         script = HOTSPOT_PS.replace("__SSID__", cfg.ssid.replace("'", "''")).replace("__PASS__", cfg.wifi_password.replace("'", "''")).replace("__ON__", "$true" if on else "$false")
         try:

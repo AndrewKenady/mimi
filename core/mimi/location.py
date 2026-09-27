@@ -1,4 +1,4 @@
-"""Where am I? Location from a USB GPS (NMEA over serial), a phone on the MIMI
+"""Where am I? Location from a USB GPS (NMEA over serial), a phone on the Mimi
 network, or a manually set place — plus offline lookups via GeoNames and
 geotagged Wikipedia (see geodata.py).
 """

@@ -5,13 +5,15 @@
 	import { ArrowRight, Lock, MonitorSmartphone } from '@lucide/svelte';
 
 	const locked = $derived(!!app.boot?.locked);
-	let mode = $state<'guest' | 'account'>('guest');
+	// With guest access off the guest tab is hidden, so start on Sign in rather than a mode nobody can pick.
+	let mode = $state<'guest' | 'account'>(app.boot?.guest_access === false ? 'account' : 'guest');
 	let name = $state('');
 	let secret = $state('');
 	let error = $state('');
 	let busy = $state(false);
-	// Approve-on-device: no PIN typed, so the MIMI screen asks the owner to allow this browser.
-	let pairing = $state<{ id: string; code: string; poll: string; expires: number } | null>(null);
+	// Approve-on-device: no PIN typed, so the Mimi screen asks the owner to allow this browser.
+	// `screen` is false while Mimi isn't open on the device, where nobody could tap Allow.
+	let pairing = $state<{ id: string; code: string; poll: string; expires: number; screen: boolean } | null>(null);
 	let pollTimer: ReturnType<typeof setTimeout> | undefined;
 
 	async function go(e: Event) {
@@ -34,7 +36,7 @@
 
 	async function startPairing() {
 		const r = await post('/api/auth/pair', { name: name.trim() });
-		pairing = { id: r.id, code: r.code, poll: r.poll, expires: Date.now() + r.expires_in * 1000 };
+		pairing = { id: r.id, code: r.code, poll: r.poll, expires: Date.now() + r.expires_in * 1000, screen: r.device_screen !== false };
 		poll();
 	}
 	async function poll() {
@@ -50,9 +52,10 @@
 			}
 			if (r.status === 'denied' || r.status === 'expired' || r.status === 'replaced' || Date.now() > p.expires) {
 				pairing = null;
-				error = r.status === 'denied' ? 'The request was declined on the MIMI device.' : 'The request timed out. Try again, or use a PIN.';
+				error = r.status === 'denied' ? 'The request was declined on the Mimi device.' : 'The request timed out. Try again, or use a PIN.';
 				return;
 			}
+			if (typeof r.device_screen === 'boolean') p.screen = r.device_screen;
 		} catch {
 			/* keep trying until it expires */
 		}
@@ -68,21 +71,25 @@
 	{#if pairing}
 		<div class="panel" role="status" aria-live="polite">
 			<span class="pic"><MonitorSmartphone size={30} /></span>
-			<h1>Check the MIMI screen</h1>
-			<p class="sub">Tap <b>Allow</b> on the MIMI device to sign in as {name.trim()}. It shows this code:</p>
+			<h1>Check the Mimi screen</h1>
+			<p class="sub">Tap <b>Allow</b> on the Mimi device to sign in as {name.trim()}. It shows this code:</p>
 			<div class="code" aria-label="Code {pairing.code.split('').join(' ')}">{#each pairing.code.split('') as d}<span>{d}</span>{/each}</div>
-			<p class="fine waiting"><span class="dot"></span> Waiting for approval…</p>
+			{#if pairing.screen}
+				<p class="fine waiting"><span class="dot"></span> Waiting for approval…</p>
+			{:else}
+				<p class="warn">Mimi isn't open on the device's screen right now, so nobody can tap Allow. Open or unlock Mimi there and this request will appear, or cancel and use your PIN.</p>
+			{/if}
 			<button class="btn btn-ghost" onclick={cancelPairing}>Cancel</button>
 		</div>
 	{:else}
 	<form class="panel" onsubmit={go}>
 		<Well size={170} mood="idle" />
 		{#if locked}
-			<h1><Lock size={22} /> MIMI is locked</h1>
+			<h1><Lock size={22} /> Mimi is locked</h1>
 			<p class="sub">Enter the owner's PIN to continue.</p>
 			<input class="input big" type="password" inputmode="numeric" placeholder="PIN" bind:value={secret} maxlength="8" data-autofocus />
 		{:else}
-			<h1>Welcome to MIMI</h1>
+			<h1>Welcome to Mimi</h1>
 			<p class="sub">An AI that lives entirely on this device, with no internet needed.</p>
 			<div class="seg">
 				{#if app.boot?.guest_access !== false}
@@ -93,12 +100,12 @@
 			<input class="input big" placeholder={mode === 'guest' ? 'Your name (optional)' : 'Name'} bind:value={name} maxlength="40" data-autofocus />
 			{#if mode === 'account'}
 				<input class="input big" type="password" placeholder="PIN or password" bind:value={secret} autocomplete="current-password" />
-				<p class="fine">No PIN? Leave it blank and approve on the MIMI device.</p>
+				<p class="fine">No PIN? Leave it blank and approve on the Mimi device.</p>
 			{/if}
-			{#if mode === 'guest'}<p class="fine">Guest chats aren't saved and MIMI won't remember you.</p>{/if}
+			{#if mode === 'guest'}<p class="fine">Guest chats aren't saved and Mimi won't remember you.</p>{/if}
 		{/if}
 		{#if error}<p class="err">{error}</p>{/if}
-		<button class="btn btn-primary btn-lg" disabled={busy}>{busy ? 'One moment…' : locked ? 'Unlock' : mode === 'account' && !secret ? 'Ask the MIMI device' : 'Continue'} <ArrowRight size={18} /></button>
+		<button class="btn btn-primary btn-lg" disabled={busy}>{busy ? 'One moment…' : locked ? 'Unlock' : mode === 'account' && !secret ? 'Ask the Mimi device' : 'Continue'} <ArrowRight size={18} /></button>
 	</form>
 	{/if}
 </div>
@@ -210,6 +217,12 @@
 	}
 	.err {
 		color: var(--danger);
+		margin: 0;
+	}
+	.warn {
+		color: var(--warn);
+		font-size: 0.88rem;
+		line-height: 1.45;
 		margin: 0;
 	}
 </style>

@@ -1,6 +1,6 @@
 """Approve-on-device sign-in for phones and laptops on the network.
 
-A browser that reaches MIMI over the network asks to sign in as someone. The MIMI
+A browser that reaches Mimi over the network asks to sign in as someone. The Mimi
 device shows "Allow <browser> to sign in as <name>? Code 4821" and the owner taps
 Allow or Deny on the device itself. No PIN is needed, and nobody can approve from
 the network: deciding requires the owner's session on the device's loopback port.
@@ -86,7 +86,7 @@ class PairingService:
                 self._reqs.pop(old["id"], None)
                 self._announce_done(old, "replaced")
             if sum(1 for r in self._reqs.values() if r["status"] == "pending") >= MAX_OPEN:
-                raise ValueError("MIMI has too many sign-in requests waiting. Try again in a minute.")
+                raise ValueError("Mimi has too many sign-in requests waiting. Try again in a minute.")
             self._last_by_ip[ip] = now
             poll = secrets.token_urlsafe(24)
             r = {
