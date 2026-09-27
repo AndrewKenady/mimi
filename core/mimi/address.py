@@ -773,6 +773,8 @@ class AddressIndex:
             towns = _towns(usable)
             want = name_key(alt["locality"])
             exact = [pl for pl in towns if name_key(pl.get("name") or "") == want]
+            # "New York" is filed as "New York City" (the state takes the bare name), likewise Quebec City
+            exact = exact or [pl for pl in towns if name_key(pl.get("name") or "") == name_key(alt["locality"] + " City")]
             # without a state there may be many towns of that name (Sleepy Hollow NY, IL, CA, WY)
             chosen = (exact[:3 if p["region"] or pc_row else 8] or self._misspelt_towns(alt["locality"], p, resolve_place)
                       or towns[:1] or usable[:1])

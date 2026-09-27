@@ -706,3 +706,11 @@ def test_api_search_and_maps_info(client, svc):
     assert "Statistics Canada" in info["attribution"]
     svc.location.addr.close()
     assert client.get("/api/maps/info").json()["addresses"] is False
+
+
+def test_city_suffix_counts_as_exact_town(tmp_path):
+    """"New York" is the state in the gazetteer; the city is "New York City"."""
+    from mimi.address import name_key
+    towns = [{"name": "New York City", "fcode": "PPL"}, {"name": "New York Mills", "fcode": "PPL"}]
+    want = name_key("New York" + " City")
+    assert [t["name"] for t in towns if name_key(t["name"]) == want] == ["New York City"]
