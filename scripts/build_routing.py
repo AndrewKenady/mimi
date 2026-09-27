@@ -111,7 +111,14 @@ def keep_lean(tags) -> bool:
 
 
 def lean_roads(src: Path) -> Path:
-    """Drop driveways, parking aisles, drive-throughs and unnamed rough tracks (plus nodes only they used)."""
+    """Drop driveways, parking aisles, drive-throughs and unnamed rough tracks.
+
+    Streams the file and simply omits those ways. Their nodes stay in the output, but
+    Valhalla ignores nodes no kept way uses, and its scratch space grows with way-node
+    references, so the saving is the same. (osmium's BackReferenceWriter would drop the
+    orphan nodes too, but it tracks every referenced id in memory and runs out on a
+    US + Canada extract.)
+    """
     import osmium
 
     dst = src.with_name(src.name.replace(".osm.pbf", ".lean.osm.pbf"))
@@ -119,15 +126,21 @@ def lean_roads(src: Path) -> Path:
         print(f"✓ {dst.name} already made")
         return dst
     t0 = time.time()
-    kept = dropped = 0
+    last = t0
+    n = kept = dropped = 0
     tmp = dst.with_suffix(".tmp.pbf")
-    with osmium.BackReferenceWriter(str(tmp), ref_src=str(src), overwrite=True) as writer:
-        for obj in osmium.FileProcessor(str(src), osmium.osm.WAY | osmium.osm.RELATION):
-            if obj.is_relation() or keep_lean(obj.tags):
-                writer.add(obj)
-                kept += 1
-            else:
+    with osmium.SimpleWriter(str(tmp), overwrite=True) as writer:
+        for obj in osmium.FileProcessor(str(src)):
+            n += 1
+            if obj.is_way() and not keep_lean(obj.tags):
                 dropped += 1
+                continue
+            if obj.is_way():
+                kept += 1
+            writer.add(obj)
+            if n % 5_000_000 == 0 and time.time() - last > 30:
+                last = time.time()
+                print(f"  … {n / 1e6:.0f}M objects, {kept:,} ways kept, {dropped:,} dropped ({n / (last - t0) / 1e3:.0f}k/s)", flush=True)
     tmp.replace(dst)
     print(f"✓ {dst.name}: kept {kept:,}, dropped {dropped:,} ways in {int(time.time() - t0)} s "
           f"({dst.stat().st_size / 1e9:.1f} GB, was {src.stat().st_size / 1e9:.1f} GB)")
