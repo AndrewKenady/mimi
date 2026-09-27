@@ -80,7 +80,7 @@
 			dragRotate: false,
 			pitchWithRotate: false
 		});
-		map.addControl(new maplibregl.NavigationControl({ showCompass: false }), innerWidth <= 760 ? 'top-right' : 'bottom-right'); // phones: clear of the bottom sheet
+		map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 		map.on('click', (e: maplibregl.MapMouseEvent) => {
 			if (picking) setHere(e.lngLat.lat, e.lngLat.lng);
 		});
@@ -696,6 +696,11 @@
 			bottom: 8px;
 			width: auto;
 			max-height: 48%;
+		}
+		/* phones: lift the zoom buttons clear of the bottom sheet */
+		:global(.maplibregl-ctrl-bottom-right) {
+			bottom: auto;
+			top: 8px;
 		}
 	}
 </style>

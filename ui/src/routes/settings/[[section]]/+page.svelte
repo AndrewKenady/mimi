@@ -308,10 +308,10 @@
 					<Row label="Profile" hint="Auto picks the best models this hardware can run reliably.">
 						<Segmented value={D.models.profile} options={[['auto', `Auto (${models?.hardware_profile || '…'})`], ['lite', 'Lite'], ['standard', 'Standard'], ['plus', 'Plus'], ['max', 'Max']]} onchange={(v) => dev('models', { profile: v })} />
 					</Row>
-					{#each [['main', 'Main model', 'Answers most questions.'], ['quick', 'Quick model', 'Voice mode and battery saver.'], ['reader', 'Reader model', 'Photos and documents when the main model can\'t see.']] as [role, label, hint]}
+					{#each [['main', 'Main model', 'Answers most questions.'], ['quick', 'Quick model', 'Used by battery saver, and for quick background jobs.'], ['reader', 'Reader model', 'Photos and documents when the main model can\'t see.']] as [role, label, hint]}
 						<Row {label} {hint}>
 							<select class="input sel" value={D.models[role] || ''} onchange={(e) => dev('models', { [role]: e.currentTarget.value || null })}>
-								<option value="">Automatic ({models?.status?.roles?.[role] || '—'})</option>
+								<option value="">Automatic · {chatModels.find((m: any) => m.id === models?.status?.roles?.[role])?.name || '—'}</option>
 								{#each installed as m}<option value={m.id}>{m.name}</option>{/each}
 							</select>
 						</Row>
@@ -529,8 +529,8 @@
 					<h3 class="label sub">Privacy</h3>
 					<div class="group card">
 						<Row label="Save chat history"><Toggle checked={U.privacy.history} onchange={(v) => usr('privacy', { history: v })} label="History" /></Row>
-						<Row label="Delete chats older than">
-							<Segmented value={String(U.privacy.history_days)} options={[['0', 'Never'], ['30', '30 days'], ['90', '90 days'], ['365', 'A year']]} onchange={(v) => usr('privacy', { history_days: Number(v) })} />
+						<Row label="Keep chats for" hint={U.privacy.history_days ? 'Older chats are deleted automatically. Pinned chats are kept.' : ''}>
+							<Segmented value={String(U.privacy.history_days)} options={[['0', 'Forever'], ['30', '30 days'], ['90', '90 days'], ['365', 'A year']]} onchange={(v) => usr('privacy', { history_days: Number(v) })} />
 						</Row>
 						<Row label="Memory" hint="See and manage everything MIMI remembers."><a class="btn btn-sm" href="/memory">Manage memory</a></Row>
 						<Row label="Delete all chats"><button class="btn btn-sm btn-danger" onclick={deleteAllChats}><Trash2 size={14} /> Delete</button></Row>
@@ -726,7 +726,7 @@
 		margin: 24px 0 10px;
 	}
 	.sel {
-		width: 240px;
+		width: 260px;
 		height: 38px;
 	}
 	.chips {
@@ -1061,7 +1061,7 @@
 			grid-template-columns: 1fr;
 		}
 		.sel {
-			width: 180px;
+			width: min(260px, 52vw);
 		}
 	}
 </style>

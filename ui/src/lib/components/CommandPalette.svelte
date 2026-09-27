@@ -134,6 +134,7 @@
 		border: 1px solid var(--line-2);
 		box-shadow: var(--shadow-2);
 		z-index: 61;
+		background: color-mix(in oklab, var(--surface) 97%, transparent);
 		overflow: hidden;
 	}
 	.search {
