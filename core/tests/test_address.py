@@ -708,9 +708,36 @@ def test_api_search_and_maps_info(client, svc):
     assert client.get("/api/maps/info").json()["addresses"] is False
 
 
-def test_city_suffix_counts_as_exact_town(tmp_path):
-    """"New York" is the state in the gazetteer; the city is "New York City"."""
-    from mimi.address import name_key
-    towns = [{"name": "New York City", "fcode": "PPL"}, {"name": "New York Mills", "fcode": "PPL"}]
-    want = name_key("New York" + " City")
-    assert [t["name"] for t in towns if name_key(t["name"]) == want] == ["New York City"]
+
+def test_city_suffix_either_way(tmp_path):
+    """The gazetteer gives "New York" to the state (the city is "New York City") and files Quebec
+    City as plain "Québec", where a name search for "Quebec City" only finds its hotels."""
+    places = [
+        {"name": "New York City", "fcode": "PPL", "lat": 40.7143, "lon": -74.0060, "admin1": "New York", "country": "US", "population": 8804190},
+        {"name": "New York", "fcode": "ADM1", "lat": 43.0004, "lon": -75.4999, "admin1": "New York", "country": "US", "population": 19867248},
+        {"name": "New York Mills", "fcode": "PPL", "lat": 43.1054, "lon": -75.2913, "admin1": "New York", "country": "US", "population": 3308},
+        {"name": "Québec", "fcode": "PPLA", "lat": 46.8123, "lon": -71.2145, "admin1": "Quebec", "country": "CA", "population": 531902},
+        {"name": "Hilton Quebec City", "fcode": "HTL", "lat": 46.8115, "lon": -71.2150, "admin1": "Quebec", "country": "CA", "population": 0},
+    ]
+
+    def resolve(q):
+        name, _, reg = q.partition(",")
+        reg = reg.strip().lower()
+        return [dict(x) for x in places if name_key(x["name"]).startswith(name_key(name))
+                and (not reg or STATES.get(x["admin1"].lower()) == reg)]
+
+    path = tmp_path / "addresses.sqlite"
+    b = Builder(path)
+    b.range(b.street("5th Ave", 40.7480, -73.9850, "ny"), 300, 398, 2, [(40.7470, -73.9860), (40.7490, -73.9840)])
+    b.range(b.street("5th Ave", 43.0300, -75.0700, "ny"), 300, 398, 2, [(43.0290, -75.0710), (43.0310, -75.0690)])
+    b.range(b.street("Rue Saint-Jean", 46.8080, -71.2200, "qc"), 200, 298, 2, [(46.8075, -71.2250), (46.8085, -71.2150)])
+    b.close()
+    ix = AddressIndex(path)
+    try:
+        ny = ix.search("350 5th Ave, New York, NY", resolve_place=resolve, describe=None)[0]
+        assert abs(ny["lat"] - 40.748) < 0.01 and "New York City" in ny["label"]
+        qc = ix.search("250 Rue Saint-Jean, Quebec City, QC", resolve_place=resolve, describe=None)[0]
+        assert abs(qc["lat"] - 46.808) < 0.01
+        assert "Hilton" not in qc["label"] and "Québec" in qc["label"]
+    finally:
+        ix.close()

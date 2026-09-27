@@ -775,12 +775,25 @@ class AddressIndex:
             exact = [pl for pl in towns if name_key(pl.get("name") or "") == want]
             # "New York" is filed as "New York City" (the state takes the bare name), likewise Quebec City
             exact = exact or [pl for pl in towns if name_key(pl.get("name") or "") == name_key(alt["locality"] + " City")]
+            # and "Quebec City" is filed as plain "Québec" (the name search then only finds its hotels)
+            bare = re.sub(r"\s+city$", "", alt["locality"].strip(), flags=re.I)
+            if not exact and bare != alt["locality"].strip():
+                try:
+                    more = resolve_place(bare + (f", {p['region'].upper()}" if p["region"] else "")) or []
+                except Exception as e:
+                    L.warning("resolving %r failed: %s", bare, e)
+                    more = []
+                exact = [pl for pl in _towns(more) if name_key(pl.get("name") or "") == name_key(bare)
+                         and (pl.get("fcode") or "") not in _PLACE_SKIP
+                         and (not p["country"] or pl.get("country") in (None, p["country"]))]
             # without a state there may be many towns of that name (Sleepy Hollow NY, IL, CA, WY)
             chosen = (exact[:3 if p["region"] or pc_row else 8] or self._misspelt_towns(alt["locality"], p, resolve_place)
                       or towns[:1] or usable[:1])
             for rank, pl in enumerate(chosen):
+                # a hotel or museum can still locate the search, but it isn't the town to name in the label
+                town = pl.get("name") if (pl.get("fcode") or "").startswith(("PPL", "ADM")) else None
                 anchors.append(_Anchor(float(pl["lat"]), float(pl["lon"]), _place_radius(pl), "place", rank,
-                                       pl.get("name"), pl.get("admin1"), pl.get("country")))
+                                       town, pl.get("admin1"), pl.get("country")))
         if not anchors and near is not None:
             anchors.append(_Anchor(near[0], near[1], 60.0, "near"))
         return anchors
