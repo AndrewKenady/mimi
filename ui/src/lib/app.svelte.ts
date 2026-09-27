@@ -1,5 +1,5 @@
 // Global app state (Svelte 5 runes). One instance, imported everywhere as `app`.
-import { api, patch } from './api';
+import { api, del, patch, post } from './api';
 import { onHost } from './host';
 
 export type Toast = { id: number; text: string; kind: 'info' | 'ok' | 'error'; action?: { label: string; run: () => void } };
@@ -18,6 +18,8 @@ class AppState {
 	hardware = $state<any>({});
 	library = $state<any>(null);
 	location = $state<any>(null);
+	/** This browser is streaming its GPS position to MIMI (a phone in the car, or a device with a sensor). */
+	live = $state(false);
 	share = $state<any>(null);
 	features = $state<Record<string, boolean>>({});
 	toasts = $state<Toast[]>([]);
@@ -34,6 +36,9 @@ class AppState {
 	clock = $state(new Date());
 
 	private ws: WebSocket | null = null;
+	private watchId: number | null = null;
+	private liveBeat: ReturnType<typeof setInterval> | null = null;
+	private lastFix = { t: 0, lat: 0, lon: 0, accuracy: 0 };
 	private retry = 0;
 	private toastId = 0;
 
@@ -60,6 +65,7 @@ class AppState {
 			this.offline = false;
 			this.applyAppearance();
 			if (b.me) this.connect();
+			if (b.me && this.readLive()) this.startLive(true);
 		} catch {
 			this.offline = true;
 			setTimeout(() => this.load(), 2000);
@@ -177,6 +183,74 @@ class AppState {
 	}
 	dismiss(id: number) {
 		this.toasts = this.toasts.filter((t) => t.id !== id);
+	}
+
+	private readLive() {
+		try {
+			return localStorage.getItem('mimi.live') === '1';
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Stream this browser's position to MIMI. Directions, "near me" and the map then follow
+	 * the device as it moves. Fixes are sent at most every 10 s unless we moved 50 m, plus a
+	 * heartbeat so a parked car doesn't go stale (Core forgets a device fix after 10 minutes).
+	 */
+	startLive(quiet = false): boolean {
+		if (!('geolocation' in navigator)) {
+			if (!quiet) this.toast('This device has no location sensor available.', 'error');
+			return false;
+		}
+		if (this.watchId !== null) return true;
+		const send = (lat: number, lon: number, accuracy: number) => {
+			this.lastFix = { t: Date.now(), lat, lon, accuracy };
+			post('/api/location', { lat, lon, accuracy: Math.round(accuracy) }).catch(() => {});
+		};
+		this.watchId = navigator.geolocation.watchPosition(
+			(p) => {
+				const { latitude: lat, longitude: lon, accuracy } = p.coords;
+				const f = this.lastFix;
+				const moved = Math.hypot((lat - f.lat) * 111_320, (lon - f.lon) * 111_320 * Math.cos((lat * Math.PI) / 180));
+				const since = Date.now() - f.t;
+				if (f.t && since < 3000) return;
+				if (f.t && since < 10_000 && moved < 50) return;
+				send(lat, lon, accuracy);
+			},
+			(err) => {
+				if (!quiet || err.code === err.PERMISSION_DENIED) {
+					this.toast(err.code === err.PERMISSION_DENIED ? 'Location permission was denied for this browser.' : 'No location fix yet. MIMI will keep trying.', 'error');
+				}
+				if (err.code === err.PERMISSION_DENIED) this.stopLive();
+			},
+			{ enableHighAccuracy: true, maximumAge: 5000, timeout: 60_000 }
+		);
+		this.liveBeat = setInterval(() => {
+			const f = this.lastFix;
+			if (f.t && Date.now() - f.t > 240_000) send(f.lat, f.lon, f.accuracy);
+		}, 60_000);
+		this.live = true;
+		try {
+			localStorage.setItem('mimi.live', '1');
+		} catch {}
+		if (!quiet) this.toast('Sharing this device’s live location with MIMI', 'ok');
+		return true;
+	}
+
+	stopLive() {
+		if (this.watchId !== null) {
+			navigator.geolocation.clearWatch(this.watchId);
+			del('/api/location/live').catch(() => {});
+		}
+		if (this.liveBeat) clearInterval(this.liveBeat);
+		this.watchId = null;
+		this.liveBeat = null;
+		this.lastFix = { t: 0, lat: 0, lon: 0, accuracy: 0 };
+		this.live = false;
+		try {
+			localStorage.removeItem('mimi.live');
+		} catch {}
 	}
 
 	/** Start a chat from anywhere (Home, Lens, Map, Library) with a prefilled prompt. */

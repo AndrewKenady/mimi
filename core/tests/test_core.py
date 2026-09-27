@@ -269,3 +269,12 @@ def test_memory_chip_only_when_answer_uses_it():
     assert memories_referenced(mems, "Old Faithful erupts about every 90 minutes.") == []
     assert [m["id"] for m in memories_referenced(mems, "For your Tacoma, use 0W-20 synthetic oil.")] == ["a"]
     assert [m["id"] for m in memories_referenced(mems, "Your daughter might enjoy the boardwalk; lots of vegetarian options too.")] == ["b", "c"]
+
+
+def test_live_location_from_a_browser(client):
+    client.post("/api/auth/setup", json={"name": "Ada"})
+    client.post("/api/location", json={"lat": 44.46, "lon": -110.83, "label": "Old Faithful", "manual": True})
+    r = client.post("/api/location", json={"lat": 43.48, "lon": -110.76, "accuracy": 8})  # a phone streaming its GPS
+    assert r.json()["current"]["source"] == "device" and r.json()["current"]["lat"] == 43.48
+    r = client.delete("/api/location/live")  # streaming stopped: fall back to the pinned place at once
+    assert r.json()["current"]["source"] == "manual" and r.json()["current"]["label"] == "Old Faithful"

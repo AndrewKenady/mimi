@@ -9,7 +9,7 @@
 	import { layers, namedFlavor } from '@protomaps/basemaps';
 	import { app } from '$lib/app.svelte';
 	import { del, get, post } from '$lib/api';
-	import { Search, MapPin, Navigation, Crosshair, BookOpen, Sparkles, X, LocateFixed, Trees, Landmark, Building2, Waves, Mountain, Compass, Route, Loader } from '@lucide/svelte';
+	import { Search, MapPin, Navigation, Crosshair, BookOpen, Sparkles, X, LocateFixed, Trees, Landmark, Building2, Waves, Mountain, Compass, Route, Loader, Radio } from '@lucide/svelte';
 
 	let el: HTMLDivElement;
 	let map: maplibregl.Map | null = null;
@@ -27,6 +27,17 @@
 
 	const loc = $derived(app.location?.current);
 	const desc = $derived(app.location?.description);
+	// Keep the "you are here" dot on the latest fix (GPS, a live phone, or a new pin). While
+	// moving, pan to keep it in view and refresh "nearby" every couple of kilometres.
+	let nearbyAt: { lat: number; lon: number } | null = null;
+	$effect(() => {
+		if (!loc || !map) return;
+		placeMe(loc.lat, loc.lon);
+		if ((app.live || loc.source === 'gps') && !route && !map.getBounds().contains([loc.lon, loc.lat])) map.easeTo({ center: [loc.lon, loc.lat], duration: 800 });
+		if (nearbyAt && km(nearbyAt, loc) > 2) loadNearby();
+	});
+	const km = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) =>
+		Math.hypot((a.lat - b.lat) * 111.32, (a.lon - b.lon) * 111.32 * Math.cos((a.lat * Math.PI) / 180));
 	const KINDS = [
 		{ id: 'all', label: 'All', icon: Compass },
 		{ id: 'nature', label: 'Nature', icon: Trees },
@@ -166,6 +177,7 @@
 		const c = app.location?.current;
 		if (!c) return;
 		loadingNearby = true;
+		nearbyAt = { lat: c.lat, lon: c.lon };
 		try {
 			const r = await get(`/api/location/nearby?lat=${c.lat}&lon=${c.lon}&radius=30&kind=${kind}&limit=30`);
 			places = r.places;
@@ -283,13 +295,16 @@
 			<span class="label">You are here</span>
 			{#if loc}
 				<p class="where"><LocateFixed size={16} /> {desc?.description || desc?.label || `${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)}`}</p>
-				<small class="faint">From {loc.source === 'gps' ? 'GPS' : loc.source === 'device' ? 'this device' : 'the location you set'}</small>
+				<small class="faint">From {loc.source === 'gps' ? 'GPS' : loc.source === 'device' ? (app.live ? 'this device’s live location' : 'a connected phone or browser') : 'the location you set'}</small>
 			{:else}
 				<p class="faint">Location unknown. No GPS is connected.</p>
 			{/if}
 			<div class="acts">
 				<button class="btn btn-sm" class:btn-primary={picking} onclick={() => (picking = !picking)}><Crosshair size={14} /> {picking ? 'Tap the map…' : 'Set on map'}</button>
 				<button class="btn btn-sm" onclick={useDevice}><Navigation size={14} /> Use device</button>
+				<button class="btn btn-sm" class:btn-primary={app.live} onclick={() => (app.live ? app.stopLive() : app.startLive())} title="Keep MIMI updated with this device's GPS while you travel">
+					<Radio size={14} /> {app.live ? 'Live: on' : 'Live GPS'}
+				</button>
 				{#if loc?.source === 'manual' && app.isOwner}<button class="btn btn-sm btn-ghost" onclick={clearLocation}>Clear</button>{/if}
 			</div>
 		</section>

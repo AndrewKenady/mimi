@@ -383,6 +383,9 @@
 						<span class="muted">{app.location?.description?.description || '—'}</span>
 						<a class="btn btn-sm" href="/map">Set on map</a>
 					</Row>
+					<Row label="Live location from this device" hint="Streams this browser's GPS to MIMI while it's open, like a phone riding in the car. Directions and 'near me' follow along (needs Location source: Auto).">
+						<Toggle checked={app.live} onchange={(v) => (v ? app.startLive() : app.stopLive())} label="Live location" />
+					</Row>
 					<Row label="GPS receiver" hint={app.location?.gps?.port ? `Connected on ${app.location.gps.port}${app.location.gps.fix ? ' · fix acquired' : ' · waiting for fix'}` : 'Plug in a USB GPS; MIMI finds it automatically.'}>
 						<input class="input sel" value={D.location.gps_port} onchange={(e) => dev('location', { gps_port: e.currentTarget.value || 'auto' })} placeholder="auto" />
 					</Row>

@@ -803,6 +803,16 @@ async def clear_manual_location(request: Request, ctx: Ctx = Depends(owner_ctx))
     return status
 
 
+@router.delete("/location/live")
+async def stop_live_location(request: Request, ctx: Ctx = Depends(get_ctx)):
+    """A browser stopped streaming its position: forget its last fix now, not in 10 minutes."""
+    svc = S(request)
+    svc.location.client_fix = None
+    status = svc.location.status()
+    svc.events.publish("location", status, sticky=True)
+    return status
+
+
 @router.get("/location/nearby")
 async def nearby(request: Request, lat: float | None = None, lon: float | None = None, radius: float = 15, kind: str = "all",
                  limit: int = 24, ctx: Ctx = Depends(get_ctx)):

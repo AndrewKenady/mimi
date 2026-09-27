@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { app } from '$lib/app.svelte';
-	import { WifiOff, Cpu, BatteryFull, BatteryMedium, BatteryLow, BatteryCharging, MapPin, Users, Leaf } from '@lucide/svelte';
+	import { WifiOff, Cpu, BatteryFull, BatteryMedium, BatteryLow, BatteryCharging, MapPin, Users, Leaf, Radio } from '@lucide/svelte';
 
 	const model = $derived(app.model);
 	const battery = $derived(app.system?.battery ?? app.hardware?.battery);
@@ -31,7 +31,7 @@
 	{/if}
 	<span class="spacer"></span>
 	{#if loc}
-		<a href="/map" class="pill ghost" title="Location"><MapPin size={13} strokeWidth={2} />{loc}</a>
+		<a href="/map" class="pill ghost" title={app.live ? 'Live location from this device' : 'Location'}>{#if app.live}<Radio size={13} strokeWidth={2} class="live-ico" />{:else}<MapPin size={13} strokeWidth={2} />{/if}{loc}</a>
 	{/if}
 	{#if app.share?.running}
 		<a href="/settings/sharing" class="pill share" title="Other devices can open MIMI at this address"><Users size={13} strokeWidth={2} />Shared · {(app.share?.urls?.ips?.[0] || '').replace('https://', '').replace(/\/$/, '')}{guests ? ` · ${guests} connected` : ''}</a>
@@ -49,6 +49,15 @@
 </div>
 
 <style>
+	.pill :global(.live-ico) {
+		color: var(--accent);
+		animation: livep 2s ease-in-out infinite;
+	}
+	@keyframes livep {
+		50% {
+			opacity: 0.45;
+		}
+	}
 	.strip {
 		display: flex;
 		align-items: center;
