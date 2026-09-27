@@ -582,6 +582,7 @@
 					</Row>
 					<Row label="Battery saver" hint="Below the threshold and unplugged, Mimi uses the quick model."><Toggle checked={D.power.battery_saver} onchange={(v) => dev('power', { battery_saver: v })} label="Battery saver" /></Row>
 					<Row label="Saver threshold"><Slider value={D.power.battery_saver_threshold} min={5} max={80} step={5} onchange={(v) => dev('power', { battery_saver_threshold: v })} fmt={(v) => v + '%'} /></Row>
+					<Row label="Stay awake" hint="Keeps this computer from sleeping while Mimi is running, so phones on the network can still reach it. The screen can still turn off."><Toggle checked={D.power.keep_awake ?? true} onchange={(v) => dev('power', { keep_awake: v })} label="Stay awake" /></Row>
 				</div>
 			{:else if section === 'system'}
 				{#if sys}

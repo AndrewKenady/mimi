@@ -68,6 +68,7 @@ class Power(Section):
     battery_saver: bool = True
     battery_saver_threshold: int = Field(25, ge=5, le=80)
     dim_well_on_battery: bool = True
+    keep_awake: bool = True  # hold off system sleep while Mimi runs (the screen may still turn off)
 
 
 class Controls(Section):

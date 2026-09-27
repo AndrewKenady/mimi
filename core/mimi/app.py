@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from . import __version__, hardware, log
+from .awake import KeepAwake
 from .auth import SESSION_COOKIE, Auth, Ctx, FailureGuard
 from .catalog import Catalog
 from .chat import ChatService
@@ -58,6 +59,7 @@ class Services:
         self.memory = MemoryService(self.db, self.models, self.events, self.settings)
         self.docs = DocsService(self.db, self.models, self.events, paths)
         self.location = LocationService(paths, self.settings, self.events, self.db)
+        self.awake = KeepAwake(lambda: self.settings.device("power").keep_awake)
         self.routing = RoutingService(paths)
         self.voice = VoiceService(paths, cores=int(self.hw.get("cores") or 4))
         self.lens = LensService()
@@ -79,6 +81,7 @@ class Services:
         await self.kiwix_service.start()
         self.kiwix_service.watch(self.kiwix)
         self.location.start()
+        self.awake.start()
         await asyncio.to_thread(tools.load_plugins, self.paths.root / "tools")
         self.docs.start()
         self.scribe.start()
@@ -123,6 +126,7 @@ class Services:
         for t in self._tasks:
             t.cancel()
         await self.share.stop()
+        self.awake.stop()
         self.location.stop()
         await self.kiwix_service.stop()
         await self.models.shutdown()
