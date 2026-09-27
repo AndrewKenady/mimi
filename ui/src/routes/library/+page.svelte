@@ -78,7 +78,7 @@
 			<div>
 				<h1 class="page-title">Library</h1>
 				<p class="page-sub">
-					{#if books.length}{books.length} collections · {total.toLocaleString()} articles · {fmtBytes(size)} · offline{:else}Your offline reference shelf{/if}
+					{#if books.length}{books.length} {books.length === 1 ? 'collection' : 'collections'} · {total.toLocaleString()} {total === 1 ? 'article' : 'articles'} · {fmtBytes(size)} · offline{:else}Your offline reference shelf{/if}
 				</p>
 			</div>
 			{#if !app.isGuest}<a class="btn" href="/library/files"><FolderOpen size={16} /> My files</a>{/if}
@@ -133,7 +133,7 @@
 							<span class="binfo">
 								<b>{b.title}</b>
 								<small>{b.summary}</small>
-								<span class="bmeta">{b.articles.toLocaleString()} {b.collection === 'talks' ? 'talks' : 'articles'}{#if b.size} · {fmtBytes(b.size)}{/if}</span>
+								<span class="bmeta">{b.articles.toLocaleString()} {b.collection === 'talks' ? (b.articles === 1 ? 'talk' : 'talks') : b.articles === 1 ? 'article' : 'articles'}{#if b.size} · {fmtBytes(b.size)}{/if}</span>
 							</span>
 						</button>
 					{/each}

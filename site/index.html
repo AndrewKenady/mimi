@@ -133,6 +133,15 @@ h1 .thin { font-weight: 300; color: var(--ink-2); }
 .readout dd { margin: 4px 0 0; font-weight: 700; font-stretch: 85%; font-size: 17px; line-height: 1.25; }
 .readout dd small { display: block; font-weight: 400; font-size: 13px; color: var(--ink-2); font-stretch: 100%; }
 
+/* screenshots */
+.shots { padding: 56px 0 0; }
+.shots .wrap { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+.shots figure { margin: 0; }
+.shots img { display: block; width: 100%; height: auto; border-radius: 6px; border: 1.5px solid var(--ink); background: #070b12; box-shadow: 6px 6px 0 var(--accent-soft); }
+.shots figcaption { margin-top: 10px; font-size: 14.5px; color: var(--ink-2); }
+.shots figcaption .mono { font-size: 11.5px; letter-spacing: .12em; color: var(--accent); margin-right: 8px; }
+.shots-note { grid-column: 1 / -1; margin: 0; font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+
 /* ---------- sections ---------- */
 section { padding: 72px 0 24px; scroll-margin-top: 64px; }
 .head { display: grid; grid-template-columns: auto 1fr; gap: 6px 22px; align-items: end; margin-bottom: 34px; border-bottom: 1.5px solid var(--ink); padding-bottom: 16px; }
@@ -214,6 +223,7 @@ footer a { color: var(--ink-2); }
   .hero .wrap, .hw, .install { grid-template-columns: minmax(0, 1fr); }
   .map { max-width: 420px; order: -1; }
   .kit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shots .wrap { grid-template-columns: minmax(0, 1fr); }
   .readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .readout div { border-left: 0; border-top: 1px solid var(--rule-2); }
   .readout div:nth-child(-n+2) { border-top: 0; }
@@ -325,6 +335,20 @@ footer a { color: var(--ink-2); }
         <div><dt>Maps</dt><dd>US + Canada<small>plus a world overview</small></dd></div>
         <div><dt>Licence</dt><dd>MIT<small>open source code</small></dd></div>
       </dl>
+    </div>
+  </div>
+
+  <div class="shots">
+    <div class="wrap">
+      <figure>
+        <img src="screen-home.png" width="1600" height="1000" loading="lazy" alt="Mimi's home screen: the orb, a greeting, the ask box, and cards for a Wikipedia article and nearby geysers near Old Faithful. The status bar reads Offline, all local, with Gemma 4 12B.">
+        <figcaption><span class="mono">FIG. 1</span> Home, with places nearby from the offline gazetteer</figcaption>
+      </figure>
+      <figure>
+        <img src="screen-route.png" width="1600" height="1000" loading="lazy" alt="Mimi's map showing a 97.9 mile, 2 hour 13 minute driving route from Old Faithful to Jackson, Wyoming, with turn-by-turn steps, computed offline.">
+        <figcaption><span class="mono">FIG. 2</span> Turn-by-turn directions, worked out on the device</figcaption>
+      </figure>
+      <p class="shots-note">Screenshots from Mimi's demo profile on the reference handheld, with the location set to Old Faithful.</p>
     </div>
   </div>
 
