@@ -765,3 +765,48 @@ def test_points_only_street_places_a_missing_number_on_its_own_side(tmp_path):
         assert far["precision"] == "nearby"
     finally:
         ix.close()
+
+
+def _index(tmp_path, build):
+    path = tmp_path / "addresses.sqlite"
+    b = Builder(path)
+    build(b)
+    b.close()
+    return AddressIndex(path)
+
+
+def test_big_city_prefers_its_own_street_over_an_exact_number_in_the_next_town(tmp_path):
+    """"123 King St W, Toronto": downtown has 121 and 145 but no 123; Bolton, 34 km out, has 123."""
+    toronto = {"name": "Toronto", "fcode": "PPLA", "lat": 43.7064, "lon": -79.3986, "admin1": "Ontario", "country": "CA", "population": 2794356}
+
+    def build(b):
+        down = b.street("King St W", 43.6485, -79.3809, "on")
+        b.point(down, "121", 43.6480, -79.3830, source="nar")
+        b.point(down, "145", 43.6478, -79.3845, source="nar")
+        bolton = b.street("King St W", 43.8770, -79.7411, "on")
+        b.point(bolton, "123", 43.8770, -79.7411, source="nar")
+
+    ix = _index(tmp_path, build)
+    try:
+        r = ix.search("123 King St W, Toronto, ON", resolve_place=lambda q: [dict(toronto)], describe=None)[0]
+        assert r["precision"] == "interpolated" and abs(r["lat"] - 43.648) < 0.002
+    finally:
+        ix.close()
+
+
+def test_close_neighbour_on_the_named_side_beats_exact_number_on_the_other(tmp_path):
+    """"771 Grand Ave E": 769 Grand Ave E, not an exact 771 Grand Ave W across town."""
+    chatham = {"name": "Chatham", "fcode": "PPL", "lat": 42.4122, "lon": -82.1849, "admin1": "Ontario", "country": "CA", "population": 43550}
+
+    def build(b):
+        east = b.street("Grand Ave E", 42.4250, -82.1620, "on")
+        b.point(east, "769", 42.4250, -82.1620, source="nar")
+        west = b.street("Grand Ave W", 42.3950, -82.2140, "on")
+        b.point(west, "771", 42.3950, -82.2140, source="nar")
+
+    ix = _index(tmp_path, build)
+    try:
+        r = ix.search("771 Grand Ave E, Chatham, ON", resolve_place=lambda q: [dict(chatham)], describe=None)[0]
+        assert r["name"] == "769 Grand Ave E"
+    finally:
+        ix.close()

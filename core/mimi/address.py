@@ -945,7 +945,10 @@ class AddressIndex:
             reach = a.radius * mult
             if d > reach + 8.0:  # street rows sit anywhere in their 0.1 degree cell
                 continue
-            pen = 12.0 * min(d / a.radius, 2.5) + 6.0 * a.rank - (8.0 if a.kind == "postcode" and d <= a.radius else 0.0)
+            # beyond half a big city's reach, a same-named street in the next town is more likely;
+            # a small town's rural addresses do sit well out, so it only applies to cities
+            edge = 10.0 * max(0.0, min(d / a.radius, 1.5) - 0.5) if a.radius >= 20.0 else 0.0
+            pen = 12.0 * min(d / a.radius, 2.5) + edge + 6.0 * a.rank - (8.0 if a.kind == "postcode" and d <= a.radius else 0.0)
             if best is None or pen < best[0]:
                 best = (pen, a)
         return best
@@ -981,8 +984,12 @@ class AddressIndex:
                 frac = (n - lo) / (hi - lo) if hi > lo else 0.5
                 lat, lon = _along(geom, 1.0 - frac if rev else frac)
                 found[sid] = ("interpolated", lat, lon, p["numtext"], None, pc, "tiger", 0.0)
-            if not found:
-                for r in rows[:8]:
+            # Rows without the number get the closest one, even when another row has it exactly:
+            # "123 King St W, Toronto" is 121 downtown, not the exact 123 in Bolton, 30 km out.
+            # Only rows fitting the anchors better than every exact hit can win, so only they are tried.
+            best_fit = min((r["_fit"] for r in rows if r["id"] in found), default=None)
+            for r in rows[:8]:
+                if r["id"] not in found and (best_fit is None or r["_fit"] < best_fit - 4.0):
                     near_hit = self._nearest_number(r["id"], n)
                     if near_hit:
                         found[r["id"]] = near_hit
@@ -1052,7 +1059,10 @@ class AddressIndex:
         if not cands:
             return None
         diff, _, nt, lat, lon, pc, src = min(cands, key=lambda c: (c[0], c[1]))
-        return ("nearby", lat, lon, nt, None, pc, src, min(10.0, diff / 20.0))
+        # a neighbour a few doors down is nearly as good as the number itself: "771 Grand Ave E"
+        # should stay on Grand Ave E at 769 rather than take an exact 771 on Grand Ave W; one a
+        # thousand numbers off is kilometres away and barely better than the street alone
+        return ("nearby", lat, lon, nt, None, pc, src, min(30.0, diff / 20.0) - 20.0 * max(0.0, 1.0 - diff / 10.0))
 
     @staticmethod
     def _dedupe(results: list[dict]) -> list[dict]:
