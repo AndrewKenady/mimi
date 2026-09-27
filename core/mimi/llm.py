@@ -120,8 +120,8 @@ class ModelManager:
         return s
 
     # ------------------------------------------------------------------ lifecycle
-    def _chat_args(self, spec: ModelSpec, ctx: int) -> list[str]:
-        build = self._build_dir()
+    def _chat_args(self, spec: ModelSpec, ctx: int, fit_target: int = 768, cpu_only: bool = False) -> list[str]:
+        build = self._build_dir(cpu_only=cpu_only)
         args = [
             str(self.paths.exe(build, "llama-server")),
             "-m", str(spec.file),
@@ -137,7 +137,7 @@ class ModelManager:
             "--no-webui",
             "--cache-reuse", "256",
             "--fit", "on",
-            "--fit-target", "768",
+            "--fit-target", str(fit_target),
             "--reasoning-format", "deepseek",
         ]
         if spec.vision and spec.mmproj:
@@ -155,9 +155,15 @@ class ModelManager:
             want_ctx = int(min(self.settings.device("models").context, spec.get("context", 8192)))
             self._set_state("loading", spec)
             t0 = time.time()
-            for attempt, ctx in enumerate([want_ctx, max(spec.get("min_context", 4096), want_ctx // 2)]):
+            small = max(spec.get("min_context", 4096), want_ctx // 2)
+            # When graphics memory is tight (other apps hold shared memory), each retry leaves
+            # more of it free, so llama.cpp keeps more layers on the CPU: slower, but it answers.
+            # The last resort is the CPU build alone.
+            attempts = [(want_ctx, 768, False), (small, 1536, False), (small, 3072, False), (small, 0, True)]
+            for attempt, (ctx, fit, cpu_only) in enumerate(attempts):
                 self.chat_ctx = ctx
-                proc = ManagedProcess(f"llama[{spec.id}]", self._chat_args(spec, ctx), cwd=self.paths.root, log_path=self.paths.logs / "llama-chat.log")
+                args = self._chat_args(spec, ctx, fit, cpu_only)
+                proc = ManagedProcess(f"llama[{spec.id}]", args, cwd=self.paths.root, log_path=self.paths.logs / "llama-chat.log")
                 proc.start()
                 ok = await self._wait_ready(proc, CHAT_PORT, timeout=240)
                 if ok:
@@ -172,7 +178,8 @@ class ModelManager:
                     return f"http://127.0.0.1:{CHAT_PORT}"
                 tail = proc.tail(12)
                 proc.stop()
-                L.warning("%s failed to start with ctx %s (attempt %s):\n%s", spec.id, ctx, attempt + 1, tail)
+                L.warning("%s failed to start with ctx %s, %s (attempt %s):\n%s", spec.id, ctx,
+                          "CPU only" if cpu_only else f"{fit} MB graphics memory kept free", attempt + 1, tail)
             self.chat_model = None
             self._set_state("error", spec, error=f"{spec.name} could not start. Close other apps to free memory, or pick a smaller model.")
             raise ModelError(f"{spec.name} failed to load")
