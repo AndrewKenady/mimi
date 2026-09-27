@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { del, get, patch, post, stream, timeAgo } from '$lib/api';
 	import { Speaker } from '$lib/audio';
@@ -143,7 +143,8 @@
 		status = 'Thinking…';
 		stick = true;
 		const readAloud = app.settings.user?.voice?.read_aloud;
-		const speaker = readAloud ? new Speaker(app.settings.user?.voice?.voice, app.settings.user?.voice?.speed) : null;
+		reader?.close(); // one read-aloud at a time: a new answer replaces the previous one
+		const speaker = readAloud ? (reader = new Speaker(app.settings.user?.voice?.voice, app.settings.user?.voice?.speed)) : null;
 		const live: any = { id: 'live', role: 'assistant', content: '', meta: { tools: [], sources: [], memory_suggested: [] } };
 		if (opts.regenerate) {
 			const idx = messages.findIndex((x) => x.id === opts.regenerate);
@@ -229,8 +230,11 @@
 	}
 
 	async function stop() {
+		reader?.stop(); // Stop also silences an answer that is still being read aloud
 		if (chat?.id) await post(`/api/chats/${chat.id}/stop`).catch(() => {});
 	}
+	let reader: Speaker | null = null;
+	onDestroy(() => reader?.close());
 
 	async function switchVersion(mid: string) {
 		const c = await post(`/api/chats/${chat.id}/head`, { message_id: mid });

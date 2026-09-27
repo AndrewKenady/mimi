@@ -190,9 +190,13 @@ def clean_for_speech(text: str) -> str:
     t = re.sub(r"\[(\d+)\]", "", t)                 # citation markers
     t = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", t)       # images
     t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)   # links → text
+    t = re.sub(r"\]\([^)\s]*\)", "", t)              # tail of a link whose "[" was in the previous chunk
+    t = re.sub(r"[\[\]]", "", t)                      # leftover brackets
     t = re.sub(r"[*_#>`|~]+", "", t)                 # markdown symbols
     t = re.sub(r"^\s*[-•]\s+", "", t, flags=re.M)
+    t = re.sub(r"(?<![.!?:;,])[ \t]*\n+", ". ", t.strip())  # a line break is a pause (headings, list items)
     t = re.sub(r"\s+", " ", t)
+    t = re.sub(r"\s+([.,;:!?])", r"\1", t)           # "now [2]." -> "now ."  -> "now."
     return t.strip()[:2000]
 
 

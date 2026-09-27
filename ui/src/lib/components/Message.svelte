@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { app } from '$lib/app.svelte';
 	import { del, post } from '$lib/api';
@@ -42,6 +43,7 @@
 	let showMem = $state(false);
 	let suggestions = $state<any[]>([]);
 	let speaker: Speaker | null = null;
+	onDestroy(() => speaker?.close());
 
 	$effect(() => {
 		suggestions = (meta.memory_suggested || []).filter((x: any) => x && x.status === 'suggested');
@@ -81,8 +83,10 @@
 			return;
 		}
 		const v = app.settings.user?.voice || {};
+		speaker?.close();
 		speaker = new Speaker(v.voice, v.speed);
 		speaker.onIdle = () => (speaking = false);
+		speaker.onStop = () => (speaking = false); // another voice took over, or it was stopped
 		speaking = true;
 		speaker.feed(m.content + '\n');
 		speaker.flush();

@@ -46,25 +46,41 @@
 	const NO_SPEECH = 8000; // give up if nothing is said
 	const MAX_TURN = 60000;
 
+	// Every turn (a tap, a typed question, a hands-free follow-up) and closing the overlay
+	// bump this token; each async step checks it, so a superseded turn can never speak,
+	// ask, or reopen the mic after something newer started or the overlay went away.
+	let turn = 0;
+	let destroyed = false;
 	// While the answer is still streaming, the audio queue can briefly run dry between
 	// sentences; only an idle speaker after the stream has ended means Mimi is done.
 	let streaming = false;
 	speaker.onIdle = () => {
-		if (phase !== 'speaking' || streaming) return;
+		if (phase !== 'speaking' || streaming || destroyed) return;
 		finishedSpeaking();
 	};
 	function finishedSpeaking() {
 		phase = 'idle';
-		if (followUp) startListening(true);
+		if (followUp && !destroyed) startListening(true);
+	}
+
+	/** Cancel whatever is in flight (stream, speech, recording) and start a new turn. */
+	function newTurn(): number {
+		turn++;
+		clearInterval(vadTimer);
+		abort?.abort();
+		abort = null;
+		streaming = false;
+		speaker.stop();
+		rec.cancel();
+		return turn;
 	}
 
 	const wellState = $derived(phase === 'listening' ? 'listening' : phase === 'speaking' ? 'speaking' : phase === 'thinking' || phase === 'transcribing' ? 'thinking' : 'idle');
 	const level = () => (phase === 'listening' ? rec.level() : phase === 'speaking' ? speaker.level() : 0);
 
 	async function startListening(auto = false) {
-		if (phase === 'listening') return;
-		speaker.stop(); // tapping while Mimi talks interrupts it
-		abort?.abort();
+		if (phase === 'listening' || destroyed) return;
+		const my = newTurn(); // tapping while Mimi talks (or transcribes) interrupts it
 		if (!auto) {
 			heard = '';
 			reply = '';
@@ -73,10 +89,12 @@
 		hint = '';
 		try {
 			await rec.start();
+			if (my !== turn) return rec.cancel();
 			phase = 'listening';
 			startedAt = performance.now();
-			watchForEndOfTurn(auto);
-		} catch (e) {
+			watchForEndOfTurn(auto, my);
+		} catch (e: any) {
+			if (my !== turn || e?.name === 'AbortError') return;
 			phase = 'error';
 			hint = 'The microphone isn’t available here. You can type instead.';
 			openTyping();
@@ -84,29 +102,28 @@
 	}
 
 	function openTyping() {
+		speaker.unlock();
 		typing = true;
 		setTimeout(() => typeBox?.focus({ preventScroll: true }), 50);
 	}
 	function sendTyped(e: Event) {
 		e.preventDefault();
+		speaker.unlock();
 		const text = typed.trim();
 		if (!text) return;
 		typed = '';
-		speaker.stop();
-		abort?.abort();
-		if (phase === 'listening') rec.cancel();
-		clearInterval(vadTimer);
+		const my = newTurn();
 		heard = text;
 		reply = '';
-		ask(text);
+		ask(text, my);
 	}
 
-	function watchForEndOfTurn(auto: boolean) {
+	function watchForEndOfTurn(auto: boolean, my: number) {
 		clearInterval(vadTimer);
 		let spoke = 0; // ms of speech heard so far
 		let quietSince = 0;
 		vadTimer = setInterval(() => {
-			if (phase !== 'listening') return clearInterval(vadTimer);
+			if (phase !== 'listening' || my !== turn) return clearInterval(vadTimer);
 			const now = performance.now();
 			const lv = rec.level();
 			if (lv > SPEECH) {
@@ -118,37 +135,42 @@
 			}
 			if (spoke < 300 && now - startedAt > NO_SPEECH) {
 				// nobody spoke: a hands-free follow-up just goes quiet, a tap says so
+				clearInterval(vadTimer);
 				rec.cancel();
 				phase = 'idle';
 				hint = auto ? '' : "I didn't hear anything. Tap the mic and speak.";
-				clearInterval(vadTimer);
 			} else if (now - startedAt > MAX_TURN) stopListening();
 		}, 100);
 	}
 
 	async function stopListening() {
 		if (phase !== 'listening') return;
+		const my = turn;
 		clearInterval(vadTimer);
 		const long = performance.now() - startedAt;
+		phase = 'transcribing';
+		hearingLine = pick(HEARING);
 		const blob = await rec.stop();
+		if (my !== turn || destroyed) return;
 		if (!blob || long < 400) {
 			phase = 'idle';
 			hint = 'Tap the mic and speak.';
 			return;
 		}
-		phase = 'transcribing';
-		hearingLine = pick(HEARING);
+		let text = '';
 		try {
-			heard = await transcribe(blob);
+			text = await transcribe(blob);
 		} catch {
-			heard = '';
+			text = '';
 		}
-		if (!heard) {
+		if (my !== turn || destroyed) return; // interrupted or closed while transcribing
+		if (!text) {
 			phase = 'idle';
 			hint = "I didn't catch that. Try again?";
 			return;
 		}
-		await ask(heard);
+		heard = text;
+		await ask(text, my);
 	}
 
 	const FILLERS: Record<string, string> = {
@@ -161,18 +183,22 @@
 		show_reference_image: 'Let me find a picture.'
 	};
 
-	async function ask(text: string) {
+	async function ask(text: string, my: number, retried = false) {
+		if (my !== turn || destroyed) return;
 		let filled = false;
+		let stale = false;
 		phase = 'thinking';
 		thinkingLine = pick(THINKING);
 		// latency marks (performance.now) for diagnostics: window.__mimiVoice
 		const marks: Record<string, any> = { ask: performance.now() };
 		(window as any).__mimiVoice = marks;
 		hint = '';
-		abort = new AbortController();
+		const ctrl = (abort = new AbortController());
 		streaming = true;
 		try {
-			for await (const ev of stream(`/api/chats/${chatId || 'new'}/messages`, { content: text, voice: true }, abort.signal)) {
+			for await (const ev of stream(`/api/chats/${chatId || 'new'}/messages`, { content: text, voice: true }, ctrl.signal)) {
+				// already-buffered events can still arrive after an abort: ignore them
+				if (my !== turn || destroyed || ctrl.signal.aborted) break;
 				if (ev.event === 'meta' && !chatId) {
 					chatId = ev.data.chat_id;
 					sessionStorage.setItem('mimi.voiceChat', ev.data.chat_id);
@@ -193,38 +219,49 @@
 					speaker.feed(ev.data.text);
 					if (phase === 'thinking') phase = 'speaking';
 				} else if (ev.event === 'error') {
+					// the remembered voice chat was deleted (or belongs to someone else now): start a new one
+					if (chatId && !retried && !reply && /not found/i.test(ev.data.message || '')) {
+						stale = true;
+						break;
+					}
 					hint = ev.data.message;
 				}
+			}
+			if (my !== turn || destroyed || ctrl.signal.aborted) return;
+			if (stale) {
+				sessionStorage.removeItem('mimi.voiceChat');
+				chatId = null;
+				streaming = false;
+				return ask(text, my, true);
 			}
 			streaming = false;
 			speaker.flush();
 			if (!reply) phase = 'idle';
 			else if (phase === 'speaking' && !speaker.busy) finishedSpeaking(); // it already said everything
 		} catch (e: any) {
-			if (e.name !== 'AbortError') {
+			if (e.name !== 'AbortError' && my === turn && !destroyed) {
 				phase = 'error';
 				hint = e.message;
 			}
 		} finally {
-			streaming = false;
+			if (abort === ctrl) streaming = false; // a newer turn may own the flag by now
+			app.chatsVersion++;
 		}
-		app.chatsVersion++;
 	}
 
 	function toggle() {
+		speaker.unlock();
 		if (phase === 'listening') stopListening();
 		else startListening();
 	}
 
 	function close() {
-		clearInterval(vadTimer);
-		speaker.stop();
-		abort?.abort();
-		rec.cancel();
-		app.voice = false;
+		app.voice = false; // onDestroy stops everything, however the overlay is closed
 	}
 
 	function newConversation() {
+		newTurn();
+		phase = 'idle';
 		sessionStorage.removeItem('mimi.voiceChat');
 		chatId = null;
 		heard = reply = '';
@@ -232,12 +269,13 @@
 	}
 
 	onMount(() => {
+		speaker.unlock(); // still inside the tap that opened voice mode
 		post('/api/voice/warm').catch(() => {}); // load Whisper + Kokoro while the user starts talking
 		followUp = true;
 		startListening(); // opening voice mode means "I want to talk"
 		const down = () => toggle();
 		const key = (e: KeyboardEvent) => {
-			if (e.code === 'Space' && !e.repeat && !typing && !(e.target instanceof HTMLInputElement)) {
+			if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement)) {
 				e.preventDefault();
 				toggle();
 			}
@@ -255,10 +293,13 @@
 			removeEventListener('mimi:back', back);
 		};
 	});
+	// Escape, Ctrl+Shift+V and the controller close the overlay without calling close(),
+	// so all cleanup lives here: nothing may keep talking or listening after it's gone.
 	onDestroy(() => {
-		clearInterval(vadTimer);
-		speaker.stop();
-		rec.cancel();
+		destroyed = true;
+		followUp = false;
+		newTurn();
+		speaker.close();
 	});
 
 	const status = $derived(
@@ -266,7 +307,7 @@
 	);
 </script>
 
-<div class="voice" data-layer transition:fade={{ duration: 220 }}>
+<div class="voice" data-layer transition:fade={{ duration: 220 }} onpointerupcapture={() => speaker.unlock()} role="presentation">
 	<div class="top">
 		<button class="icon-btn" onclick={newConversation} title="New conversation"><MessagesSquare size={20} /></button>
 		<span class="brand">Mimi</span>
