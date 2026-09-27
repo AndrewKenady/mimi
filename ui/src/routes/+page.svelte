@@ -89,7 +89,7 @@
 							<div>
 								<h3>{discover.title}</h3>
 								<p>{discover.excerpt}…</p>
-								<span class="src"><BookOpen size={13} /> {discover.book_title}</span>
+								<span class="src">{#if discover.reason}<MapPin size={13} /> {discover.reason} · {discover.book_title}{:else}<BookOpen size={13} /> {discover.book_title}{/if}</span>
 							</div>
 						</a>
 					{/if}

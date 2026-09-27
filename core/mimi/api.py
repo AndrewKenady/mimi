@@ -731,34 +731,72 @@ async def library_home(book: str, request: Request, ctx: Ctx = Depends(get_ctx))
     return {"book": b.alias, "path": path}
 
 
+# Discover is a friendly Home card, not a search result: skip topics nobody wants
+# served to them at random (crimes, disasters, drugs, sexual content).
+_DISCOVER_SKIP = re.compile(
+    r"murder|killing|shooting|massacre|bombing|terror|genocide|death of|disappearance|suicide|lynching|execution|"
+    r"assassination|rape|abuse|kidnapping|crash|disaster|riot|drug|psychedelic|phenethylamine|amphetamine|opioid|"
+    r"cannabinoid|overdose|sexual|pornograph|erotic|fetish|nazi|hate group|serial killer",
+    re.I,
+)
+_DISCOVER_JUNK = re.compile(r"(^List_of|discography|filmography|_\(disambiguation\)|^\d{4}_in_|_season$)")
+_discover_recent: list[str] = []
+
+
+async def _discover_item(svc, b, path: str, min_html: int) -> dict | None:
+    if not path or _DISCOVER_JUNK.search(path) or _DISCOVER_SKIP.search(path.replace("_", " ")) or path in _discover_recent:
+        return None
+    art = await svc.kiwix.reader(b.name, path)
+    if not art or len(art.get("html", "")) < min_html or _DISCOVER_SKIP.search(art.get("title") or ""):
+        return None
+    from selectolax.parser import HTMLParser
+
+    paras = [re.sub(r"\s+", " ", p.text()).strip() for p in HTMLParser(art["html"]).css("p")]
+    text = re.sub(r"\[\d+\]", "", re.sub(r"\s+", " ", " ".join(p for p in paras if len(p) > 60))).strip()
+    if not text or _DISCOVER_SKIP.search(text[:400]):
+        return None
+    return {"book": b.alias, "book_title": b.title, "path": art["path"], "title": art["title"], "image": art["image"], "excerpt": text[:300]}
+
+
 @router.get("/library/random")
-async def library_random(request: Request, book: str | None = None, ctx: Ctx = Depends(get_ctx)):
+async def library_random(request: Request, book: str | None = None, near: bool = True, ctx: Ctx = Depends(get_ctx)):
+    """A Discover pick: a notable place near the device when the location is known,
+    otherwise a substantial random article. Recent picks aren't repeated."""
     svc = S(request)
     bs = await svc.kiwix.books()
     b = await svc.kiwix.book(book) if book else next((x for x in bs if x.collection == "encyclopedia"), bs[0] if bs else None)
     if not b:
         raise HTTPException(404)
+
+    def remember(item: dict) -> dict:
+        _discover_recent.append(item["path"])
+        del _discover_recent[:-30]
+        return item
+
+    cur = svc.location.current() if near and not book else None
+    if cur:
+        places = await asyncio.to_thread(svc.location.nearby, cur["lat"], cur["lon"], 40, None, 60)
+        cands = [p for p in places if p.get("wiki_path")][:25]
+        import random
+
+        random.shuffle(cands)
+        metric = svc.settings.device("general").units == "metric"
+        for p in cands[:8]:
+            item = await _discover_item(svc, b, p["wiki_path"], 3000)
+            if item and item["image"]:
+                d = p.get("distance_km") or 0
+                item["reason"] = f"Near you · {d:.1f} km" if metric else f"Near you · {d * 0.621371:.1f} mi"
+                return remember(item)
     fallback = None
-    for _ in range(8):  # prefer a substantial article with a picture
+    for _ in range(12):  # a substantial article (a proxy for notability) with a picture
         r = await svc.kiwix.http.get(f"{svc.kiwix_service.base}/random", params={"content": b.name}, follow_redirects=False)
         loc = r.headers.get("location", "")
-        path = loc.split(f"/content/{b.name}/", 1)[-1] if loc else ""
-        if not path or re.search(r"(^List_of|discography|filmography|_\(disambiguation\)|^\d{4}_in_)", path):
-            continue
-        art = await svc.kiwix.reader(b.name, path)
-        if not art or len(art.get("html", "")) < 4000:
-            continue
-        from selectolax.parser import HTMLParser
-
-        paras = [re.sub(r"\s+", " ", p.text()).strip() for p in HTMLParser(art["html"]).css("p")]
-        text = re.sub(r"\s+", " ", " ".join(p for p in paras if len(p) > 60)).strip()
-        text = re.sub(r"\[\d+\]", "", text)
-        item = {"book": b.alias, "book_title": b.title, "path": art["path"], "title": art["title"], "image": art["image"], "excerpt": text[:300]}
-        if art["image"] and text:
-            return item
-        fallback = fallback or (item if text else None)
+        item = await _discover_item(svc, b, loc.split(f"/content/{b.name}/", 1)[-1] if loc else "", 12000)
+        if item and item["image"]:
+            return remember(item)
+        fallback = fallback or item
     if fallback:
-        return fallback
+        return remember(fallback)
     raise HTTPException(404)
 
 
