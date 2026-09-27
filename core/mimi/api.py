@@ -999,9 +999,14 @@ async def maps_info(request: Request, ctx: Ctx = Depends(get_ctx)):
     meta = json.loads(meta_file.read_text("utf-8")) if meta_file.exists() else {}
     addr = svc.location.addr
     addresses = addr.info() if addr else {"available": False}
+    world = svc.paths.maps / "world.pmtiles"
     return {
-        "tiles": tiles.exists(),
+        "tiles": tiles.exists() or world.exists(),
         "tiles_url": "/maps/tiles.pmtiles" if tiles.exists() else None,
+        # the whole planet at overview detail (zoom 0-11), drawn under the detailed regions
+        "world_url": "/maps/world.pmtiles" if world.exists() else None,
+        "regions": [{"url": "/maps/tiles.pmtiles", "bounds": meta.get("bounds"), "maxzoom": meta.get("maxzoom"),
+                     "name": meta.get("region")}] if tiles.exists() else [],
         "size": tiles.stat().st_size if tiles.exists() else 0,
         "assets": (svc.paths.maps / "assets").exists(),
         "bounds": meta.get("bounds"),

@@ -5,7 +5,7 @@
 	import * as maplibregl from 'maplibre-gl';
 	import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 	import 'maplibre-gl/dist/maplibre-gl.css';
-	import { Protocol } from 'pmtiles';
+	import { PMTiles, Protocol } from 'pmtiles';
 	import { layers, namedFlavor } from '@protomaps/basemaps';
 	import { app } from '$lib/app.svelte';
 	import { ApiError, del, get, post } from '$lib/api';
@@ -58,18 +58,54 @@
 	const metric = $derived(app.settings.device?.general?.units === 'metric');
 	const fmtDist = (km: number) => (metric ? `${km.toFixed(1)} km` : `${(km * 0.621371).toFixed(1)} mi`);
 
+	// The world map (zoom 0-11) is drawn under the detailed regions. Where a region fully
+	// covers a world tile, that tile is served empty so the handheld doesn't draw both;
+	// abroad, MapLibre stretches the zoom-11 world tiles when you zoom in further.
+	const EMPTY = new Uint8Array(0);
+	function coveredByRegion(z: number, x: number, y: number): boolean {
+		const n = 2 ** z;
+		const lon = (i: number) => (i / n) * 360 - 180;
+		const lat = (j: number) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * j) / n))) * 180) / Math.PI;
+		const [w, e, north, south] = [lon(x), lon(x + 1), lat(y), lat(y + 1)];
+		return (info?.regions || []).some((r: any) => r.bounds && w >= r.bounds[0] && e <= r.bounds[2] && south >= r.bounds[1] && north <= r.bounds[3]);
+	}
+	function worldTiles(archive: PMTiles) {
+		return async (params: { url: string }, ctrl: AbortController) => {
+			const m = /(\d+)\/(\d+)\/(\d+)$/.exec(params.url);
+			if (!m) return { data: EMPTY };
+			const [z, x, y] = m.slice(1).map(Number);
+			if (coveredByRegion(z, x, y)) return { data: EMPTY };
+			const t = await archive.getZxy(z, x, y, ctrl.signal);
+			return { data: t ? new Uint8Array(t.data) : EMPTY };
+		};
+	}
+
 	function style(): maplibregl.StyleSpecification {
 		const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 		const origin = location.origin;
+		const flavor = namedFlavor(theme);
+		const sources: Record<string, any> = {};
+		let all: any[] = [];
+		if (info.world_url) {
+			sources.world = { type: 'vector', tiles: ['mimiworld://{z}/{x}/{y}'], minzoom: 0, maxzoom: 11, attribution: '© OpenStreetMap contributors · Protomaps' };
+			all = (layers('world', flavor, { lang: 'en' }) as any[]).map((l) => ({ ...l, id: `world-${l.id}` }));
+		}
+		if (info.tiles_url) {
+			sources.protomaps = { type: 'vector', url: `pmtiles://${origin}${info.tiles_url}`, attribution: '© OpenStreetMap contributors · Protomaps' };
+			// on top of the world map, the region's own background would hide everything beneath
+			const detail = layers('protomaps', flavor, { lang: 'en' }) as any[];
+			all = all.concat(info.world_url ? detail.filter((l) => l.type !== 'background') : detail);
+		}
 		return {
 			version: 8,
 			glyphs: `${origin}/maps/assets/fonts/{fontstack}/{range}.pbf`,
 			sprite: `${origin}/maps/assets/sprites/v4/${theme}`,
-			sources: {
-				protomaps: { type: 'vector', url: `pmtiles://${origin}/maps/tiles.pmtiles`, attribution: '© OpenStreetMap contributors · Protomaps' }
-			},
-			layers: layers('protomaps', namedFlavor(theme), { lang: 'en' }) as any
-		};
+			// zoomed out it's a globe; it flattens into the ordinary map as you zoom in
+			projection: { type: 'globe' },
+			sky: { 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] },
+			sources,
+			layers: all
+		} as any;
 	}
 
 	onMount(async () => {
@@ -78,13 +114,15 @@
 		maplibregl.setWorkerUrl(workerUrl);
 		const protocol = new Protocol();
 		maplibregl.addProtocol('pmtiles', protocol.tile);
+		if (info.world_url) maplibregl.addProtocol('mimiworld', worldTiles(new PMTiles(`${location.origin}${info.world_url}`)) as any);
 		const start = loc ? [loc.lon, loc.lat] : [-98.5, 39.8];
 		map = new maplibregl.Map({
 			container: el,
 			style: style(),
 			center: start as [number, number],
-			zoom: loc ? 11 : 3.4,
-			maxBounds: info.bounds ? [[info.bounds[0] - 20, info.bounds[1] - 10], [info.bounds[2] + 20, info.bounds[3] + 8]] : undefined,
+			zoom: loc ? 11 : info.world_url ? 1.6 : 3.4,
+			// with only a regional map, keep the view near it; with the world map, go anywhere
+			maxBounds: !info.world_url && info.bounds ? [[info.bounds[0] - 20, info.bounds[1] - 10], [info.bounds[2] + 20, info.bounds[3] + 8]] : undefined,
 			attributionControl: { compact: true },
 			dragRotate: false,
 			pitchWithRotate: false
@@ -206,6 +244,7 @@
 	onDestroy(() => {
 		map?.remove();
 		maplibregl.removeProtocol('pmtiles');
+		maplibregl.removeProtocol('mimiworld');
 	});
 
 	function placeMe(lat: number, lon: number) {
