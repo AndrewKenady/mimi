@@ -83,7 +83,7 @@
 	{/if}
 {/if}
 {#if app.offline && app.ready}
-	<div class="reconnect glass">Reconnecting to MIMI Core…</div>
+	<div class="reconnect glass">Reconnecting to Mimi Core…</div>
 {/if}
 <Toasts />
 

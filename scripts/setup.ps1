@@ -1,5 +1,5 @@
 <#
-  MIMI setup: builds a complete MIMI tree from a fresh clone (Windows 10/11 x64).
+  Mimi setup: builds a complete Mimi tree from a fresh clone (Windows 10/11 x64).
   No administrator rights needed. Re-running is safe.
 
     powershell -ExecutionPolicy Bypass -File scripts\setup.ps1            # everything

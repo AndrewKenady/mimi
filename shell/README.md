@@ -1,7 +1,7 @@
-# MIMI shell (`MIMI.exe`)
+# Mimi shell (`MIMI.exe`)
 
-The native Windows app for MIMI: a thin, full-screen window around **Microsoft Edge WebView2**
-that shows the web UI served by MIMI Core on `http://127.0.0.1:7600/`. It starts Core when needed,
+The native Windows app for Mimi: a thin, full-screen window around **Microsoft Edge WebView2**
+that shows the web UI served by Mimi Core on `http://127.0.0.1:7600/`. It starts Core when needed,
 shows a boot screen while Core wakes up, and gives the UI a small bridge to the host (full screen,
 tray, quit, open folders).
 
@@ -32,14 +32,14 @@ powershell -ExecutionPolicy Bypass -File shell\build.ps1 -WebView2Version 1.0.41
    version), downloads the `.nupkg` into `.tools\webview2sdk\` and unzips it to
    `.tools\webview2sdk\<version>\`. Cached; without network it falls back to the newest cached SDK.
 2. Copies `Microsoft.Web.WebView2.Core.dll`, `Microsoft.Web.WebView2.WinForms.dll`
-   (`lib\net462`) and `WebView2Loader.dll` (`runtimes\win-x64\native`) into the MIMI root.
+   (`lib\net462`) and `WebView2Loader.dll` (`runtimes\win-x64\native`) into the Mimi root.
 3. Checks that `MimiShell.cs` and `splash.html` are pure ASCII (see *Text encoding*), then compiles
    with `%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe`
    (`/target:winexe /platform:x64 /optimize+ /codepage:65001`, icon, manifest, `mimi.ico` and
    `splash.html` as embedded resources) into a temp folder and only then copies `MIMI.exe` into the
    root, so a failed build never leaves a broken exe. Any compiler error fails the build.
 
-A running `MIMI.exe` locks the exe and DLLs: quit MIMI before rebuilding (the script says so).
+A running `MIMI.exe` locks the exe and DLLs: quit Mimi before rebuilding (the script says so).
 Build outputs (`/MIMI.exe`, `/*.dll`) and `.tools/` are git-ignored.
 
 To regenerate the icon: `powershell -ExecutionPolicy Bypass -File shell\make_icon.ps1`
@@ -54,7 +54,7 @@ MIMI.exe --startup    for sign-in autostart: same, but never forces itself to th
 MIMI.exe --dev        DevTools (F12), F5 reload, browser accelerator keys, full context menu
 ```
 
-The MIMI root is always the folder containing `MIMI.exe`; nothing is hard-coded, so a MIMI folder
+The Mimi root is always the folder containing `MIMI.exe`; nothing is hard-coded, so a Mimi folder
 can live on any drive or a USB stick.
 
 ## What happens at start-up
@@ -70,9 +70,9 @@ can live on any drive or a USB stick.
 3. **Boot screen.** The window appears at once on `#060A12`. The WebView2 control stays hidden
    until its first page has loaded (its initial `about:blank` would paint Chromium's grey), so
    there is never a white or grey flash. Then `splash.html` fades in: the glowing "Well" orb, the
-   MIMI wordmark and a status line the shell updates with `ExecuteScriptAsync`
-   ("Waking up...", "Starting MIMI Core...", ...). If Core is already running, the UI usually
-   answers before the splash has even loaded and MIMI opens straight into the UI; once the splash
+   Mimi wordmark and a status line the shell updates with `ExecuteScriptAsync`
+   ("Waking up...", "Starting Mimi Core...", ...). If Core is already running, the UI usually
+   answers before the splash has even loaded and Mimi opens straight into the UI; once the splash
    is on screen it stays for at least 1.1 s and fades out, so it never just flickers.
 4. **Waiting for Core.** `GET /api/ping` every 250 ms until it returns `{"ok": true}`. A refused
    connection to localhost takes about 2 s to fail on Windows (TCP SYN retries), so pings overlap
@@ -90,8 +90,8 @@ can live on any drive or a USB stick.
 - **F11** or **Alt+Enter** toggles full screen (borderless, exactly the monitor's bounds, which
   Windows treats as full screen and hides the taskbar behind). A page element entering HTML
   full screen (`requestFullscreen()`) takes the window with it.
-- **Ctrl+Alt+M** (global hotkey) shows MIMI, or hides it to the tray when it is in front.
-- **Tray icon**: *Show MIMI*, *Full screen* (checked when on), *Quit MIMI*; click or double-click
+- **Ctrl+Alt+M** (global hotkey) shows Mimi, or hides it to the tray when it is in front.
+- **Tray icon**: *Show Mimi*, *Full screen* (checked when on), *Quit Mimi*; click or double-click
   shows the window. The menu is dark and has roomy, touch-friendly rows.
 - **Alt+F4** / the close button **quits** (it does not minimise).
 - Hiding to the tray lowers WebView2's memory target; the page sees `document.hidden`, so timers
@@ -115,7 +115,7 @@ synchronously within 2.5 s.
 - User data folder: `<root>\data\webview`. Crash dumps stay local (`IsCustomCrashReportingEnabled`),
   no SmartScreen/reputation lookups, tracking prevention off (nothing to block offline), Fluent
   overlay scrollbars, autoplay allowed without a click (`--autoplay-policy=no-user-gesture-required`)
-  so MIMI can speak as soon as an answer is ready.
+  so Mimi can speak as soon as an answer is ready.
 - Browser chrome off: no status bar, zoom, pinch-zoom, swipe navigation, autofill, password saving,
   built-in error pages or browser accelerator keys (Ctrl+P, Ctrl+F, F5, ...). Editing keys
   (Ctrl+C/V/X/A/Z) work as usual. `--dev` turns DevTools, accelerators and the full menu back on.
@@ -126,7 +126,7 @@ synchronously within 2.5 s.
   granted without a prompt: microphone, camera, geolocation, clipboard read, notifications,
   autoplay, persistent storage. Other origins are denied; rarer permissions from the Core origin
   get WebView2's normal prompt.
-- Navigation: only the Core origin (plus the shell's own boot screen) is shown inside MIMI.
+- Navigation: only the Core origin (plus the shell's own boot screen) is shown inside Mimi.
   External `http(s)` links open in the default browser, and only when the user clicked them.
   Pop-ups (`target="_blank"`, `window.open`) never open a WebView2 window: they also go to the
   default browser, local links included, so the app keeps its state. Use normal navigation for
@@ -158,9 +158,9 @@ a bare string is accepted too):
 | `set-fullscreen` | `value: boolean` | Enter/leave full screen (always answered with `host-info`). |
 | `minimize` | | Minimise the window. |
 | `exit-to-desktop` | | Hide to the tray (Core keeps running). |
-| `quit` | | Quit MIMI (see *Quitting*). |
+| `quit` | | Quit Mimi (see *Quitting*). |
 | `open-logs` | | Open `<root>\logs` in Explorer. |
-| `open-folder` | `path: string` | Open a folder inside the MIMI root (relative or absolute); a file is shown selected. Anything outside the root, UNC/device paths and streams are refused. |
+| `open-folder` | `path: string` | Open a folder inside the Mimi root (relative or absolute); a file is shown selected. Anything outside the root, UNC/device paths and streams are refused. |
 | `retry` | | Run the boot sequence again (show the boot screen, restart Core if needed, reload the UI). |
 | `get-host-info` | | Ask for a `host-info` message. |
 
@@ -168,7 +168,7 @@ Host -> page messages arrive on `window.chrome.webview.addEventListener('message
 
 ```js
 { type: "host-info", fullscreen: true, version: "0.1.0", shell: "winforms-webview2", dev: false }
-{ type: "host-error", request: "open-folder", message: "Only folders inside the MIMI folder can be opened." }
+{ type: "host-error", request: "open-folder", message: "Only folders inside the Mimi folder can be opened." }
 ```
 
 `host-info` is sent after every page load of the UI, on every full-screen change and on
@@ -201,12 +201,12 @@ any code page, editor or compiler setting.
 
 ## Troubleshooting
 
-- **"MIMI needs the Microsoft Edge WebView2 Runtime"**: install the Evergreen Runtime (x64) from
+- **"Mimi needs the Microsoft Edge WebView2 Runtime"**: install the Evergreen Runtime (x64) from
   <https://developer.microsoft.com/microsoft-edge/webview2/>. It ships with Windows 11; the
   standalone installer works offline.
 - **"Port 7600 is busy"**: another program listens on 7600 and doesn't answer like Core.
 - **Boot screen error**: *Open logs folder*, then check `shell.log` and Core's own logs.
-- **Build: "MIMI.exe is running"**: quit MIMI from the tray first.
+- **Build: "MIMI.exe is running"**: quit Mimi from the tray first.
 
 ## Design notes
 

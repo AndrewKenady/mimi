@@ -1,11 +1,11 @@
 [project]
 name = "mimi"
 version = "0.1.0"
-description = "MIMI — Machine Intelligence, Minus the Internet. The offline AI field station."
+description = "Mimi — Machine Intelligence, Minus the Internet. The offline AI field station."
 readme = "../README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Andrew Kenady and MIMI contributors" }]
+authors = [{ name = "Andrew Kenady and Mimi contributors" }]
 dependencies = [
   "fastapi>=0.115",
   "uvicorn[standard]>=0.30",

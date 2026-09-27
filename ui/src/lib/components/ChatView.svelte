@@ -373,7 +373,7 @@
 		<div class="compose">
 			<div class="inner">
 				<Composer onsend={(t, a) => send(t, a)} onstop={stop} {busy} bind:mode bind:value={draft} bind:attachments autofocus />
-				<p class="disclaimer">MIMI runs offline on this device and can make mistakes. Check important facts in the sources.</p>
+				<p class="disclaimer">Mimi runs offline on this device and can make mistakes. Check important facts in the sources.</p>
 			</div>
 		</div>
 	</section>

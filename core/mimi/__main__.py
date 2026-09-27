@@ -1,6 +1,6 @@
-"""MIMI Core command line.
+"""Mimi Core command line.
 
-    python -m mimi serve            run the backend (the MIMI app starts this for you)
+    python -m mimi serve            run the backend (the Mimi app starts this for you)
     python -m mimi doctor           print a diagnostic report
 """
 
@@ -56,9 +56,9 @@ def doctor(args: argparse.Namespace) -> None:
 def main() -> None:
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    ap = argparse.ArgumentParser(prog="mimi", description="MIMI — Machine Intelligence, Minus the Internet")
+    ap = argparse.ArgumentParser(prog="mimi", description="Mimi — Machine Intelligence, Minus the Internet")
     sub = ap.add_subparsers(dest="cmd")
-    s = sub.add_parser("serve", help="run MIMI Core")
+    s = sub.add_parser("serve", help="run Mimi Core")
     s.add_argument("--host", default=os.environ.get("MIMI_HOST", "127.0.0.1"))
     s.add_argument("--port", type=int, default=None)
     sub.add_parser("doctor", help="diagnostics")

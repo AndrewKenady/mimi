@@ -1,6 +1,6 @@
-"""Filesystem layout of a MIMI tree.
+"""Filesystem layout of a Mimi tree.
 
-A MIMI tree is both the git repository and the portable install: source code
+A Mimi tree is both the git repository and the portable install: source code
 lives next to (git-ignored) runtimes and content. Every path is resolved
 relative to the tree root so the whole folder can move between drives or run
 from a USB stick.

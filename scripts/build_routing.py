@@ -1,4 +1,4 @@
-"""Build MIMI's offline routing graph (Valhalla tiles) from OpenStreetMap extracts.
+"""Build Mimi's offline routing graph (Valhalla tiles) from OpenStreetMap extracts.
 
     python scripts/build_routing.py                       # US + Canada (default)
     python scripts/build_routing.py --regions us/wyoming  # a single state, for testing

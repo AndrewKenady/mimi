@@ -95,12 +95,12 @@
 	const polys = $derived((ocr?.lines || []).filter((l: any) => l.box).map((l: any) => ({ text: l.text, pts: l.box.map((p: number[]) => p.join(',')).join(' ') })));
 </script>
 
-<svelte:head><title>Lens · MIMI</title></svelte:head>
+<svelte:head><title>Lens · Mimi</title></svelte:head>
 
 <div class="page">
 	<div class="page-inner">
 		<h1 class="page-title">Lens</h1>
-		<p class="page-sub">Point, shoot, understand. MIMI reads the text instantly and can explain, translate or identify what it sees, all offline.</p>
+		<p class="page-sub">Point, shoot, understand. Mimi reads the text instantly and can explain, translate or identify what it sees, all offline.</p>
 
 		<div class="stage" class:has={!!url || camOn}>
 			{#if camOn}
@@ -147,7 +147,7 @@
 					</header>
 					{#if reading}<p class="faint"><Loader size={14} class="spin" /> Reading…</p>
 					{:else if ocr?.text}<pre class="ocr selectable">{ocr.text}</pre>
-					{:else}<p class="faint">No text detected. You can still ask MIMI about the picture.</p>{/if}
+					{:else}<p class="faint">No text detected. You can still ask Mimi about the picture.</p>{/if}
 					{#if ocr?.ms}<small class="faint">Read on-device in {ocr.ms} ms</small>{/if}
 				</section>
 

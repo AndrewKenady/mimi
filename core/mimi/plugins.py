@@ -16,7 +16,7 @@ A plugin is one ``.py`` file (or a folder with ``__init__.py``) that defines::
 folder for the plugin) and ``find_place(name)``, which looks a place up on the offline map
 and returns ``{"lat", "lon", "name"}`` or None. A dict result may carry ``text`` (for the model), ``label`` and ``data``.
 
-Plugins run with the same rights as MIMI itself, so none is offered to the model until the
+Plugins run with the same rights as Mimi itself, so none is offered to the model until the
 owner turns it on in Settings -> Tools.
 """
 

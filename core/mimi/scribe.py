@@ -1,5 +1,5 @@
 """Scribe: record or upload audio → transcript with timestamps → summary, key
-points and action items → a searchable note that MIMI can recall in chat.
+points and action items → a searchable note that Mimi can recall in chat.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ SUMMARY_SCHEMA = {
     "required": ["title", "summary", "key_points", "action_items"],
 }
 
-SUMMARY_PROMPT = """You are summarizing a transcript recorded with MIMI's Scribe.
+SUMMARY_PROMPT = """You are summarizing a transcript recorded with Mimi's Scribe.
 Return JSON with:
 - "title": a specific 3–7 word title
 - "summary": 2–4 sentences

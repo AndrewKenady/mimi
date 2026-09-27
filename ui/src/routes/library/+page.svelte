@@ -70,7 +70,7 @@
 	}
 </script>
 
-<svelte:head><title>Library · MIMI</title></svelte:head>
+<svelte:head><title>Library · Mimi</title></svelte:head>
 
 <div class="page">
 	<div class="page-inner">
@@ -102,7 +102,7 @@
 				{#if q.trim().length > 3}
 					<button class="ask card card-hover" onclick={askAbout}>
 						<Sparkles size={18} />
-						<span>Ask MIMI: <b>{q}</b></span>
+						<span>Ask Mimi: <b>{q}</b></span>
 					</button>
 				{/if}
 				{#each results as r (r.book + r.path)}

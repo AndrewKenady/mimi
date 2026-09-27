@@ -1,7 +1,7 @@
 # Community tools
 
-Drop a Python file in this folder and MIMI can call it during a chat. New tools stay **off**
-until the owner turns them on in **Settings → Tools**. Tools run with MIMI's own permissions,
+Drop a Python file in this folder and Mimi can call it during a chat. New tools stay **off**
+until the owner turns them on in **Settings → Tools**. Tools run with Mimi's own permissions,
 so only enable code you trust.
 
 ## The contract

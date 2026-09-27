@@ -7,7 +7,7 @@ Roles:
 
 On the device itself (requests arriving on the loopback-only app port) the
 owner is signed in automatically unless the owner enabled "require PIN".
-Remote devices (phones on the MIMI network) always need a session cookie.
+Remote devices (phones on the Mimi network) always need a session cookie.
 """
 
 from __future__ import annotations

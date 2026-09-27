@@ -1,4 +1,4 @@
-"""Example MIMI community tool: exact unit conversions (no model arithmetic)."""
+"""Example Mimi community tool: exact unit conversions (no model arithmetic)."""
 
 NAME = "convert_units"
 DESCRIPTION = (

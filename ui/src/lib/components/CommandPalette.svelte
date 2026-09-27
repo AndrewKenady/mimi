@@ -15,7 +15,7 @@
 
 	const base: Item[] = [
 		{ id: 'new', label: 'New chat', icon: MessageSquarePlus, run: () => goto('/chat'), group: 'Go' },
-		{ id: 'talk', label: 'Talk to MIMI', hint: 'Voice', icon: AudioLines, run: () => (app.voice = true), group: 'Go' },
+		{ id: 'talk', label: 'Talk to Mimi', hint: 'Voice', icon: AudioLines, run: () => (app.voice = true), group: 'Go' },
 		{ id: 'home', label: 'Home', icon: House, run: () => goto('/'), group: 'Go' },
 		{ id: 'lib', label: 'Library', icon: Library, run: () => goto('/library'), group: 'Go' },
 		{ id: 'map', label: 'Map', icon: Map, run: () => goto('/map'), group: 'Go' },
@@ -38,7 +38,7 @@
 			group: 'Actions'
 		},
 		{ id: 'fs', label: 'Toggle full screen', hint: 'F11', icon: Maximize, run: () => toggleFullscreen(), group: 'Actions' },
-		{ id: 'share', label: 'Share MIMI with nearby phones', icon: QrCode, run: () => goto('/settings/sharing'), group: 'Actions' }
+		{ id: 'share', label: 'Share Mimi with nearby phones', icon: QrCode, run: () => goto('/settings/sharing'), group: 'Actions' }
 	];
 
 	const items = $derived.by(() => {
@@ -46,7 +46,7 @@
 		const list = base.filter((i) => !needle || i.label.toLowerCase().includes(needle));
 		const chatItems: Item[] = chats.map((c) => ({ id: c.id, label: c.title || 'Untitled chat', hint: 'Chat', icon: MessagesSquare, run: () => goto('/chat/' + c.id), group: 'Chats' }));
 		if (needle.length > 1)
-			list.push({ id: 'ask', label: `Ask MIMI: “${q.trim()}”`, icon: Search, run: () => { app.ask(q.trim()); goto('/chat'); }, group: 'Ask' });
+			list.push({ id: 'ask', label: `Ask Mimi: “${q.trim()}”`, icon: Search, run: () => { app.ask(q.trim()); goto('/chat'); }, group: 'Ask' });
 		return [...list, ...chatItems];
 	});
 

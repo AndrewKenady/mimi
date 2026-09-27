@@ -1,5 +1,5 @@
 <!--
-  On the MIMI device: a browser on the network wants to sign in. The owner compares
+  On the Mimi device: a browser on the network wants to sign in. The owner compares
   the code with the one on that screen and allows or denies it. Nothing can be
   approved from the network; this dialog only exists on the device itself.
 -->

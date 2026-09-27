@@ -192,7 +192,7 @@
 
 	const ACCENTS = ['#6EE7D2', '#8AB4FF', '#B69CFF', '#F28FAD', '#F5B971', '#7DD3A8', '#F6E27A', '#FF9E7A'];
 	const ACTIONS: [string, string][] = [
-		['', 'Nothing'], ['select', 'Select'], ['back', 'Back'], ['voice', 'Talk to MIMI'], ['lens', 'Open Lens'], ['prev_surface', 'Previous screen'],
+		['', 'Nothing'], ['select', 'Select'], ['back', 'Back'], ['voice', 'Talk to Mimi'], ['lens', 'Open Lens'], ['prev_surface', 'Previous screen'],
 		['next_surface', 'Next screen'], ['push_to_talk', 'Talk (tap to start or stop)'], ['quick_menu', 'Quick menu'], ['command_palette', 'Search / jump']
 	];
 	const BUTTONS = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Start', 'Back'];
@@ -203,7 +203,7 @@
 	const cur = $derived(SECTIONS.find((s) => s.id === section));
 </script>
 
-<svelte:head><title>Settings · MIMI</title></svelte:head>
+<svelte:head><title>Settings · Mimi</title></svelte:head>
 
 <div class="settings">
 	<aside class="nav">
@@ -230,21 +230,21 @@
 
 			{#if section === 'general' && D.general}
 				<div class="group card">
-					<Row label="Launch MIMI at startup" hint={!(inShell || app.boot?.local) ? 'Change this on the device.' : app.boot?.portable ? 'Portable drive: this adds a startup entry to this PC that points at the drive, so only use it on your own computer.' : 'Opens MIMI when you sign in to Windows.'}>
+					<Row label="Launch Mimi at startup" hint={!(inShell || app.boot?.local) ? 'Change this on the device.' : app.boot?.portable ? 'Portable drive: this adds a startup entry to this PC that points at the drive, so only use it on your own computer.' : 'Opens Mimi when you sign in to Windows.'}>
 						<Toggle checked={D.general.launch_at_startup} onchange={(v) => dev('general', { launch_at_startup: v })} label="Launch at startup" />
 					</Row>
 					<Row label="Open full screen" hint="Start in immersive full-screen mode. F11 toggles anytime.">
 						<Toggle checked={D.general.open_fullscreen} onchange={(v) => dev('general', { open_fullscreen: v })} label="Open full screen" />
 					</Row>
-					<Row label="Kiosk feel" hint="Keep MIMI in front. Exit only from the quick menu.">
+					<Row label="Kiosk feel" hint="Keep Mimi in front. Exit only from the quick menu.">
 						<Toggle checked={D.general.kiosk} onchange={(v) => dev('general', { kiosk: v })} label="Kiosk" />
 					</Row>
-					<Row label="Keep serving phones when closed" hint="Closing the window leaves MIMI running for connected devices.">
+					<Row label="Keep serving phones when closed" hint="Closing the window leaves Mimi running for connected devices.">
 						<Toggle checked={D.general.keep_running_on_close} onchange={(v) => dev('general', { keep_running_on_close: v })} label="Keep running" />
 					</Row>
 				</div>
 				<div class="group card">
-					<Row label="Require PIN on this device" hint={app.me?.has_pin ? 'Ask for your PIN when MIMI opens.' : 'Set a PIN in Accounts first.'}>
+					<Row label="Require PIN on this device" hint={app.me?.has_pin ? 'Ask for your PIN when Mimi opens.' : 'Set a PIN in Accounts first.'}>
 						<Toggle checked={D.general.require_pin} disabled={!app.me?.has_pin} onchange={(v) => dev('general', { require_pin: v })} label="Require PIN" />
 					</Row>
 					<Row label="Units"><Segmented value={D.general.units} options={[['imperial', 'Miles · °F'], ['metric', 'Kilometres · °C']]} onchange={(v) => dev('general', { units: v })} /></Row>
@@ -282,7 +282,7 @@
 					<Row label="Answer length"><Slider value={U.assistant.verbosity} onchange={(v) => usr('assistant', { verbosity: v })} left="Brief" right="Detailed" /></Row>
 					<Row label="Tone"><Slider value={U.assistant.formality} onchange={(v) => usr('assistant', { formality: v })} left="Casual" right="Formal" /></Row>
 					<Row label="Dry wit" hint="A touch of humour when it fits."><Toggle checked={U.assistant.wit} onchange={(v) => usr('assistant', { wit: v })} label="Wit" /></Row>
-					<Row label="Show what MIMI is doing" hint="The activity trail: searches, articles read, lookups."><Toggle checked={U.assistant.show_tool_activity} onchange={(v) => usr('assistant', { show_tool_activity: v })} label="Activity trail" /></Row>
+					<Row label="Show what Mimi is doing" hint="The activity trail: searches, articles read, lookups."><Toggle checked={U.assistant.show_tool_activity} onchange={(v) => usr('assistant', { show_tool_activity: v })} label="Activity trail" /></Row>
 					<Row label="Default mode">
 						<select class="input sel" value={U.assistant.default_mode} onchange={(e) => usr('assistant', { default_mode: e.currentTarget.value })}>
 							{#each Object.entries(app.modes) as [id, m]}<option value={id}>{m.name}</option>{/each}
@@ -290,10 +290,10 @@
 					</Row>
 				</div>
 				<div class="group card">
-					<Row label="About you" hint="A few words MIMI keeps in mind (optional)." stack>
+					<Row label="About you" hint="A few words Mimi keeps in mind (optional)." stack>
 						<textarea class="input" rows="2" maxlength="1000" value={U.assistant.about_me} onchange={(e) => usr('assistant', { about_me: e.currentTarget.value })} placeholder="e.g. Park ranger in Kentucky. I like short, practical answers."></textarea>
 					</Row>
-					<Row label="Custom instructions" hint="How MIMI should respond, always." stack>
+					<Row label="Custom instructions" hint="How Mimi should respond, always." stack>
 						<textarea class="input" rows="3" maxlength="2000" value={U.assistant.custom_instructions} onchange={(e) => usr('assistant', { custom_instructions: e.currentTarget.value })} placeholder="e.g. Use metric units. Explain like I'm new to the topic."></textarea>
 					</Row>
 				</div>
@@ -316,7 +316,7 @@
 							</select>
 						</Row>
 					{/each}
-					<Row label="Context length" hint="How much conversation MIMI can hold. Longer uses more memory.">
+					<Row label="Context length" hint="How much conversation Mimi can hold. Longer uses more memory.">
 						<Segmented value={String(D.models.context)} options={[['4096', '4K'], ['8192', '8K'], ['12288', '12K'], ['16384', '16K']]} onchange={(v) => dev('models', { context: Number(v) })} />
 					</Row>
 					<Row label="Creativity" hint={D.models.temperature == null ? "Using the model's recommended setting." : 'Lower is more focused, higher more varied.'}>
@@ -363,7 +363,7 @@
 			{:else if section === 'library' && D.knowledge}
 				<div class="group card">
 					<Row label="Articles per search" hint="More context gives better answers but slower replies."><Segmented value={String(D.knowledge.articles_per_search)} options={[['2', '2'], ['3', '3'], ['4', '4'], ['5', '5']]} onchange={(v) => dev('knowledge', { articles_per_search: Number(v) })} /></Row>
-					<Row label="Passage length" hint="How much of each article MIMI reads."><Slider value={D.knowledge.snippet_chars} min={400} max={2400} step={100} onchange={(v) => dev('knowledge', { snippet_chars: v })} fmt={(v) => v + ' chars'} /></Row>
+					<Row label="Passage length" hint="How much of each article Mimi reads."><Slider value={D.knowledge.snippet_chars} min={400} max={2400} step={100} onchange={(v) => dev('knowledge', { snippet_chars: v })} fmt={(v) => v + ' chars'} /></Row>
 				</div>
 				<h3 class="label sub">Collections</h3>
 				<div class="group card">
@@ -383,19 +383,19 @@
 						<span class="muted">{app.location?.description?.description || '—'}</span>
 						<a class="btn btn-sm" href="/map">Set on map</a>
 					</Row>
-					<Row label="Live location from this device" hint="Streams this browser's GPS to MIMI while it's open, like a phone riding in the car. Directions and 'near me' follow along (needs Location source: Auto).">
+					<Row label="Live location from this device" hint="Streams this browser's GPS to Mimi while it's open, like a phone riding in the car. Directions and 'near me' follow along (needs Location source: Auto).">
 						<Toggle checked={app.live} onchange={(v) => (v ? app.startLive() : app.stopLive())} label="Live location" />
 					</Row>
-					<Row label="GPS receiver" hint={app.location?.gps?.port ? `Connected on ${app.location.gps.port}${app.location.gps.fix ? ' · fix acquired' : ' · waiting for fix'}` : 'Plug in a USB GPS; MIMI finds it automatically.'}>
+					<Row label="GPS receiver" hint={app.location?.gps?.port ? `Connected on ${app.location.gps.port}${app.location.gps.fix ? ' · fix acquired' : ' · waiting for fix'}` : 'Plug in a USB GPS; Mimi finds it automatically.'}>
 						<input class="input sel" value={D.location.gps_port} onchange={(e) => dev('location', { gps_port: e.currentTarget.value || 'auto' })} placeholder="auto" />
 					</Row>
-					<Row label="Remember trips" hint="Keep a private log of where MIMI has been."><Toggle checked={D.location.history} onchange={(v) => dev('location', { history: v })} label="Trip history" /></Row>
+					<Row label="Remember trips" hint="Keep a private log of where Mimi has been."><Toggle checked={D.location.history} onchange={(v) => dev('location', { history: v })} label="Trip history" /></Row>
 					{#if D.location.history}
 						<Row label="Keep history for"><Segmented value={String(D.location.history_days)} options={[['7', 'A week'], ['30', 'A month'], ['365', 'A year']]} onchange={(v) => dev('location', { history_days: Number(v) })} /></Row>
 					{/if}
 				</div>
 			{:else if section === 'tools'}
-				<p class="intro">Tools are what MIMI can do beyond talking: search the library, plan routes, look around. Switch off any you don't want it to use.</p>
+				<p class="intro">Tools are what Mimi can do beyond talking: search the library, plan routes, look around. Switch off any you don't want it to use.</p>
 				{#if toolList}
 					<h3 class="label sub">Built in</h3>
 					<div class="group card">
@@ -415,7 +415,7 @@
 							<Row label="No community tools yet" hint="Drop a Python tool file into the tools folder, then rescan." />
 						{/each}
 					</div>
-					<p class="warn-line"><Info size={14} style="vertical-align:-2px" /> Community tools are Python code that runs on this device with MIMI's permissions. Only turn on tools you trust.</p>
+					<p class="warn-line"><Info size={14} style="vertical-align:-2px" /> Community tools are Python code that runs on this device with Mimi's permissions. Only turn on tools you trust.</p>
 					<div class="acts-row">
 						<button class="btn btn-sm" onclick={reloadTools}><RefreshCw size={14} /> Rescan folder</button>
 						{#if app.boot?.local}<button class="btn btn-sm" onclick={() => post('/api/system/open-folder?which=tools')}><FolderOpen size={14} /> Open tools folder</button>{/if}
@@ -425,7 +425,7 @@
 				{/if}
 			{:else if section === 'sharing' && D.sharing}
 				<div class="group card">
-					<Row label="Access from other devices" hint="Open MIMI in the web browser of any phone, tablet or laptop on the same network (your home Wi-Fi, a router, or MIMI's own hotspot).">
+					<Row label="Access from other devices" hint="Open Mimi in the web browser of any phone, tablet or laptop on the same network (your home Wi-Fi, a router, or Mimi's own hotspot).">
 						<Toggle checked={D.sharing.enabled} onchange={(v) => dev('sharing', { enabled: v })} label="Access from other devices" />
 					</Row>
 					{#if D.sharing.enabled && share}
@@ -449,7 +449,7 @@
 									{/if}
 									<ol class="how steps-list">
 										<li>On the other device, open the address above (or scan the code).</li>
-										<li>If the browser warns about the connection, choose <b>Advanced → Continue</b>. It's MIMI's own local certificate. To remove the warning and enable the microphone and camera, install the <a href="/cert" download>MIMI certificate</a> on that device once.</li>
+										<li>If the browser warns about the connection, choose <b>Advanced → Continue</b>. It's Mimi's own local certificate. To remove the warning and enable the microphone and camera, install the <a href="/cert" download>Mimi certificate</a> on that device once.</li>
 										<li>Choose <b>Sign in</b> and enter <b>{share.owner_name || 'your name'}</b>. {share.owner_can_sign_in ? 'Type your PIN, or leave it blank' : 'Leave the PIN blank'} and tap <b>Allow</b> when this screen asks. Guests can join without an account.</li>
 									</ol>
 									{#if !share.owner_can_sign_in}
@@ -463,7 +463,7 @@
 									</div>
 								{/if}
 							</div>
-							<Row label="Allow through Windows Firewall" hint={share.firewall ? 'Other devices can reach MIMI.' : 'Needed once, or other devices can’t connect. Windows asks you to approve.'}>
+							<Row label="Allow through Windows Firewall" hint={share.firewall ? 'Other devices can reach Mimi.' : 'Needed once, or other devices can’t connect. Windows asks you to approve.'}>
 								{#if share.firewall}<span class="tag live"><ShieldCheck size={13} /> Allowed</span>{:else if app.boot?.local}<button class="btn btn-sm btn-primary" onclick={requestFirewall}><ShieldCheck size={14} /> Allow</button>{:else}<span class="tag">Blocked</span>{/if}
 							</Row>
 						{:else}
@@ -472,7 +472,7 @@
 					{/if}
 				</div>
 
-				<h3 class="label sub">MIMI's own Wi-Fi (for places without a network)</h3>
+				<h3 class="label sub">Mimi's own Wi-Fi (for places without a network)</h3>
 				<div class="group card">
 					<Row label="Network" hint={D.sharing.network_mode === 'router' ? 'Plug in a travel router set to this name and password. Most reliable in the field.' : 'Windows Mobile Hotspot broadcasts this network (the Wi-Fi hardware must support it).'}>
 						<Segmented value={D.sharing.network_mode} options={[['router', 'Travel router'], ['hotspot', 'Windows hotspot']]} onchange={(v) => dev('sharing', { network_mode: v })} />
@@ -489,7 +489,7 @@
 						<button class="icon-btn sm" onclick={() => (showPass = !showPass)} aria-label="Show password">{#if showPass}<EyeOff size={14} />{:else}<Eye size={14} />{/if}</button>
 					</Row>
 					{#if qrWifi}
-						<Row label="Join code" hint="Phones scan this to join the MIMI Wi-Fi, then open the address above.">
+						<Row label="Join code" hint="Phones scan this to join the Mimi Wi-Fi, then open the address above.">
 							<div class="code small">{@html qrWifi}</div>
 						</Row>
 					{/if}
@@ -497,7 +497,7 @@
 
 				<h3 class="label sub">Guests</h3>
 				<div class="group card">
-					<Row label="Allow guests" hint="People can join without an account. Guest chats aren't saved and MIMI won't remember them."><Toggle checked={D.sharing.guest_access} onchange={(v) => dev('sharing', { guest_access: v })} label="Guests" /></Row>
+					<Row label="Allow guests" hint="People can join without an account. Guest chats aren't saved and Mimi won't remember them."><Toggle checked={D.sharing.guest_access} onchange={(v) => dev('sharing', { guest_access: v })} label="Guests" /></Row>
 					<Row label="What guests can use" stack>
 						<div class="chips">
 							{#each FEATURES as [id, label]}
@@ -519,7 +519,7 @@
 						<span class="avatar" style="--c:{app.me?.color}">{app.me?.name?.charAt(0)}</span><b>{app.me?.name}</b>
 					</Row>
 					{#if !app.isGuest}
-						<Row label={app.me?.has_pin ? 'Change PIN' : 'Set a PIN'} hint="4–8 digits. Used to unlock MIMI and to sign in from phones.">
+						<Row label={app.me?.has_pin ? 'Change PIN' : 'Set a PIN'} hint="4–8 digits. Used to unlock Mimi and to sign in from phones.">
 							<input class="input sel" type="password" inputmode="numeric" maxlength="8" bind:value={myPin} placeholder="New PIN" />
 							<button class="btn btn-sm" disabled={!/^\d{4,8}$/.test(myPin)} onclick={savePin}>Save</button>
 						</Row>
@@ -532,7 +532,7 @@
 						<Row label="Keep chats for" hint={U.privacy.history_days ? 'Older chats are deleted automatically. Pinned chats are kept.' : ''}>
 							<Segmented value={String(U.privacy.history_days)} options={[['0', 'Forever'], ['30', '30 days'], ['90', '90 days'], ['365', 'A year']]} onchange={(v) => usr('privacy', { history_days: Number(v) })} />
 						</Row>
-						<Row label="Memory" hint="See and manage everything MIMI remembers."><a class="btn btn-sm" href="/memory">Manage memory</a></Row>
+						<Row label="Memory" hint="See and manage everything Mimi remembers."><a class="btn btn-sm" href="/memory">Manage memory</a></Row>
 						<Row label="Delete all chats"><button class="btn btn-sm btn-danger" onclick={deleteAllChats}><Trash2 size={14} /> Delete</button></Row>
 					</div>
 				{/if}
@@ -570,23 +570,23 @@
 				<h3 class="label sub">Keyboard</h3>
 				<div class="group card keys">
 					<Row label="Search and jump anywhere"><kbd>Ctrl</kbd> + <kbd>K</kbd></Row>
-					<Row label="Talk to MIMI"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>V</kbd></Row>
+					<Row label="Talk to Mimi"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>V</kbd></Row>
 					<Row label="Push to talk (in voice)"><kbd>Space</kbd></Row>
 					<Row label="Full screen"><kbd>F11</kbd></Row>
-					<Row label="Show or hide MIMI"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>M</kbd></Row>
+					<Row label="Show or hide Mimi"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>M</kbd></Row>
 				</div>
 			{:else if section === 'power' && D.power}
 				<div class="group card">
 					<Row label="Battery" hint={app.system?.battery ? (app.system.battery.plugged ? 'Plugged in' : 'On battery') : 'No battery detected'}>
 						<b>{app.system?.battery?.percent ?? app.hardware?.battery?.percent ?? '—'}%</b>
 					</Row>
-					<Row label="Battery saver" hint="Below the threshold and unplugged, MIMI uses the quick model."><Toggle checked={D.power.battery_saver} onchange={(v) => dev('power', { battery_saver: v })} label="Battery saver" /></Row>
+					<Row label="Battery saver" hint="Below the threshold and unplugged, Mimi uses the quick model."><Toggle checked={D.power.battery_saver} onchange={(v) => dev('power', { battery_saver: v })} label="Battery saver" /></Row>
 					<Row label="Saver threshold"><Slider value={D.power.battery_saver_threshold} min={5} max={80} step={5} onchange={(v) => dev('power', { battery_saver_threshold: v })} fmt={(v) => v + '%'} /></Row>
 				</div>
 			{:else if section === 'system'}
 				{#if sys}
 					<div class="group card">
-						<Row label="MIMI" hint={`Version ${sys.version} · ${sys.root}${sys.portable ? ' · portable drive' : ''}`}><span class="tag live">Offline</span></Row>
+						<Row label="Mimi" hint={`Version ${sys.version} · ${sys.root}${sys.portable ? ' · portable drive' : ''}`}><span class="tag live">Offline</span></Row>
 						<Row label="Device" hint={`${sys.hardware.cpu} · ${sys.hardware.ram_installed_gb} GB RAM`}><span class="muted">{sys.hardware.device}</span></Row>
 						<Row label="Graphics" hint={(sys.hardware.gpus || []).map((g: any) => `${g.name} (${Math.round(g.total_mb / 1024)} GB)`).join(', ') || 'CPU only'}>
 							<span class="muted">{sys.hardware.backend} · {sys.hardware.profile}</span>
@@ -626,7 +626,7 @@
 					</div>
 					<h3 class="label sub">About</h3>
 					<div class="group card about">
-						<p><b>MIMI — Machine Intelligence, Minus the Internet.</b> Open source (MIT), non-commercial. Named for Mímir, keeper of wisdom.</p>
+						<p><b>Mimi — Machine Intelligence, Minus the Internet.</b> Open source (MIT), non-commercial. Named for Mímir, keeper of wisdom.</p>
 						<p class="faint">Knowledge: Wikipedia &amp; Wikimedia projects (CC BY-SA), Stack Exchange (CC BY-SA), iFixit, WikiProjectMed, Project Gutenberg, TED (CC BY-NC-ND). Maps © OpenStreetMap contributors, Protomaps; places © GeoNames (CC BY). Models: Gemma 4 (Google), Qwen3.5 (Alibaba), BGE-M3 (BAAI), Whisper (OpenAI), Kokoro. Engines: llama.cpp, kiwix-tools.</p>
 					</div>
 				{:else}

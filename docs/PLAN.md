@@ -1,12 +1,12 @@
-# MIMI: Machine Intelligence, Minus the Internet
+# Mimi: Machine Intelligence, Minus the Internet
 
 *An open-source, non-commercial, fully offline AI field station, with the polish of a frontier AI app. The name is a nod to **Mímir**, the Norse oracle whose preserved head Odin carried and consulted for wisdom.*
 
-**Network name:** `MIMI` · **Address:** `https://mimi.local`
+**Network name:** `Mimi` · **Address:** `https://mimi.local`
 **Reference device:** ONEXPLAYER F1 (Ryzen 7 7840U, Radeon 780M iGPU, 16 GB LPDDR5X, 512 GB NVMe, Wi-Fi 6E, Windows 11 Home)
 **Plan date:** 2026-09-26
 
-**What MIMI is:** a pocket AI that works with **zero internet**. It combines a capable multimodal LLM, offline Wikipedia (with images) and reference libraries, offline maps with a "what's near me" feature, note-taking, OCR, spoken conversation and personal memory. All of it lives in a **beautiful full-screen native app** that can launch at startup. Phones nearby join over Wi-Fi ("Connect to MIMI") and get the same app in their browser. The whole package also runs from a USB drive on any Windows PC.
+**What Mimi is:** a pocket AI that works with **zero internet**. It combines a capable multimodal LLM, offline Wikipedia (with images) and reference libraries, offline maps with a "what's near me" feature, note-taking, OCR, spoken conversation and personal memory. All of it lives in a **beautiful full-screen native app** that can launch at startup. Phones nearby join over Wi-Fi ("Connect to Mimi") and get the same app in their browser. The whole package also runs from a USB drive on any Windows PC.
 
 ---
 
@@ -17,7 +17,7 @@
 | Component | Runs locally | Needs to be turned off to stay truly offline |
 |---|---|---|
 | LLM engine (llama.cpp + llama-swap) | Yes | Nothing (no telemetry, no auto-update) |
-| MIMI Core + MIMI App (our own code) | Yes | Nothing. Offline-first by design: no CDNs, fonts and icons bundled, `HF_HUB_OFFLINE=1` |
+| Mimi Core + Mimi App (our own code) | Yes | Nothing. Offline-first by design: no CDNs, fonts and icons bundled, `HF_HUB_OFFLINE=1` |
 | Kiwix (Wikipedia etc.) | Yes | Nothing |
 | Maps (PMTiles) | Yes | Nothing (tiles are served from the device) |
 | Whisper / Tesseract / Kokoro TTS | Yes | Nothing |
@@ -26,20 +26,20 @@
 **Acceptance test:** Wi-Fi client mode off, hotspot or router only, cold boot, then exercise every feature from the device and from a phone (Phase 10).
 
 ### On `mimi.local` vs `mimi.ai`
-Use **`mimi.local`**. It's the reserved suffix for local-network names, and devices resolve it over mDNS with no internet or DNS server. **Don't use `mimi.ai`** (or any real public domain): someone else owns it, a browser can't get a valid certificate for it offline, and online requests would go to the real site. MIMI advertises `mimi.local` itself (a zeroconf responder), so it works on any PC without renaming it. The QR card also encodes the raw IP address as a fallback.
+Use **`mimi.local`**. It's the reserved suffix for local-network names, and devices resolve it over mDNS with no internet or DNS server. **Don't use `mimi.ai`** (or any real public domain): someone else owns it, a browser can't get a valid certificate for it offline, and online requests would go to the real site. Mimi advertises `mimi.local` itself (a zeroconf responder), so it works on any PC without renaming it. The QR card also encodes the raw IP address as a fallback.
 
 ---
 
 ## 2. Storage budget (reference device: D: 209.5 GB free, verified 2026-09-26)
 
-Everything lives in **`D:\MIMI\`**, which is the same folder layout as the portable USB edition (section 11). C: keeps its free space for Windows.
+Everything lives in **`D:\Mimi\`**, which is the same folder layout as the portable USB edition (section 11). C: keeps its free space for Windows.
 
 | Category | Contents | Size |
 |---|---|---|
 | **Wikipedia** | `wikipedia_en_all_maxi` (full English, all ~6.9M articles **with images**) | ~110 GB |
 | **Extra reference (Kiwix)** | Wikivoyage (with images), WikiMed (with images), iFixit, Wiktionary, Stack Exchange (DIY, Mechanics, Outdoors, Cooking) | ~10 GB |
 | **Models** | Main: **Gemma 4 12B** (Q4_K_M + vision/audio projector) ~8.5 GB · Reader/alt: **Qwen3.5-9B** ~6.5 GB · Quick/voice: **Qwen3.5-4B** ~3 GB · embedding ~0.5 GB · Whisper large-v3-turbo + small ~2 GB · Kokoro/Piper TTS + wake word ~1 GB (section 13) | ~21.5 GB |
-| **Runtimes** | llama.cpp + llama-swap, portable Python + MIMI Core, MIMI App (Tauri, ~15 MB), kiwix-tools, whisper.cpp, Tesseract, Caddy (**no Docker/WSL, no Open WebUI**) | ~5 GB |
+| **Runtimes** | llama.cpp + llama-swap, portable Python + Mimi Core, Mimi App (Tauri, ~15 MB), kiwix-tools, whisper.cpp, Tesseract, Caddy (**no Docker/WSL, no Open WebUI**) | ~5 GB |
 | **Maps** | OpenStreetMap vector tiles for **the US + Canada** (PMTiles, z0–14) + an SQLite database of places and points of interest + a geotagged-Wikipedia index | ~22 GB |
 | **Personal data** | `data\`: chats, memories, library, notes, recordings (Opus audio ~30 MB/hour), search indexes | ~5 GB to start |
 | **Extras, tier 1** | Survival & preparedness ~2 GB · more Stack Exchange (Electronics, Ham Radio, Gardening, Physics, Super User) ~6 GB · Project Gutenberg curated subset ~5 GB | ~13 GB |
@@ -48,7 +48,7 @@ Everything lives in **`D:\MIMI\`**, which is the same folder layout as the porta
 
 If the Phase 1 stretch test keeps **Gemma 4 26B-A4B (IQ3)** on the device (~10 GB), headroom drops to ~13 GB.
 
-**Khan Academy + TED are included** (MIMI is non-commercial, which their CC BY-NC licenses allow). They're stored as **tier 2** (low-res, ~15–20 GB) in `C:\MIMI-extra\`, **after** you clear `C:\$WINDOWS.~BT` (Settings → System → Storage → Temporary files → "Previous Windows installation(s)"; this removes the option to roll back that upgrade). That takes C: from 35 → ~61 GB free, and after the extras it keeps ~40 GB free for Windows.
+**Khan Academy + TED are included** (Mimi is non-commercial, which their CC BY-NC licenses allow). They're stored as **tier 2** (low-res, ~15–20 GB) in `C:\Mimi-extra\`, **after** you clear `C:\$WINDOWS.~BT` (Settings → System → Storage → Temporary files → "Previous Windows installation(s)"; this removes the option to roll back that upgrade). That takes C: from 35 → ~61 GB free, and after the extras it keeps ~40 GB free for Windows.
 **Tier 3 (needs a 1 TB USB-C SSD):** the full Gutenberg (~70 GB+), full-resolution Khan/TED, planet-wide maps (~120 GB).
 
 ---
@@ -60,7 +60,7 @@ If the Phase 1 stretch test keeps **Gemma 4 26B-A4B (IQ3)** on the device (~10 G
 | Resident all the time | Windows-visible RAM |
 |---|---|
 | Windows + background | ~4 GB |
-| MIMI App (WebView2) + MIMI Core + kiwix-serve + Caddy + mDNS/GPS | ~1.5 GB |
+| Mimi App (WebView2) + Mimi Core + kiwix-serve + Caddy + mDNS/GPS | ~1.5 GB |
 | Gemma 4 12B Q4_K_M + projector + 8k context (~9 GB total: 3 GB in the carve-out, ~6 GB shared) | ~6 GB |
 | **Total** | **~11.5 of 12.7 GB** |
 
@@ -78,16 +78,16 @@ Rules that follow from this:
 ```
                     ┌──────────────── Reference device / any PC ────────────────┐
                     │                                                           │
-  Handheld screen ◄─┤  MIMI App  (MIMI.exe: Tauri 2 native shell, full-screen)  │
+  Handheld screen ◄─┤  Mimi App  (MIMI.exe: Tauri 2 native shell, full-screen)  │
   gamepad · touch   │    ├─ supervises all services (start/stop/health/restart) │
   mic · speakers    │    ├─ tray, autostart, global hotkeys, gamepad bridge     │
-                    │    └─ renders the MIMI UI (SvelteKit build, WebView2)     │
+                    │    └─ renders the Mimi UI (SvelteKit build, WebView2)     │
                     │                         │                                 │
                     │                         ▼                                 │
   Phones ──Wi-Fi────┼──► Caddy :443 (https://mimi.local, local CA) ─► same UI   │
-  "MIMI"            │    (PWA, installable)   │                                 │
+  "Mimi"            │    (PWA, installable)   │                                 │
                     │                         ▼                                 │
-                    │  MIMI Core :7600 (Python / FastAPI)                       │
+                    │  Mimi Core :7600 (Python / FastAPI)                       │
                     │    ├─ chat orchestration + tool loop (SSE streaming)      │
                     │    ├─ memory · chats · users/roles · settings (SQLite)    │
                     │    ├─ RAG: sqlite-vec + FTS5 over library & notes         │
@@ -99,47 +99,47 @@ Rules that follow from this:
                     │   llama-swap    kiwix-serve    PMTiles + places.sqlite    │
                     │   :11434        :8081          geowiki.sqlite, GPS dongle │
                     │   (llama.cpp: Vulkan / CUDA / CPU build chosen at launch) │
-                    │     ├─ MIMI: Gemma 4 12B   ├─ Quick: Qwen3.5-4B           │
+                    │     ├─ Mimi: Gemma 4 12B   ├─ Quick: Qwen3.5-4B           │
                     │     ├─ Reader: Qwen3.5-9B  └─ embeddings                  │
                     └───────────────────────────────────────────────────────────┘
 ```
 
-**Why our own app instead of Open WebUI:** a frontier-grade experience needs full control over design, motion, gamepad/handheld ergonomics, voice, memory and settings. Open WebUI's UI is generic, hard to deeply restyle, and its license requires keeping its branding. Replacing it with **MIMI App + MIMI Core** gives complete design freedom, drops ~3 GB of Python dependencies and a license constraint, and yields one codebase that serves the handheld, phones and desktops. During early phases, any OpenAI-compatible client (including Open WebUI, **as a dev tool only, never shipped**) can talk to Core's `/v1` endpoint for testing.
+**Why our own app instead of Open WebUI:** a frontier-grade experience needs full control over design, motion, gamepad/handheld ergonomics, voice, memory and settings. Open WebUI's UI is generic, hard to deeply restyle, and its license requires keeping its branding. Replacing it with **Mimi App + Mimi Core** gives complete design freedom, drops ~3 GB of Python dependencies and a license constraint, and yields one codebase that serves the handheld, phones and desktops. During early phases, any OpenAI-compatible client (including Open WebUI, **as a dev tool only, never shipped**) can talk to Core's `/v1` endpoint for testing.
 
 **Engine: llama.cpp + llama-swap (not Ollama).** These are single portable executables that run GGUF files from any folder. The Vulkan build accelerates AMD, NVIDIA and Intel GPUs. A Radeon 780M benchmark this year measured llama.cpp Vulkan at **~5–6× Ollama's generation speed** on the same model.
 
-**Why HTTPS:** phone browsers only allow mic and camera on secure pages. Caddy serves a local certificate, and phones install the MIMI root certificate once from `/cert` (or tap through the warning; confirm this still enables the mic on iOS and Android). The native app on the device doesn't need this.
+**Why HTTPS:** phone browsers only allow mic and camera on secure pages. Caddy serves a local certificate, and phones install the Mimi root certificate once from `/cert` (or tap through the warning; confirm this still enables the mic on iOS and Android). The native app on the device doesn't need this.
 
-**Why MIMI searches Kiwix instead of an AI search index over Wikipedia:** embedding 6.9M articles would take days and 20–40 GB. `kiwix_search` uses Kiwix's full-text search, reads the top 3–5 articles, and answers **with citations**. The AI search index is only for your personal library, notes and memories.
+**Why Mimi searches Kiwix instead of an AI search index over Wikipedia:** embedding 6.9M articles would take days and 20–40 GB. `kiwix_search` uses Kiwix's full-text search, reads the top 3–5 articles, and answers **with citations**. The AI search index is only for your personal library, notes and memories.
 
 ### 4a. How images work
-| Image source | MIMI reads it? | How |
+| Image source | Mimi reads it? | How |
 |---|---|---|
 | **Your photos** (documents, signs, receipts, plants, parts, handwriting) | **Yes, always** | **Lens** (camera or upload), handled by the main model or the Reader model |
-| **Reference images, viewed by people** | n/a | MIMI's Library reader shows full articles with images |
+| **Reference images, viewed by people** | n/a | Mimi's Library reader shows full articles with images |
 | **Reference images, given to the model** | **Yes, on demand** | `kiwix_image(article)` passes an article's lead image to the model beside your photo |
 
-Article images aren't sent automatically (each costs ~300–1,500 tokens and several seconds on the 780M). **Limit:** an 8B–12B vision model is a second opinion, **not a reliable identifier**. For mushrooms, plants, medications or anything safety-critical, MIMI shows the reference side by side and says its match is unverified.
+Article images aren't sent automatically (each costs ~300–1,500 tokens and several seconds on the 780M). **Limit:** an 8B–12B vision model is a second opinion, **not a reliable identifier**. For mushrooms, plants, medications or anything safety-critical, Mimi shows the reference side by side and says its match is unverified.
 
 ### 4b. Persona
-**MIMI**: calm, dry and quietly witty, never cutesy. It knows the Mímir story. Its rules are to cite sources from tool results, say "I don't know" without sources, flag safety-critical topics, and respect memory settings. The personality is adjustable in Settings (5.5), but the core rules aren't.
+**Mimi**: calm, dry and quietly witty, never cutesy. It knows the Mímir story. Its rules are to cite sources from tool results, say "I don't know" without sources, flag safety-critical topics, and respect memory settings. The personality is adjustable in Settings (5.5), but the core rules aren't.
 
 ---
 
-## 5. MIMI App: UI/UX design
+## 5. Mimi App: UI/UX design
 
 **Bar:** it should feel like a frontier AI app (the calm confidence of Claude or ChatGPT, with the craft of a first-party OS app), designed around a **handheld** first, then phones and desktops. It should never feel like a dev tool.
 
 ### 5.1 Design principles
 1. **Calm, fast, legible.** Typography does the work. Generous spacing, restrained color, no clutter. The answer is the hero.
 2. **Show the thinking, not the plumbing.** Tool use appears as a quiet, elegant activity trail ("Searching Wikipedia · Reading 3 articles · Checking the map"), never as raw JSON.
-3. **Trust through sources.** Every factual answer carries citation chips that open the source in-app. MIMI shows how it knows, not just what it knows.
+3. **Trust through sources.** Every factual answer carries citation chips that open the source in-app. Mimi shows how it knows, not just what it knows.
 4. **Offline is a feature, not an error.** Status is shown proudly ("Offline · All systems local"), and no feature pretends to need the internet.
 5. **Three inputs, all first-class:** voice, gamepad and touch. Keyboard and mouse on desktop.
 6. **Every pixel is local.** Bundled fonts, icons and imagery. Zero network requests to the outside world.
 
 ### 5.2 Visual identity
-- **Motif: "the Well."** Mímir's well of wisdom becomes MIMI's living centerpiece: a softly luminous orb/pool that breathes when idle, ripples when listening (reacting to mic level), swirls when thinking, and pulses with the voice when speaking. It appears on Home, in Voice mode and as a small presence indicator in chat. It's rendered with WebGL/Canvas with a CSS fallback and respects reduced motion.
+- **Motif: "the Well."** Mímir's well of wisdom becomes Mimi's living centerpiece: a softly luminous orb/pool that breathes when idle, ripples when listening (reacting to mic level), swirls when thinking, and pulses with the voice when speaking. It appears on Home, in Voice mode and as a small presence indicator in chat. It's rendered with WebGL/Canvas with a CSS fallback and respects reduced motion.
 - **Palette:** dark-first ("deep water": ink blues and near-black, with a single luminous accent), plus a crisp light theme and a true-black OLED option. User-selectable accent colors.
 - **Type:** a bundled variable sans for UI (e.g. Inter), a refined serif for long-form reading in the Library (e.g. Source Serif), and a mono for code. Fluid type scale tuned for an 8.8" screen at arm's length.
 - **Iconography:** one consistent open-source icon set (e.g. Lucide/Phosphor), bundled.
@@ -149,14 +149,14 @@ Article images aren't sent automatically (each costs ~300–1,500 tokens and sev
 ### 5.3 Surfaces
 | Surface | What it does | Signature details |
 |---|---|---|
-| **Home** | Big "Ask MIMI" prompt around the Well, plus quick actions and widgets | Status strip: offline badge, battery, GPS fix, model/profile, guests connected. Customizable widgets: *Nearby*, *Recent notes*, *On this day* (from Wikipedia), *Continue reading* |
+| **Home** | Big "Ask Mimi" prompt around the Well, plus quick actions and widgets | Status strip: offline badge, battery, GPS fix, model/profile, guests connected. Customizable widgets: *Nearby*, *Recent notes*, *On this day* (from Wikipedia), *Continue reading* |
 | **Chat** | The core conversation | Streaming markdown, citation chips with article thumbnails, inline images, tool-activity trail, stop/regenerate/edit-and-branch, per-message "memories used" and "sources" drawers, model switcher, attach photo/file |
-| **Voice** | Full-screen spoken conversation | The Well fills the screen and reacts to your voice and MIMI's. Live captions for both sides. Push-to-talk hint mapped to a trigger. Tap to interrupt. Transcripts are saved to the chat |
-| **Library** | Browse all offline knowledge in a MIMI-styled reader (not raw Kiwix pages) | Collections grid (Wikipedia, WikiMed, iFixit, Khan, TED, Gutenberg…), search with instant results, a beautiful reading mode (serif, adjustable size, dark sepia), "Ask MIMI about this article", video player for Khan/TED |
+| **Voice** | Full-screen spoken conversation | The Well fills the screen and reacts to your voice and Mimi's. Live captions for both sides. Push-to-talk hint mapped to a trigger. Tap to interrupt. Transcripts are saved to the chat |
+| **Library** | Browse all offline knowledge in a Mimi-styled reader (not raw Kiwix pages) | Collections grid (Wikipedia, WikiMed, iFixit, Khan, TED, Gutenberg…), search with instant results, a beautiful reading mode (serif, adjustable size, dark sepia), "Ask Mimi about this article", video player for Khan/TED |
 | **Map** | Full-bleed offline map | Live GPS dot, "Nearby" cards with Wikipedia summaries, tap anywhere to ask "what's here?", trip history (optional, privacy-controlled) |
-| **Scribe** | Record, transcribe, summarize | Live waveform, speaker-friendly transcript with timestamps, auto summary/action items, notes list with search. Notes feed MIMI's knowledge |
+| **Scribe** | Record, transcribe, summarize | Live waveform, speaker-friendly transcript with timestamps, auto summary/action items, notes list with search. Notes feed Mimi's knowledge |
 | **Lens** | Camera or photo in, understanding out | Live camera (device or phone), OCR text overlay with copy, "Explain", "Translate", "Compare with reference" (side-by-side with a Wikipedia image) |
-| **Memory** | Everything MIMI remembers about you (5.6) | Search, edit, pin, delete, "where it came from" |
+| **Memory** | Everything Mimi remembers about you (5.6) | Search, edit, pin, delete, "where it came from" |
 | **Settings** | Robust, searchable settings (5.5) | Instant apply, per-section reset, import/export |
 
 Global elements:
@@ -195,11 +195,11 @@ Device-level settings are admin-only (PIN). Personal settings are per user.
 ### 5.6 User memory and history management
 Modeled on the best frontier apps, but fully local and transparent.
 
-- **What MIMI remembers:** facts, preferences and ongoing projects about each user (e.g. "drives a 2014 Tacoma", "prefers metric", "vegetarian").
+- **What Mimi remembers:** facts, preferences and ongoing projects about each user (e.g. "drives a 2014 Tacoma", "prefers metric", "vegetarian").
 - **How memories are made:**
   - **Explicit:** "remember that…", which is saved instantly.
-  - **Suggested:** MIMI proposes a memory with an inline chip ("Remember this?" ✓/✗). The default setting is **ask before saving**, with *auto-save* or *off* as alternatives.
-- **How they're used:** relevant memories (embedding + recency ranking, ~500-token budget) are added to MIMI's context. Every answer that used memory shows a subtle **"Memory used"** chip listing which ones, with a one-tap "forget this".
+  - **Suggested:** Mimi proposes a memory with an inline chip ("Remember this?" ✓/✗). The default setting is **ask before saving**, with *auto-save* or *off* as alternatives.
+- **How they're used:** relevant memories (embedding + recency ranking, ~500-token budget) are added to Mimi's context. Every answer that used memory shows a subtle **"Memory used"** chip listing which ones, with a one-tap "forget this".
 - **Memory page:** search, filter by category, edit inline, pin (always include), delete, see **"where it came from"** (link to the source chat), bulk select, **pause memory**, export (JSON/Markdown), **wipe all** (with confirmation).
 - **Temporary chats:** incognito mode with no history and no memory reads or writes. It's the default for guests.
 - **Chat history:** projects/folders, full-text search across all chats, pin, rename, archive, delete, export. Branching conversations when editing a past message.
@@ -210,7 +210,7 @@ Modeled on the best frontier apps, but fully local and transparent.
 - Themes, accents, wallpapers and Well styles. Home widgets can be rearranged. Quick actions can be pinned.
 - **Modes** (5.5), plus **prompt templates / slash commands** (`/summarize`, `/explain-like-5`, `/translate`).
 - **Community tool API (open source):** tools are Python modules with a small manifest (name, description, JSON schema, permissions). Drop them in `tools\` and they appear in Settings → Tools, where they can be toggled per mode. Theme packs are JSON token files.
-- **Startup behavior:** "Launch MIMI at startup" toggle (per-user `Run` registry entry on the reference device; it asks first in portable mode, because it writes outside the drive). "Open full-screen" and "kiosk feel" toggles. **Exit to desktop** is always available from the Quick Menu, protected by a PIN if set. (Windows 11 Home lacks Assigned Access kiosk mode, so this is an app-level full-screen experience rather than a locked OS shell.)
+- **Startup behavior:** "Launch Mimi at startup" toggle (per-user `Run` registry entry on the reference device; it asks first in portable mode, because it writes outside the drive). "Open full-screen" and "kiosk feel" toggles. **Exit to desktop** is always available from the Quick Menu, protected by a PIN if set. (Windows 11 Home lacks Assigned Access kiosk mode, so this is an app-level full-screen experience rather than a locked OS shell.)
 
 ### 5.8 Quality bars
 | Area | Target |
@@ -221,10 +221,10 @@ Modeled on the best frontier apps, but fully local and transparent.
 | Accessibility | WCAG 2.2 AA: full keyboard/gamepad/screen-reader support, captions in Voice, scalable text, high contrast |
 | Consistency | 100% token-driven styling. Visual regression tests (Playwright screenshots) on every surface × theme × layout |
 | Offline purity | Automated test: the app makes **zero** non-local network requests |
-| Resilience | If a service crashes, MIMI App restarts it and shows a graceful inline state, never a blank screen or stack trace |
+| Resilience | If a service crashes, Mimi App restarts it and shows a graceful inline state, never a blank screen or stack trace |
 
 ### 5.9 Tech stack
-- **Shell:** **Tauri 2** (Rust). A ~15 MB `MIMI.exe` using Windows' built-in WebView2, with native full-screen, tray, autostart plugin, global shortcuts, single-instance lock, and sidecar process supervision (it launches and monitors llama-swap, Core, kiwix-serve and Caddy). The WebView2 data folder is pinned inside `MIMI\data\` for portability.
+- **Shell:** **Tauri 2** (Rust). A ~15 MB `MIMI.exe` using Windows' built-in WebView2, with native full-screen, tray, autostart plugin, global shortcuts, single-instance lock, and sidecar process supervision (it launches and monitors llama-swap, Core, kiwix-serve and Caddy). The WebView2 data folder is pinned inside `Mimi\data\` for portability.
 - **UI:** **SvelteKit** (static build) + TypeScript + Tailwind with design tokens + an accessible headless component library (Bits UI / Melt UI) + Motion for animation + MapLibre GL + a custom WebGL "Well". Svelte keeps bundles small and fast on the handheld's shared GPU and on phones.
 - **Gamepad:** the Web Gamepad API in the UI plus a spatial-navigation focus manager, with Tauri as a fallback for global hotkeys.
 - **Core:** **Python 3.11 + FastAPI** (SSE for chat streaming, WebSockets for voice and live settings), SQLite (WAL) + **sqlite-vec** + FTS5, faster-whisper, Kokoro via ONNX Runtime, Tesseract, zeroconf.
@@ -236,28 +236,28 @@ Modeled on the best frontier apps, but fully local and transparent.
 
 | Item | Why | Approx. cost |
 |---|---|---|
-| **USB-powered travel router** (GL.iNet Opal/Beryl class) | Field network. This Wi-Fi card reports `Hosted network supported: No`, and Windows Mobile Hotspot is unreliable without upstream internet. SSID `MIMI`, WPA2. | $30–60 |
+| **USB-powered travel router** (GL.iNet Opal/Beryl class) | Field network. This Wi-Fi card reports `Hosted network supported: No`, and Windows Mobile Hotspot is unreliable without upstream internet. SSID `Mimi`, WPA2. | $30–60 |
 | **USB GPS dongle** (u-blox 7/8) | No GPS hardware was detected on the device | ~$15 |
 | **65 W+ USB-C PD car charger** + short cable | Expect 1.5–2 h of battery under AI load | ~$25 |
 | USB-C hub with Ethernet (optional) | Wired link to the router | ~$25 |
-| **500 GB–1 TB USB-C SSD** | The MIMI Full portable edition, and tier 3 content | $50–90 |
+| **500 GB–1 TB USB-C SSD** | The Mimi Full portable edition, and tier 3 content | $50–90 |
 
 ---
 
 ## 7. Build phases
 
-Each phase ends with a check that must pass. **The handheld install *is* a MIMI Portable tree** at `D:\MIMI\`, with every path relative to that folder:
+Each phase ends with a check that must pass. **The handheld install *is* a Mimi Portable tree** at `D:\Mimi\`, with every path relative to that folder:
 
 ```
-MIMI\
+Mimi\
   MIMI.exe              native app + launcher + service supervisor (Tauri)
-  MIMI.cmd              headless fallback launcher → scripts\launch.ps1 (servers/debugging)
+  Mimi.cmd              headless fallback launcher → scripts\launch.ps1 (servers/debugging)
   README.txt  LICENSES\  manifest.json (pinned versions + SHA-256 of every artifact)
   bin\win-x64\          llama-server (vulkan|cuda|cpu), llama-swap, kiwix-serve, whisper.cpp,
                         tesseract, caddy, pmtiles
-  python\               portable CPython with MIMI Core + dependencies installed directly
-  core\                 MIMI Core source (FastAPI) + tools\ (built-in and community tools)
-  ui\                   built MIMI UI (static SvelteKit output; also served to phones)
+  python\               portable CPython with Mimi Core + dependencies installed directly
+  core\                 Mimi Core source (FastAPI) + tools\ (built-in and community tools)
+  ui\                   built Mimi UI (static SvelteKit output; also served to phones)
   models\llm\  models\whisper\  models\tts\
   zim\                  *.zim
   maps\                 tiles.pmtiles, places.sqlite, geowiki.sqlite, style/fonts/sprites
@@ -270,14 +270,14 @@ MIMI\
 **Parallel track:** Phase 8 (design system in Figma) can start on day one alongside Phases 0–7.
 
 ### Phase 0: Prep (online, ~30 min)
-- Create `D:\MIMI\`. Power: on AC, never sleep. Wi-Fi power saving off. Battery charge limit (~80%) if available. Set the computer name to `MIMI`.
-- Fetch a portable CPython 3.11 into `MIMI\python\`. Install Rust + Node (dev machine only, for building the app).
-- **Check:** `MIMI\python\python.exe --version` works from a different drive letter too.
+- Create `D:\Mimi\`. Power: on AC, never sleep. Wi-Fi power saving off. Battery charge limit (~80%) if available. Set the computer name to `Mimi`.
+- Fetch a portable CPython 3.11 into `Mimi\python\`. Install Rust + Node (dev machine only, for building the app).
+- **Check:** `Mimi\python\python.exe --version` works from a different drive letter too.
 
 ### Phase 1: LLM engine + model selection (online, ~2 h)
 - llama.cpp release builds (Vulkan, CPU, CUDA) + llama-swap into `bin\win-x64\`. Confirm Vulkan sees the **780M**.
 - Performance profile **25–30 W on AC** (OneXConsole/RyzenAdj).
-- Benchmark the section 13 line-up with a fixed MIMI prompt set: Q&A over provided context, a 3–5-step chained tool task, a summary, image reading.
+- Benchmark the section 13 line-up with a fixed Mimi prompt set: Q&A over provided context, a 3–5-step chained tool task, a summary, image reading.
   - **Main:** Gemma 4 12B (default) vs Qwen3.5-9B. Pick Gemma unless it misses the speed bar.
   - **Stretch:** Gemma 4 26B-A4B at IQ3 (~10 GB). Keep it only if memory stays < 90% committed through a 30-minute mixed session. **Expect it to fail on 16 GB.**
   - **Quick/voice:** Qwen3.5-4B vs Gemma 4 E4B (test E4B's native audio input).
@@ -285,16 +285,16 @@ MIMI\
 - **Pass criteria:** main ≥ 8 tok/s, first token < 3 s at 4k, valid tool JSON in 9 of 10 runs, 5-step chains complete in 8 of 10, no paging.
 - **Check:** results recorded in `docs\BENCHMARKS.md` and `config\profiles\standard.json`.
 
-### Phase 2: MIMI Core foundation (~3–4 days)
+### Phase 2: Mimi Core foundation (~3–4 days)
 - FastAPI app: chat with SSE streaming and a server-side tool loop, **OpenAI-compatible `/v1`** (for testing with any client), users/roles/sessions (admin PIN, user, guest), the typed **settings schema** with migrations and a live-update WebSocket, chats/projects/branches, and the **memory store** (explicit + suggested, retrieval, "memory used" metadata), all in `data\mimi.db`.
 - RAG over `data\library\` (sqlite-vec + FTS5 hybrid search, embeddings via llama-server).
-- Persona + Modes system prompts. The "MIMI" (main + tools), "Quick" and "Reader" model roles.
+- Persona + Modes system prompts. The "Mimi" (main + tools), "Quick" and "Reader" model roles.
 - **Check:** a test client can chat with streaming, remember and recall a memory, answer from a library PDF with a citation, and settings changes apply live. API tests pass.
 
 ### Phase 3: Offline knowledge (online for downloads, ~3–5 h + ~1 day of code)
-- Download ZIMs (checksums recorded in `manifest.json`): Wikipedia `maxi`, Wikivoyage, WikiMed, iFixit, Wiktionary, Stack Exchange sets, survival pack, Gutenberg subset. **Khan Academy + TED** go to `C:\MIMI-extra\zim\`.
-- `kiwix-serve --port 8081 zim\*.zim C:\MIMI-extra\zim\*.zim` (localhost only; Core proxies it for the Library reader).
-- Core tools: **`kiwix_search`** (clean text + titles + links) and **`kiwix_image`** (lead image ≤ 768 px + caption). Library API: collections, search, article HTML sanitized for MIMI's reader.
+- Download ZIMs (checksums recorded in `manifest.json`): Wikipedia `maxi`, Wikivoyage, WikiMed, iFixit, Wiktionary, Stack Exchange sets, survival pack, Gutenberg subset. **Khan Academy + TED** go to `C:\Mimi-extra\zim\`.
+- `kiwix-serve --port 8081 zim\*.zim C:\Mimi-extra\zim\*.zim` (localhost only; Core proxies it for the Library reader).
+- Core tools: **`kiwix_search`** (clean text + titles + links) and **`kiwix_image`** (lead image ≤ 768 px + caption). Library API: collections, search, article HTML sanitized for Mimi's reader.
 - **Check:** "How do I treat a second-degree burn?" is answered citing WikiMed. The leaf-vs-red-maple comparison works. Text questions never call `kiwix_image`.
 
 ### Phase 4: Maps + location (online for downloads, ~2 h + ~1 day of code)
@@ -303,10 +303,10 @@ MIMI\
 - Routing is out of scope (the build needs more than 16 GB of RAM). Use Organic Maps on a phone.
 - **Check:** "What's interesting within 10 miles?" returns real places with summaries, with no internet.
 
-### Phase 5: Networking: "Connect to MIMI" (~1–2 h)
-- **Hotspot path first** (loopback adapter + Mobile Hotspot), then the **travel router** for the field. SSID `MIMI`, WPA2.
-- zeroconf advertises `mimi.local`. Caddy :443 `tls internal` → the MIMI UI + Core API. `/cert` serves the root certificate. Firewall allows 443/80 only on the private profile. llama-swap, kiwix and TTS stay on localhost.
-- The **QR card** is generated in-app (Settings → Network & Sharing → Show QR): join `MIMI`, open `https://mimi.local`, IP fallback.
+### Phase 5: Networking: "Connect to Mimi" (~1–2 h)
+- **Hotspot path first** (loopback adapter + Mobile Hotspot), then the **travel router** for the field. SSID `Mimi`, WPA2.
+- zeroconf advertises `mimi.local`. Caddy :443 `tls internal` → the Mimi UI + Core API. `/cert` serves the root certificate. Firewall allows 443/80 only on the private profile. llama-swap, kiwix and TTS stay on localhost.
+- The **QR card** is generated in-app (Settings → Network & Sharing → Show QR): join `Mimi`, open `https://mimi.local`, IP fallback.
 - **Check:** an iPhone and an Android phone join via QR code on both paths. The UI loads. Mic works over HTTPS.
 
 ### Phase 6: Scribe + Lens (~2 days)
@@ -316,7 +316,7 @@ MIMI\
 
 ### Phase 7: Voice pipeline (~2–3 days)
 - Core voice WebSocket: VAD (Silero) → STT (faster-whisper small/turbo) → Quick model streaming → **Kokoro-82M** (ONNX, CPU) sentence-by-sentence TTS. Piper as the light fallback.
-- Push-to-talk (primary), optional wake word ("MIMI", custom openWakeWord model), barge-in (headset recommended), spoken filler during tool calls, one signature Kokoro voice for MIMI (user-changeable).
+- Push-to-talk (primary), optional wake word ("Mimi", custom openWakeWord model), barge-in (headset recommended), spoken filler during tool calls, one signature Kokoro voice for Mimi (user-changeable).
 - **Latency target:** ~1.5–3 s to the first spoken word. Lookups add ~3–8 s, covered by the filler line.
 - **Check:** 10 spoken turns in airplane mode, median ≤ 3 s to first word.
 
@@ -325,22 +325,22 @@ MIMI\
 - Export tokens to code (CSS variables + a TypeScript theme). Prototype the Well animation.
 - **Check:** a design review with a clickable prototype on the actual handheld screen, including a gamepad-only walkthrough of every flow.
 
-### Phase 9: MIMI App v1 (~3–5 weeks)
+### Phase 9: Mimi App v1 (~3–5 weeks)
 - **Shell (Tauri 2):** full-screen/kiosk feel, tray, single instance, autostart toggle, global hotkeys, **service supervisor** (start order, health checks, auto-restart, logs), WebView2 data dir in `data\webview\`.
 - **UI (SvelteKit):** every surface in 5.3, with command palette, Quick Menu, gamepad spatial navigation, responsive layouts, PWA manifest + service worker for phones, and theming from tokens.
-- **First-run onboarding:** welcome with the Well → pick a voice → theme/accent → admin PIN → memory preference → "Share MIMI?" → a 30-second guided tour (gamepad-aware).
+- **First-run onboarding:** welcome with the Well → pick a voice → theme/accent → admin PIN → memory preference → "Share Mimi?" → a 30-second guided tour (gamepad-aware).
 - Settings (5.5) and Memory (5.6) completed end to end, with import/export.
 - **Quality gates (5.8):** Playwright visual regression across surfaces × themes × layouts, an accessibility audit (axe + manual screen reader), performance budgets in CI, and the zero-external-requests test.
-- **Check:** a usability session with 3 people who've never seen MIMI (one on the handheld with gamepad, one on a phone, one on a laptop). Each completes 8 core tasks unaided, and the issues found get fixed.
+- **Check:** a usability session with 3 people who've never seen Mimi (one on the handheld with gamepad, one on a phone, one on a laptop). Each completes 8 core tasks unaided, and the issues found get fixed.
 
 ### Phase 10: Hardening + field test (~2 days, then a real drive)
-- "Launch at startup" on for the reference device (Windows auto-login to a local account). MIMI opens full-screen straight into Home.
+- "Launch at startup" on for the reference device (Windows auto-login to a local account). Mimi opens full-screen straight into Home.
 - `health` dashboard in-app (+ `scripts\health.ps1`). `update` flow in-app (manifest-verified, only when online or from a USB update pack).
 - Pause Windows Update for trips. Turn off Game Bar/overlays and Steam auto-start.
-- **Offline acceptance test:** Wi-Fi client off, cold boot on battery, and **within 60 s of the desktop appearing, MIMI is on screen**. Within 3 min a phone can chat with citations, open a Wikipedia article in the Library, see its location on the Map, use Scribe and use Lens. On the handheld, Voice holds a conversation and gamepad-only navigation reaches every surface.
+- **Offline acceptance test:** Wi-Fi client off, cold boot on battery, and **within 60 s of the desktop appearing, Mimi is on screen**. Within 3 min a phone can chat with citations, open a Wikipedia article in the Library, see its location on the Map, use Scribe and use Lens. On the handheld, Voice holds a conversation and gamepad-only navigation reaches every surface.
 - **Real-world test:** a 1-hour drive through a known dead zone, logging failures, battery drain and UX friction.
 
-### Phase 11: Package MIMI Portable (~2–3 days)
+### Phase 11: Package Mimi Portable (~2–3 days)
 See section 11. Build Lite/Standard/Full drives, code-sign `MIMI.exe`, and test on at least three other PCs (an NVIDIA desktop, an Intel-graphics laptop, an old/CPU-only machine).
 
 ---
@@ -360,7 +360,7 @@ See section 11. Build Lite/Standard/Full drives, code-sign `MIMI.exe`, and test 
 | Milestone | Scope | Effort |
 |---|---|---|
 | **v0.1 "It works"** | Phases 0–7 (engine, Core, knowledge, maps, network, Scribe/Lens, voice), tested with a dev client | ~1.5–2 weeks |
-| **v0.5 "It's MIMI"** | Phase 8 design system + Phase 9 app with all surfaces functional | +3–4 weeks |
+| **v0.5 "It's Mimi"** | Phase 8 design system + Phase 9 app with all surfaces functional | +3–4 weeks |
 | **v1.0 "World-class"** | Polish, usability fixes, accessibility, performance, Phases 10–11 | +1–2 weeks |
 | **Total** | | **~6–8 weeks** of focused work (longer part-time). Claude can do much of the implementation, and the design reviews and field tests need you. |
 
@@ -374,7 +374,7 @@ See section 11. Build Lite/Standard/Full drives, code-sign `MIMI.exe`, and test 
 | UI stutters while the iGPU is busy generating | Performance budget + testing *during* generation. The Well drops to a lightweight 2D mode under load. No heavy blur |
 | Scope creep in the custom app | Milestones (v0.1 → v0.5 → v1.0). Any OpenAI client works against Core, so the app never blocks backend progress |
 | Windows hotspot won't start offline | Loopback-adapter workaround, then the travel router |
-| Phone mic/camera blocked on plain HTTP | Caddy HTTPS + MIMI root certificate via `/cert` |
+| Phone mic/camera blocked on plain HTTP | Caddy HTTPS + Mimi root certificate via `/cert` |
 | `.local` doesn't resolve on some phones | IP printed on the QR card |
 | Model makes things up | Citations required from tool results. Sources are always visible. Safety topics always show the source |
 | RAM pressure | One model at a time, Scribe as batch jobs, no Docker, memory shown in the health dashboard |
@@ -388,20 +388,20 @@ See section 11. Build Lite/Standard/Full drives, code-sign `MIMI.exe`, and test 
 ---
 
 ## 10. Decisions (made 2026-09-26)
-1. **Name:** **MIMI: Machine Intelligence, Minus the Internet** (Mímir nod). SSID `MIMI`, `https://mimi.local`.
+1. **Name:** **Mimi: Machine Intelligence, Minus the Internet** (Mímir nod). SSID `Mimi`, `https://mimi.local`.
 2. **Map region:** US + Canada.
 3. **Network:** both. The Windows hotspot is built and tested first, and the travel router is added for field use.
 4. **Access:** WPA2 password via QR card. Visitors self-register or use guest mode, and admin stays yours.
 5. **Extras:** everything that reasonably fits, **including Khan Academy + TED**.
 6. **Distribution:** open source, **non-commercial**, with a portable USB edition.
 7. **Models:** Gemma 4 12B on the reference device, and stronger weights for bigger hosts (section 13).
-8. **UI/UX:** a custom **MIMI App** (Tauri + SvelteKit) and **MIMI Core** (FastAPI) with frontier-app polish: full-screen, optional launch at startup, robust settings, user memory management, deep customization. **Open WebUI is dropped** from the shipped product.
+8. **UI/UX:** a custom **Mimi App** (Tauri + SvelteKit) and **Mimi Core** (FastAPI) with frontier-app polish: full-screen, optional launch at startup, robust settings, user memory management, deep customization. **Open WebUI is dropped** from the shipped product.
 
 ---
 
-## 11. MIMI Portable: run from a USB drive on any PC
+## 11. Mimi Portable: run from a USB drive on any PC
 
-**Goal:** plug a drive into any Windows 10/11 x64 PC, double-click **`MIMI.exe`**, and the full MIMI experience opens. **No install, no admin rights** for local use, **nothing written outside the drive**, and no trace left behind.
+**Goal:** plug a drive into any Windows 10/11 x64 PC, double-click **`MIMI.exe`**, and the full Mimi experience opens. **No install, no admin rights** for local use, **nothing written outside the drive**, and no trace left behind.
 
 ### 11.1 How it stays portable
 - **Everything relative:** MIMI.exe resolves its own folder and passes drive-relative paths to every service. Configs are generated from templates at launch. No registry writes (except the opt-in "launch at startup").
@@ -410,7 +410,7 @@ See section 11. Build Lite/Standard/Full drives, code-sign `MIMI.exe`, and test 
 - **Filesystem:** exFAT or NTFS required (FAT32's 4 GB limit breaks Wikipedia and models). The build script checks this.
 
 ### 11.2 Launch flow (MIMI.exe)
-1. The splash screen shows the Well, while MIMI **detects hardware**: RAM, GPU vendor/VRAM, CPU features, drive speed, free ports.
+1. The splash screen shows the Well, while Mimi **detects hardware**: RAM, GPU vendor/VRAM, CPU features, drive speed, free ports.
 2. **Backend:** CUDA build for NVIDIA, Vulkan for AMD/Intel, CPU otherwise.
 3. **Profile:**
 
@@ -425,14 +425,14 @@ See section 11. Build Lite/Standard/Full drives, code-sign `MIMI.exe`, and test 
 5. **Share** (optional, needs admin, asked explicitly): firewall rule, mDNS, Caddy, hotspot, with the QR code shown on screen.
 6. **Clean exit:** stops all processes and removes any firewall rules it added.
 
-`MIMI.exe --install-to <folder>` copies the tree to an internal SSD for faster loads. `MIMI.cmd` remains as a headless/server launcher.
+`MIMI.exe --install-to <folder>` copies the tree to an internal SSD for faster loads. `Mimi.cmd` remains as a headless/server launcher.
 
 ### 11.3 Drive editions
 | Edition | Drive | Contents | Approx. size |
 |---|---|---|---|
-| **MIMI Lite** | 64 GB thumb drive OK | Qwen3.5-4B + 9B, Wikipedia top articles (no images), iFixit + WikiMed + survival, one state/province of maps, Whisper small, Piper | ~45 GB |
-| **MIMI Standard** | 128 GB (USB SSD recommended) | Standard-profile models, full Wikipedia text-only, core references, US + Canada maps, Whisper turbo, Kokoro | ~105 GB |
-| **MIMI Full** | **500 GB minimum** (USB SSD) | Everything on the reference device (Wikipedia with images, all extras **including Khan Academy + TED**) **plus the Plus and Max weights** (Gemma 4 26B-A4B ~16 GB, Qwen3.8-27B ~19 GB, Qwen3.6-35B-A3B ~21 GB) | ~265 GB |
+| **Mimi Lite** | 64 GB thumb drive OK | Qwen3.5-4B + 9B, Wikipedia top articles (no images), iFixit + WikiMed + survival, one state/province of maps, Whisper small, Piper | ~45 GB |
+| **Mimi Standard** | 128 GB (USB SSD recommended) | Standard-profile models, full Wikipedia text-only, core references, US + Canada maps, Whisper turbo, Kokoro | ~105 GB |
+| **Mimi Full** | **500 GB minimum** (USB SSD) | Everything on the reference device (Wikipedia with images, all extras **including Khan Academy + TED**) **plus the Plus and Max weights** (Gemma 4 26B-A4B ~16 GB, Qwen3.8-27B ~19 GB, Qwen3.6-35B-A3B ~21 GB) | ~265 GB |
 
 ### 11.4 The open-source repo
 ```
@@ -448,15 +448,15 @@ mimi/
   build/           build-drive.ps1: download → verify → assemble → format check → write drive
   tests/           API tests, Playwright visual/e2e, accessibility, offline-purity, perf budgets
   docs/            setup guide, QR card template, BENCHMARKS.md, hardware compatibility list
-  LICENSE          MIT or Apache-2.0 for MIMI's own code
+  LICENSE          MIT or Apache-2.0 for Mimi's own code
 ```
-- The repo ships **code and manifests, not the content**. `build-drive.ps1 -Edition full -Target E:\` pulls every artifact from upstream (Kiwix mirrors, Hugging Face, Protomaps, GitHub releases), verifies checksums and assembles an identical MIMI drive.
+- The repo ships **code and manifests, not the content**. `build-drive.ps1 -Edition full -Target E:\` pulls every artifact from upstream (Kiwix mirrors, Hugging Face, Protomaps, GitHub releases), verifies checksums and assembles an identical Mimi drive.
 - Releases: a signed `MIMI.exe` + UI bundle + manifests on GitHub Releases. Optional pre-built drive images via torrent later.
 
 ### 11.5 Later: other platforms
 - **Linux:** Tauri + `bin/linux-x64/`, straightforward.
-- **macOS (Apple Silicon):** Tauri + llama.cpp Metal. Unified memory makes Macs excellent MIMI hosts.
-- **Bootable "MIMI OS" USB:** a live Linux image that boots straight into MIMI App full-screen on any x86 PC with zero footprint. It's the ultimate kiosk, as a stretch goal.
+- **macOS (Apple Silicon):** Tauri + llama.cpp Metal. Unified memory makes Macs excellent Mimi hosts.
+- **Bootable "Mimi OS" USB:** a live Linux image that boots straight into Mimi App full-screen on any x86 PC with zero footprint. It's the ultimate kiosk, as a stretch goal.
 
 ---
 
@@ -471,7 +471,7 @@ mimi/
 | OpenStreetMap data | ODbL | "© OpenStreetMap contributors" on the map; share-alike for places.sqlite |
 | Stack Exchange | CC BY-SA | Attribution |
 | Project Gutenberg | Public domain (US) + trademark terms | Follow Gutenberg's redistribution rules |
-| Khan Academy / TED | CC BY-NC-SA / CC BY-NC-ND | **Included** (MIMI is non-commercial). Ship ZIMs unmodified (ND). The README states MIMI drives may not be sold |
+| Khan Academy / TED | CC BY-NC-SA / CC BY-NC-ND | **Included** (Mimi is non-commercial). Ship ZIMs unmodified (ND). The README states Mimi drives may not be sold |
 | Default models (Gemma 4 12B / 26B-A4B, Qwen3.5-4B / 9B, Qwen3.6-35B-A3B, Qwen3.8-27B) | Apache-2.0 (verify each model card) | Include license + notice |
 | Whisper, faster-whisper, Kokoro, sqlite-vec, SQLCipher (community) | MIT / Apache-2.0 / BSD | Include notices |
 | Piper | Check the current repo (its license has changed across versions) | Verify before bundling; voices have individual licenses |
@@ -492,7 +492,7 @@ The 780M's limit is **memory bandwidth** (~120 GB/s shared):
 ### Reference device (Standard profile, 16 GB)
 | Role | Model | Quant / size | Expected speed* | Why |
 |---|---|---|---|---|
-| **MIMI (main)** | **Gemma 4 12B** (Jun 2026) | Q4_K_M + projector, ~8.5 GB | ~8–11 tok/s | Most capable model that fits reliably. Text + image + audio, strong chained tool use, 128K context |
+| **Mimi (main)** | **Gemma 4 12B** (Jun 2026) | Q4_K_M + projector, ~8.5 GB | ~8–11 tok/s | Most capable model that fits reliably. Text + image + audio, strong chained tool use, 128K context |
 | **Reader / fallback main** | **Qwen3.5-9B** (Feb 2026) | Q4_K_M + projector, ~6.5 GB | ~11–14 tok/s | Top sub-10B model, natively multimodal (MMMU-Pro 69.2) |
 | **Quick / voice** | **Qwen3.5-4B** (or Gemma 4 E4B if it wins Phase 1) | Q4_K_M, ~3 GB | ~20–30 tok/s | Snappy voice mode. E4B's native audio input is worth testing |
 | **Stretch** | Gemma 4 26B-A4B | IQ3, ~10 GB | ~20+ tok/s *if it fits* | Kept only if it passes the no-paging test |

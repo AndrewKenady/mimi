@@ -1,15 +1,15 @@
-# MIMI architecture
+# Mimi architecture
 
-MIMI is three pieces that live in one portable folder:
+Mimi is three pieces that live in one portable folder:
 
 ```
- ┌──────────────── MIMI.exe (shell/) ─────────────────┐   phones on the MIMI Wi-Fi
+ ┌──────────────── MIMI.exe (shell/) ─────────────────┐   phones on the Mimi Wi-Fi
  │ WinForms + WebView2 window: full screen, tray,     │   ───────────────┐
  │ splash, hotkeys; starts Core if it isn't running   │                  │ https://mimi.local
  └──────────────────────┬─────────────────────────────┘                  ▼
                         │ http://127.0.0.1:7600          ┌──── share server (:443, local CA) ────┐
                         ▼                                 │  same FastAPI app, guests & users     │
- ┌──────────────── MIMI Core (core/mimi) ─────────────────┴───────────────────────────────────────┐
+ ┌──────────────── Mimi Core (core/mimi) ─────────────────┴───────────────────────────────────────┐
  │ FastAPI · SQLite (WAL) · event bus → WebSocket /api/events · SSE chat streams                  │
  │                                                                                                 │
  │ chat.py ── tool loop ──► tools.py: search_library · read_article · show_reference_image         │
@@ -23,7 +23,7 @@ MIMI is three pieces that live in one portable folder:
  │ lens.py (RapidOCR) · location.py (GPS/NMEA, geodata.py) · routing.py (Valhalla) · share.py       │
  └─────────────────────────────────────────────────────────────────────────────────────────────────┘
                         ▲ static files (ui/build)
- ┌──────────────── MIMI app (ui/) ────────────────────┐
+ ┌──────────────── Mimi app (ui/) ────────────────────┐
  │ SvelteKit SPA · Svelte 5 runes · Tailwind 4        │
  │ Home · Chat · Library · Map · Scribe · Lens ·       │
  │ Memory · Settings · Voice · onboarding · gamepad    │

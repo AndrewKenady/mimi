@@ -54,7 +54,7 @@ class Models(Section):
 
 class Sharing(Section):
     enabled: bool = False
-    ssid: str = Field("MIMI", min_length=1, max_length=32)
+    ssid: str = Field("Mimi", min_length=1, max_length=32)
     wifi_password: str = Field(default_factory=_wifi_password, min_length=8, max_length=63)
     network_mode: Literal["router", "hotspot"] = "router"
     https_port: int = Field(443, ge=1, le=65535)

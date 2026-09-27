@@ -1,4 +1,4 @@
-"""Example MIMI community tool: sunrise, sunset and twilight, computed offline.
+"""Example Mimi community tool: sunrise, sunset and twilight, computed offline.
 
 Uses the NOAA "sunrise equation" (accurate to about a minute outside the polar
 regions). Times are shown in the device's time zone.

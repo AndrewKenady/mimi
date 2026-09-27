@@ -38,7 +38,7 @@
 		const href = a.getAttribute('href') || '';
 		if (a.dataset.external) {
 			e.preventDefault();
-			app.toast("That link points to the internet. MIMI's library is offline.", 'info');
+			app.toast("That link points to the internet. Mimi's library is offline.", 'info');
 		} else if (href.startsWith('#')) {
 			e.preventDefault();
 			document.getElementById(decodeURIComponent(href.slice(1)))?.scrollIntoView({ behavior: 'smooth' });
@@ -59,7 +59,7 @@
 	}
 </script>
 
-<svelte:head><title>{art?.title || 'Library'} · MIMI</title></svelte:head>
+<svelte:head><title>{art?.title || 'Library'} · Mimi</title></svelte:head>
 
 <div class="reader">
 	<header class="bar glass">
@@ -69,7 +69,7 @@
 		<button class="icon-btn" onclick={() => setSize(size - 0.08)} aria-label="Smaller text"><Type size={14} /></button>
 		<button class="icon-btn" onclick={() => setSize(size + 0.08)} aria-label="Larger text"><Type size={19} /></button>
 		{#if art?.toc?.length}<button class="icon-btn" onclick={() => (tocOpen = !tocOpen)} aria-label="Contents"><List size={19} /></button>{/if}
-		{#if art}<button class="btn btn-sm btn-primary" onclick={ask}><Sparkles size={15} /> Ask MIMI</button>{/if}
+		{#if art}<button class="btn btn-sm btn-primary" onclick={ask}><Sparkles size={15} /> Ask Mimi</button>{/if}
 	</header>
 
 	<div class="scroll" bind:this={scroller} data-scroll>

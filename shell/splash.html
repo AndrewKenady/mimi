@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>MIMI</title>
+<title>Mimi</title>
 <!--
-  MIMI boot screen, embedded in MIMI.exe and shown with NavigateToString while MIMI Core
+  Mimi boot screen, embedded in MIMI.exe and shown with NavigateToString while Mimi Core
   starts (and, with an error state, when it can't). Self-contained: no network, no web fonts.
 
   Host -> page   mimiBoot.render({ mode: "waking", status: "..." })
@@ -134,10 +134,9 @@
   /* ---- Type ---------------------------------------------------------------------------- */
   .wordmark {
     margin: 0;
-    padding-left: .5em;                 /* keeps the tracked word optically centred */
-    font-size: clamp(30px, 6.4vmin, 60px);
-    font-weight: 300;
-    letter-spacing: .5em;
+    font-size: clamp(34px, 7.2vmin, 68px);
+    font-weight: 400;
+    letter-spacing: .02em;
     line-height: 1;
     color: transparent;
     background: linear-gradient(180deg, #f7fcff 10%, #a8e8f6 100%);
@@ -241,12 +240,12 @@
       </div>
     </div>
 
-    <h1 class="wordmark">MIMI</h1>
+    <h1 class="wordmark">Mimi</h1>
     <p class="tagline">Machine Intelligence, Minus the Internet</p>
     <div class="status" id="status" role="status" aria-live="polite">Waking up&hellip;</div>
 
     <section class="error-panel" role="alert">
-      <h2 id="error-title">MIMI couldn&rsquo;t wake up</h2>
+      <h2 id="error-title">Mimi couldn&rsquo;t wake up</h2>
       <p id="error-detail"></p>
       <div class="actions">
         <button type="button" class="primary" data-message="retry">Retry</button>
@@ -308,7 +307,7 @@
   function render(state) {
     state = state || {};
     if (state.mode === 'error') {
-      titleEl.textContent = state.title || 'MIMI couldn\u2019t wake up';
+      titleEl.textContent = state.title || 'Mimi couldn\u2019t wake up';
       detailEl.textContent = state.detail || '';
       if (!inError()) {
         body.classList.add('state-error');

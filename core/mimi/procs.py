@@ -1,7 +1,7 @@
 """Child-process management for bundled native services (llama-server, kiwix-serve).
 
 On Windows every child is placed in a Job Object with KILL_ON_JOB_CLOSE, so if
-MIMI Core exits or crashes, its children die with it — no orphaned servers
+Mimi Core exits or crashes, its children die with it — no orphaned servers
 holding GPU memory.
 """
 

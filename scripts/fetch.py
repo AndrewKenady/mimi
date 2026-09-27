@@ -1,4 +1,4 @@
-"""Download MIMI's runtimes, models, offline library and maps from a manifest.
+"""Download Mimi's runtimes, models, offline library and maps from a manifest.
 
     python scripts/fetch.py                     # everything in manifests/standard.json
     python scripts/fetch.py --only models zim   # just some groups

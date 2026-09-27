@@ -361,7 +361,7 @@ def _has_library(st, svc) -> bool:
 
 TOOLS: list[Tool] = [
     Tool("search_library",
-         "Search MIMI's offline reference library (Wikipedia, WikiMed, iFixit, Wikivoyage, survival guides, Stack Exchange, dictionary, books, TED talks). Returns numbered passages to cite as [n]. Use for any factual question.",
+         "Search Mimi's offline reference library (Wikipedia, WikiMed, iFixit, Wikivoyage, survival guides, Stack Exchange, dictionary, books, TED talks). Returns numbered passages to cite as [n]. Use for any factual question.",
          _obj({"query": {"type": "string", "description": "Short keyword query, e.g. 'second degree burn first aid'"},
                "collection": {"type": "string", "enum": COLLECTION_ENUM, "description": "Which shelf to search; 'auto' picks based on the current mode"}}, ["query"]),
          search_library, _has_library),

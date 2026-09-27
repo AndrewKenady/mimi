@@ -52,7 +52,7 @@
 			const res = await fetch('/api/voice/tts', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ text: `Hi ${name.trim() || 'there'}, I'm MIMI. Everything I know lives right here on this device.`, voice: id })
+				body: JSON.stringify({ text: `Hi ${name.trim() || 'there'}, I'm Mimi. Everything I know lives right here on this device.`, voice: id })
 			});
 			const url = URL.createObjectURL(await res.blob());
 			const a = new Audio(url);
@@ -106,12 +106,12 @@
 	{#key step}
 		<section class="panel" in:fly={{ y: 14, duration: 320, delay: 60 }} out:fade={{ duration: 90 }}>
 			{#if step === 0}
-				<h1 class="hello">Hi. I'm MIMI.</h1>
+				<h1 class="hello">Hi. I'm Mimi.</h1>
 				<p class="sub">Machine Intelligence, Minus the Internet.<br />Everything I know lives right here on this device.</p>
 				<button class="btn btn-primary btn-lg" data-autofocus onclick={() => (step = 1)}>Let's begin <ArrowRight size={18} /></button>
 			{:else if step === 1}
 				<h2>What should I call you?</h2>
-				<p class="sub">You'll be the owner of this MIMI. Others can join later as guests or users.</p>
+				<p class="sub">You'll be the owner of this Mimi. Others can join later as guests or users.</p>
 				<form class="form" onsubmit={(e) => { e.preventDefault(); createOwner(); }}>
 					<input class="input big" placeholder="Your name" bind:value={name} maxlength="40" autocomplete="given-name" data-autofocus />
 					<label class="check">
@@ -174,7 +174,7 @@
 					<div><Gamepad2 size={18} /><span>D-pad moves, A selects, B goes back, Start opens the quick menu.</span></div>
 					<div><Keyboard size={18} /><span>Press Ctrl + K to jump anywhere.</span></div>
 				</div>
-				<button class="btn btn-primary btn-lg" data-autofocus onclick={finish}>Start using MIMI <ArrowRight size={18} /></button>
+				<button class="btn btn-primary btn-lg" data-autofocus onclick={finish}>Start using Mimi <ArrowRight size={18} /></button>
 			{/if}
 		</section>
 	{/key}

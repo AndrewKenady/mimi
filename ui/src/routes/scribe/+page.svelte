@@ -67,7 +67,7 @@
 		try {
 			await rec.start();
 		} catch {
-			return app.toast('Microphone unavailable. Check that MIMI may use it.', 'error');
+			return app.toast('Microphone unavailable. Check that Mimi may use it.', 'error');
 		}
 		recording = true;
 		elapsed = 0;
@@ -114,12 +114,12 @@
 	const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 </script>
 
-<svelte:head><title>Scribe · MIMI</title></svelte:head>
+<svelte:head><title>Scribe · Mimi</title></svelte:head>
 
 <div class="page">
 	<div class="page-inner">
 		<h1 class="page-title">Scribe</h1>
-		<p class="page-sub">Record a meeting, lecture or thought. MIMI transcribes it on-device and writes the summary, key points and action items.</p>
+		<p class="page-sub">Record a meeting, lecture or thought. Mimi transcribes it on-device and writes the summary, key points and action items.</p>
 
 		<section class="recorder card" class:live={recording}>
 			{#if recording}

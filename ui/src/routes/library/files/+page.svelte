@@ -43,13 +43,13 @@
 	}
 </script>
 
-<svelte:head><title>My files · MIMI</title></svelte:head>
+<svelte:head><title>My files · Mimi</title></svelte:head>
 
 <div class="page">
 	<div class="page-inner">
 		<a href="/library" class="back"><ArrowLeft size={16} /> Library</a>
 		<h1 class="page-title">My files</h1>
-		<p class="page-sub">Documents and Scribe notes MIMI can search when you ask questions. They never leave this device.</p>
+		<p class="page-sub">Documents and Scribe notes Mimi can search when you ask questions. They never leave this device.</p>
 
 		<button
 			class="drop"

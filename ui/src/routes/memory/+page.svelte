@@ -80,14 +80,14 @@
 	}
 </script>
 
-<svelte:head><title>Memory · MIMI</title></svelte:head>
+<svelte:head><title>Memory · Mimi</title></svelte:head>
 
 <div class="page">
 	<div class="page-inner narrow">
 		<header class="head">
 			<div>
 				<h1 class="page-title">Memory</h1>
-				<p class="page-sub">What MIMI knows about you, so it can help without asking twice. It stays on this device, and you're in control of every word.</p>
+				<p class="page-sub">What Mimi knows about you, so it can help without asking twice. It stays on this device, and you're in control of every word.</p>
 			</div>
 		</header>
 
@@ -98,7 +98,7 @@
 				{/each}
 			</div>
 			<p class="explain">
-				{#if mode === 'ask'}MIMI suggests things to remember, and you approve each one.{:else if mode === 'auto'}MIMI saves lasting facts on its own. You can review them here.{:else}MIMI won't save or use memories.{/if}
+				{#if mode === 'ask'}Mimi suggests things to remember, and you approve each one.{:else if mode === 'auto'}Mimi saves lasting facts on its own. You can review them here.{:else}Mimi won't save or use memories.{/if}
 			</p>
 			<div class="row">
 				<button class="btn btn-sm" onclick={togglePause} disabled={mode === 'off'}>{#if paused}<Play size={14} /> Resume memory{:else}<Pause size={14} /> Pause memory{/if}</button>
@@ -110,7 +110,7 @@
 					<button class="btn btn-sm btn-ghost danger" onclick={() => (confirmWipe = true)}><Trash2 size={14} /> Erase all</button>
 				{/if}
 			</div>
-			{#if paused}<p class="paused"><Pause size={14} /> Memory is paused. MIMI isn't using or saving memories right now.</p>{/if}
+			{#if paused}<p class="paused"><Pause size={14} /> Memory is paused. Mimi isn't using or saving memories right now.</p>{/if}
 		</section>
 
 		{#if suggested.length}
@@ -171,7 +171,7 @@
 			{#if !loading && !suggested.length}
 				<div class="empty">
 					<Brain size={28} />
-					<p>No memories yet. Tell MIMI something like <i>“Remember that I drive a 2014 Tacoma”</i>, or add one yourself.</p>
+					<p>No memories yet. Tell Mimi something like <i>“Remember that I drive a 2014 Tacoma”</i>, or add one yourself.</p>
 				</div>
 			{/if}
 		{/each}

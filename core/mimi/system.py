@@ -15,7 +15,7 @@ from .paths import Paths
 
 L = log.get("system")
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-VALUE = "MIMI"
+VALUE = "Mimi"
 
 
 def shell_exe(paths: Paths) -> Path:

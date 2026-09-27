@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Build MIMI's offline geodata databases (``maps/places.sqlite``, ``maps/geowiki.sqlite``).
+"""Build Mimi's offline geodata databases (``maps/places.sqlite``, ``maps/geowiki.sqlite``).
 
-MIMI (Machine Intelligence, Minus the Internet) answers "where am I?" and "what's
+Mimi (Machine Intelligence, Minus the Internet) answers "where am I?" and "what's
 near me?" with no network connection. This script turns two public datasets into
 compact, indexed SQLite files. They are queried by ``core/mimi/geodata.py``.
 
@@ -53,7 +53,7 @@ memory is about 230 MB. Downloads come to about 80 MB (GeoNames) plus 2.4 GB
 KB/s, so a mirror with the same files is usually much faster. The dump date
 and MD5 sums always come from the official site.
 
-Usage (from the repository root, with MIMI's portable Python):
+Usage (from the repository root, with Mimi's portable Python):
 
     python\\python.exe scripts\\build_geodata.py                  # download + build both
     python\\python.exe scripts\\build_geodata.py --only places
@@ -189,10 +189,10 @@ def write_meta(conn: sqlite3.Connection, items: dict[str, object]) -> None:
 def finalize_db(conn: sqlite3.Connection, build_path: Path, final_path: Path) -> Path:
     """Optimise, compact into ``<final>.tmp`` with VACUUM INTO, then swap it into place.
 
-    On Windows a database that a running MIMI has open cannot be replaced. In
+    On Windows a database that a running Mimi has open cannot be replaced. In
     that case the finished file is kept as ``<final>.new``, and
     ``mimi.geodata.GeoData`` installs it the next time it opens the maps
-    directory while the old file is not in use (normally the next MIMI start).
+    directory while the old file is not in use (normally the next Mimi start).
     Returns the path that was written.
     """
     log("  ANALYZE + VACUUM INTO final file ...")
@@ -215,8 +215,8 @@ def finalize_db(conn: sqlite3.Connection, build_path: Path, final_path: Path) ->
             time.sleep(1 + attempt)
     pending = final_path.with_name(final_path.name + ".new")
     os.replace(tmp, pending)
-    log(f"  NOTE: {final_path.name} is in use (is MIMI running?). The new database was saved as {pending}")
-    log(f"        ({fmt_bytes(pending.stat().st_size)}) and will be installed the next time MIMI starts.")
+    log(f"  NOTE: {final_path.name} is in use (is Mimi running?). The new database was saved as {pending}")
+    log(f"        ({fmt_bytes(pending.stat().st_size)}) and will be installed the next time Mimi starts.")
     return pending
 
 
@@ -670,7 +670,7 @@ def build_places(args: argparse.Namespace) -> dict[str, object]:
         "skipped_malformed": bad,
     }
     write_meta(conn, {
-        "name": "MIMI places (GeoNames)",
+        "name": "Mimi places (GeoNames)",
         "schema_version": str(SCHEMA_VERSION),
         "source": "GeoNames geographical database, https://www.geonames.org/ (export/dump)",
         "source_files": provenance,
@@ -924,7 +924,7 @@ def build_geowiki(args: argparse.Namespace) -> dict[str, object]:
     ).fetchall())
     stats = {"articles": n_geo, "geotags_primary_earth": n_stage, "top_types": types}
     write_meta(conn, {
-        "name": "MIMI geowiki (English Wikipedia geotags)",
+        "name": "Mimi geowiki (English Wikipedia geotags)",
         "schema_version": str(SCHEMA_VERSION),
         "source": f"Wikimedia dumps {WIKI_NAME}-{date}: geo_tags + page tables, https://dumps.wikimedia.org/",
         "source_files": provenance,

@@ -63,7 +63,7 @@
 		const a = t.closest('a') as HTMLAnchorElement | null;
 		if (a) {
 			e.preventDefault();
-			if (a.dataset.external) app.toast("That's an internet link — MIMI works offline.", 'info');
+			if (a.dataset.external) app.toast("That's an internet link — Mimi works offline.", 'info');
 			else if (a.getAttribute('href')?.startsWith('/')) goto(a.getAttribute('href')!);
 		}
 	}

@@ -15,16 +15,16 @@
 	const shown = $derived(items.filter((i) => !i.feature || app.features[i.feature] !== false || i.feature === 'library'));
 	const active = (href: string) => (href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href));
 	const initial = $derived((app.me?.name || '?').trim().charAt(0).toUpperCase());
-	// The brand mark doubles as MIMI's presence: it breathes while a model wakes up and
+	// The brand mark doubles as Mimi's presence: it breathes while a model wakes up and
 	// greys out when Core can't be reached. It is the only orb in the rail.
 	const presence = $derived(app.offline ? 'offline' : app.model?.status === 'loading' ? 'waking' : app.model?.status === 'error' ? 'error' : 'ok');
 	const presenceLabel = $derived(
-		presence === 'offline' ? 'MIMI can’t be reached' : presence === 'waking' ? `Waking up ${app.model?.model_name || 'the model'}…` : presence === 'error' ? 'The model needs attention' : `MIMI${app.model?.model_name ? ' · ' + app.model.model_name : ''}`
+		presence === 'offline' ? 'Mimi can’t be reached' : presence === 'waking' ? `Waking up ${app.model?.model_name || 'the model'}…` : presence === 'error' ? 'The model needs attention' : `Mimi${app.model?.model_name ? ' · ' + app.model.model_name : ''}`
 	);
 </script>
 
 <nav class="rail" aria-label="Main">
-	<a href="/" class="brand" aria-label="MIMI home. {presenceLabel}" title={presenceLabel}>
+	<a href="/" class="brand" aria-label="Mimi home. {presenceLabel}" title={presenceLabel}>
 		<span class="dot {presence}"></span>
 	</a>
 	<div class="items">
@@ -37,7 +37,7 @@
 		{/each}
 	</div>
 	<div class="bottom">
-		<button class="item talk" onclick={() => (app.voice = true)} title="Talk to MIMI: tap and speak (X on a controller)">
+		<button class="item talk" onclick={() => (app.voice = true)} title="Talk to Mimi: tap and speak (X on a controller)">
 			<span class="ico"><AudioLines size={20} strokeWidth={2.2} /></span>
 			<span class="lbl">Talk</span>
 		</button>

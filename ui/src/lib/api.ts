@@ -1,4 +1,4 @@
-// Thin client for MIMI Core's HTTP API.
+// Thin client for Mimi Core's HTTP API.
 
 export class ApiError extends Error {
 	status: number;

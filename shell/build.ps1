@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builds MIMI.exe - the native Windows shell for MIMI (WinForms + Microsoft Edge WebView2).
+    Builds MIMI.exe - the native Windows shell for Mimi (WinForms + Microsoft Edge WebView2).
 
 .DESCRIPTION
     1. Fetches the Microsoft.Web.WebView2 NuGet package (latest stable unless a version is
@@ -106,7 +106,7 @@ function Copy-IfChanged([string]$From, [string]$To) {
 }
 
 # ---------------------------------------------------------------------------------------------
-Write-Step "MIMI shell build  (root: $Root)"
+Write-Step "Mimi shell build  (root: $Root)"
 
 foreach ($required in @($Csc, $Source, $Manifest, $Splash)) {
     if (-not (Test-Path $required)) { throw "Required file not found: $required" }
@@ -123,10 +123,10 @@ foreach ($file in @($Source, $Splash)) {
 }
 
 # A running MIMI.exe locks the exe and the DLLs next to it.
-$running = @(Get-Process -Name 'MIMI' -ErrorAction SilentlyContinue | Where-Object {
+$running = @(Get-Process -Name 'Mimi' -ErrorAction SilentlyContinue | Where-Object {
     try { $_.Path -eq $OutExe } catch { $false } })
 if ($running.Count -gt 0) {
-    throw ("MIMI.exe is running (pid {0}). Quit MIMI (tray icon > Quit MIMI) and build again." -f (($running | ForEach-Object { $_.Id }) -join ', '))
+    throw ("MIMI.exe is running (pid {0}). Quit Mimi (tray icon > Quit Mimi) and build again." -f (($running | ForEach-Object { $_.Id }) -join ', '))
 }
 
 if (-not (Test-Path $IconFile)) {

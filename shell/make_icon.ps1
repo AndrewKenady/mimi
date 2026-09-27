@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Generates shell\mimi.ico: the MIMI "Well" - a luminous cyan orb glowing up out of a
+    Generates shell\mimi.ico: the Mimi "Well" - a luminous cyan orb glowing up out of a
     deep-navy rounded tile - at 16, 24, 32, 48, 64, 128 and 256 px.
 
 .DESCRIPTION

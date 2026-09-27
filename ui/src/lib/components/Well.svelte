@@ -1,7 +1,7 @@
 <!--
-  The Well — MIMI's living centerpiece (after Mímir's well of wisdom).
+  The Well — Mimi's living centerpiece (after Mímir's well of wisdom).
   A WebGL orb of slowly flowing light that breathes when idle, ripples with the
-  microphone when listening, swirls while thinking and pulses as MIMI speaks.
+  microphone when listening, swirls while thinking and pulses as Mimi speaks.
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';

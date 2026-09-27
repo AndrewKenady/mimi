@@ -1,5 +1,5 @@
 {
-  "$comment": "MIMI model catalog. Paths are relative to the MIMI root. Download URLs live in manifests/*.json.",
+  "$comment": "Mimi model catalog. Paths are relative to the Mimi root. Download URLs live in manifests/*.json.",
   "models": {
     "gemma-4-12b": {
       "name": "Gemma 4 12B",

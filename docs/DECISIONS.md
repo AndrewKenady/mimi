@@ -9,7 +9,7 @@ Tauri needs Rust, and on Windows that means the Visual Studio Build Tools, an ad
 Core already supervises every other process. Doing model swaps itself gives the UI precise status ("Waking up Gemma 4 12B…") and one less binary to ship.
 
 ### D3 · Core terminates TLS itself, not Caddy
-The share server is a second uvicorn listener with a certificate issued by a local CA that MIMI generates (`share.py`, using the `cryptography` package). mDNS (`mimi.local`) comes from `zeroconf`. That's one process fewer and no Go binary.
+The share server is a second uvicorn listener with a certificate issued by a local CA that Mimi generates (`share.py`, using the `cryptography` package). mDNS (`mimi.local`) comes from `zeroconf`. That's one process fewer and no Go binary.
 
 ### D4 · OCR with RapidOCR (PP-OCRv6, ONNX), not Tesseract
 It installs from pip with its models bundled, needs no admin rights, and is more accurate on photos. It reads a sign in about 0.5 s on the CPU.

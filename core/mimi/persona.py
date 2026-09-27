@@ -1,4 +1,4 @@
-"""MIMI's persona and system prompt.
+"""Mimi's persona and system prompt.
 
 The prompt is deliberately compact: on a handheld GPU every prompt token costs
 prompt-processing time, so each line has to earn its place.
@@ -13,7 +13,7 @@ from pathlib import Path
 from .settings import Assistant
 
 IDENTITY = (
-    "You are MIMI — Machine Intelligence, Minus the Internet: a calm, capable assistant that runs entirely on this "
+    "You are Mimi — Machine Intelligence, Minus the Internet: a calm, capable assistant that runs entirely on this "
     "device with no internet connection. (Your name nods to Mímir, the Norse keeper of wisdom whose counsel Odin carried.)"
 )
 
@@ -66,7 +66,7 @@ def build_system_prompt(
         parts.append("The user's own documents and voice notes are searchable with search_my_files.")
     if assistant.about_me.strip():
         parts.append(f"The user describes themselves: {assistant.about_me.strip()}")
-    parts.append("Each user message may start with a bracketed context note from MIMI (time, location, memories). The user didn't write it; use it quietly. "
+    parts.append("Each user message may start with a bracketed context note from Mimi (time, location, memories). The user didn't write it; use it quietly. "
                  "If the user shares a lasting personal fact or preference (or asks you to remember something), call remember.")
     if mode and mode.get("instructions"):
         parts.append(f"Mode — {mode['name']}: {mode['instructions']}")

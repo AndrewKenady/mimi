@@ -422,7 +422,7 @@ class ChatService:
             # --- wait for the model (single generation slot)
             if svc.models.gen_lock.locked():
                 svc.models.waiting += 1
-                yield {"event": "status", "data": {"state": "queued", "label": "Waiting for MIMI to finish another answer…"}}
+                yield {"event": "status", "data": {"state": "queued", "label": "Waiting for Mimi to finish another answer…"}}
             async with svc.models.gen_lock:
                 if svc.models.waiting:
                     svc.models.waiting = max(0, svc.models.waiting - 1)
@@ -481,7 +481,7 @@ class ChatService:
                         messages.append({"role": "tool", "tool_call_id": tid, "content": res.text})
                         images.extend(res.images)
                     if images:
-                        messages.append({"role": "user", "content": [{"type": "text", "text": "(Reference image(s) from the library, attached by MIMI for your analysis.)"}]
+                        messages.append({"role": "user", "content": [{"type": "text", "text": "(Reference image(s) from the library, attached by Mimi for your analysis.)"}]
                                          + [{"type": "image_url", "image_url": {"url": u}} for u in images]})
                     if step_text and not step_text.endswith("\n"):
                         answer += "\n\n"

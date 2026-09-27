@@ -1,6 +1,6 @@
 <!--
   Full-screen voice conversation. Tap to talk (the mic button, Space, or the
-  controller's talk button): MIMI listens right away, notices when you stop
+  controller's talk button): Mimi listens right away, notices when you stop
   speaking, answers out loud, then listens again for a follow-up. Long-press is
   deliberately not used: phones turn long presses into text selection.
 -->
@@ -28,7 +28,7 @@
 	let typing = $state(false);
 	let typed = $state('');
 	let typeBox: HTMLInputElement | undefined = $state();
-	// A little personality while MIMI works; a new line is picked for each turn.
+	// A little personality while Mimi works; a new line is picked for each turn.
 	const HEARING = ['Processing…', 'Decombobulating…', 'Untangling your words…', 'Deciphering…', 'Parsing syllables…', 'Making sense of that…', 'Unscrambling…'];
 	const THINKING = ['Thinking…', 'Mulling it over…', 'Pondering…', 'Connecting the dots…', 'Noodling on that…', 'Working it out…'];
 	const pick = (xs: string[]) => xs[Math.floor(Math.random() * xs.length)];
@@ -36,7 +36,7 @@
 	let thinkingLine = $state(THINKING[0]);
 	let startedAt = 0;
 	let vadTimer: ReturnType<typeof setInterval> | undefined;
-	// Hands-free: after MIMI finishes speaking, listen again for a follow-up.
+	// Hands-free: after Mimi finishes speaking, listen again for a follow-up.
 	let followUp = false;
 
 	// End-of-turn detection from the mic level (tuned for a handheld held at arm's length).
@@ -47,7 +47,7 @@
 	const MAX_TURN = 60000;
 
 	// While the answer is still streaming, the audio queue can briefly run dry between
-	// sentences; only an idle speaker after the stream has ended means MIMI is done.
+	// sentences; only an idle speaker after the stream has ended means Mimi is done.
 	let streaming = false;
 	speaker.onIdle = () => {
 		if (phase !== 'speaking' || streaming) return;
@@ -63,7 +63,7 @@
 
 	async function startListening(auto = false) {
 		if (phase === 'listening') return;
-		speaker.stop(); // tapping while MIMI talks interrupts it
+		speaker.stop(); // tapping while Mimi talks interrupts it
 		abort?.abort();
 		if (!auto) {
 			heard = '';
@@ -269,7 +269,7 @@
 <div class="voice" data-layer transition:fade={{ duration: 220 }}>
 	<div class="top">
 		<button class="icon-btn" onclick={newConversation} title="New conversation"><MessagesSquare size={20} /></button>
-		<span class="brand">MIMI</span>
+		<span class="brand">Mimi</span>
 		<button class="icon-btn" onclick={close} aria-label="Close voice"><X size={22} /></button>
 	</div>
 
@@ -370,11 +370,10 @@
 		padding: 16px 20px;
 	}
 	.brand {
-		letter-spacing: 0.4em;
-		font-weight: 300;
+		letter-spacing: 0.02em;
+		font-weight: 500;
 		color: var(--text-2);
-		font-size: 0.9rem;
-		padding-left: 0.4em;
+		font-size: 1rem;
 	}
 	.stage {
 		flex: 1;

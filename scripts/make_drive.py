@@ -1,7 +1,7 @@
-"""Copy this MIMI install to a USB drive (or any folder) as a portable edition.
+"""Copy this Mimi install to a USB drive (or any folder) as a portable edition.
 
     python\\python.exe scripts\\make_drive.py E:\\ --edition standard
-    python\\python.exe scripts\\make_drive.py E:\\MIMI --edition lite --map-bbox -111.1,40.9,-104.0,45.1
+    python\\python.exe scripts\\make_drive.py E:\\Mimi --edition lite --map-bbox -111.1,40.9,-104.0,45.1
     python\\python.exe scripts\\make_drive.py F:\\ --edition full --dry-run
 
 Editions (see docs/PLAN.md, section 11.3):
@@ -198,7 +198,7 @@ def plan(args) -> tuple[list[tuple[Path, Path, list[str] | None]], int, list[str
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("target", help="drive or folder, e.g. E:\\ or E:\\MIMI")
+    ap.add_argument("target", help="drive or folder, e.g. E:\\ or E:\\Mimi")
     ap.add_argument("--edition", choices=["lite", "standard", "full"], default="standard")
     ap.add_argument("--map-bbox", help="copy only this map region: west,south,east,north (degrees)")
     ap.add_argument("--no-routing", action="store_true", help="leave out the driving-directions graph")
@@ -210,14 +210,14 @@ def main() -> None:
     dst = Path(args.target)
     free_bytes(dst)  # fails early if the drive isn't there
     if dst.resolve() == ROOT or ROOT in dst.resolve().parents:
-        raise SystemExit("The target must be outside this MIMI folder.")
+        raise SystemExit("The target must be outside this Mimi folder.")
     fs = filesystem(dst)
     if fs.upper().startswith("FAT") and fs.upper() != "EXFAT":
         raise SystemExit(f"{dst.anchor} is formatted {fs}, which can't hold files over 4 GB (models, Wikipedia). Reformat it as exFAT or NTFS.")
 
     jobs, total, notes = plan(args)
     free = free_bytes(dst) + (size_of(dst) if dst.exists() else 0)
-    print(f"MIMI {args.edition} edition -> {dst}  ({fs}, {gb(free)} free)")
+    print(f"Mimi {args.edition} edition -> {dst}  ({fs}, {gb(free)} free)")
     print(f"   to copy: {gb(total)} in {len(jobs)} parts")
     for n in notes:
         print("   note:", n)

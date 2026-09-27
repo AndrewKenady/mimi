@@ -47,7 +47,7 @@
 	const fmtDist = (km: number) => (app.settings.device?.general?.units === 'metric' ? `${km.toFixed(1)} km` : `${(km * 0.621371).toFixed(1)} mi`);
 </script>
 
-<svelte:head><title>MIMI</title></svelte:head>
+<svelte:head><title>Mimi</title></svelte:head>
 
 <div class="page">
 	<div class="home">
@@ -62,7 +62,7 @@
 				{/if}
 			</p>
 			<div class="composer-wrap">
-				<Composer onsend={send} bind:mode big placeholder="Ask MIMI anything…" autofocus />
+				<Composer onsend={send} bind:mode big placeholder="Ask Mimi anything…" autofocus />
 			</div>
 			<div class="quick">
 				<button class="qa" onclick={() => (app.voice = true)}><AudioLines size={18} /> Talk</button>
@@ -145,7 +145,7 @@
 					{#if notes === null}
 						<div class="shimmer" style="height:110px"></div>
 					{:else if !notes.length}
-						<div class="empty"><NotebookPen size={20} /><p>Record a meeting or a thought, and MIMI writes the summary.</p><a class="btn btn-sm" href="/scribe">Start recording</a></div>
+						<div class="empty"><NotebookPen size={20} /><p>Record a meeting or a thought, and Mimi writes the summary.</p><a class="btn btn-sm" href="/scribe">Start recording</a></div>
 					{:else}
 						<ul class="rows">
 							{#each notes as n (n.id)}

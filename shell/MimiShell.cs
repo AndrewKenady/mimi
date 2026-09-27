@@ -1,12 +1,12 @@
-// MIMI.exe - the native Windows shell for MIMI ("Machine Intelligence, Minus the Internet").
+// MIMI.exe - the native Windows shell for Mimi ("Machine Intelligence, Minus the Internet").
 //
-// A thin, full-screen WinForms window around Microsoft Edge WebView2 that shows the MIMI web UI
-// served by MIMI Core on http://127.0.0.1:7600/. Built with the C# 5 compiler that ships inside
+// A thin, full-screen WinForms window around Microsoft Edge WebView2 that shows the Mimi web UI
+// served by Mimi Core on http://127.0.0.1:7600/. Built with the C# 5 compiler that ships inside
 // .NET Framework 4.8 (see build.ps1), so it needs no Visual Studio, no SDK and no admin rights.
 //
 // What the shell does:
-//   * one instance per session; launching MIMI again brings the running window forward
-//   * starts MIMI Core hidden if it isn't running, and stops it on quit if the shell started it
+//   * one instance per session; launching Mimi again brings the running window forward
+//   * starts Mimi Core hidden if it isn't running, and stops it on quit if the shell started it
 //   * shows the boot screen (splash.html, embedded) while Core wakes up, and a friendly error
 //     screen with Retry if it doesn't
 //   * borderless full screen by default (F11 / Alt+Enter toggle), tray icon, Ctrl+Alt+M hotkey
@@ -41,11 +41,11 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Win32;
 
-[assembly: AssemblyTitle("MIMI")]
-[assembly: AssemblyDescription("MIMI - Machine Intelligence, Minus the Internet")]
-[assembly: AssemblyProduct("MIMI")]
-[assembly: AssemblyCompany("MIMI contributors")]
-[assembly: AssemblyCopyright("Copyright (c) 2026 Andrew Kenady and MIMI contributors. MIT License.")]
+[assembly: AssemblyTitle("Mimi")]
+[assembly: AssemblyDescription("Mimi - Machine Intelligence, Minus the Internet")]
+[assembly: AssemblyProduct("Mimi")]
+[assembly: AssemblyCompany("Mimi contributors")]
+[assembly: AssemblyCopyright("Copyright (c) 2026 Andrew Kenady and Mimi contributors. MIT License.")]
 [assembly: AssemblyVersion("0.1.0.0")]
 [assembly: AssemblyFileVersion("0.1.0.0")]
 [assembly: AssemblyInformationalVersion("0.1.0")]
@@ -75,8 +75,8 @@ namespace Mimi.Shell
     }
 
     /// <summary>
-    /// Locations inside the MIMI tree. The root is always the folder that contains MIMI.exe, so a
-    /// MIMI folder can live on any drive or a USB stick. Nothing is ever hard-coded.
+    /// Locations inside the Mimi tree. The root is always the folder that contains MIMI.exe, so a
+    /// Mimi folder can live on any drive or a USB stick. Nothing is ever hard-coded.
     /// </summary>
     internal static class AppPaths
     {
@@ -105,7 +105,7 @@ namespace Mimi.Shell
         {
             Log.Initialize(Path.Combine(AppPaths.Logs, "shell.log"));
             ShellOptions options = ShellOptions.Parse(args);
-            Log.Info("MIMI shell " + AppInfo.Version + " starting (pid " + Process.GetCurrentProcess().Id +
+            Log.Info("Mimi shell " + AppInfo.Version + " starting (pid " + Process.GetCurrentProcess().Id +
                      ", " + options + ", root " + AppPaths.Root + ")");
 
             Application.EnableVisualStyles();
@@ -153,14 +153,14 @@ namespace Mimi.Shell
                 if (primary)
                 {
                     ReleaseSingleInstance();   // no-op if quitting already released it
-                    Log.Info("MIMI shell exited.");
+                    Log.Info("Mimi shell exited.");
                 }
                 singleInstance.Dispose();
             }
         }
 
         /// <summary>
-        /// Called when quitting starts, so launching MIMI again right away isn't swallowed by an
+        /// Called when quitting starts, so launching Mimi again right away isn't swallowed by an
         /// instance that is on its way out. Must run on the main (UI) thread, which owns the mutex.
         /// </summary>
         internal static void ReleaseSingleInstance()
@@ -192,8 +192,8 @@ namespace Mimi.Shell
                         using (other)
                         {
                             if (other.Id == current.Id) continue;
-                            Log.Info("Waiting for the previous MIMI (pid " + other.Id + ") to finish quitting.");
-                            if (!other.WaitForExit(8000)) Log.Warn("The previous MIMI is still running; carrying on.");
+                            Log.Info("Waiting for the previous Mimi (pid " + other.Id + ") to finish quitting.");
+                            if (!other.WaitForExit(8000)) Log.Warn("The previous Mimi is still running; carrying on.");
                         }
                     }
                 }
@@ -229,10 +229,10 @@ namespace Mimi.Shell
                 // DllNotFoundException (WebView2Loader.dll), FileNotFoundException (managed DLLs), ...
                 Log.Error("WebView2 components are missing or damaged", ex);
                 MessageBox.Show(
-                    "MIMI's display components are missing or damaged (" + ex.GetType().Name + ").\n\n" +
+                    "Mimi's display components are missing or damaged (" + ex.GetType().Name + ").\n\n" +
                     "Microsoft.Web.WebView2.Core.dll, Microsoft.Web.WebView2.WinForms.dll and WebView2Loader.dll " +
                     "must sit next to MIMI.exe. Running shell\\build.ps1 puts them back.",
-                    "MIMI", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Mimi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
 
@@ -240,11 +240,11 @@ namespace Mimi.Shell
             {
                 Log.Error("The Microsoft Edge WebView2 Runtime is not installed.", null);
                 DialogResult answer = MessageBox.Show(
-                    "MIMI needs the Microsoft Edge WebView2 Runtime, which isn't installed on this PC.\n\n" +
+                    "Mimi needs the Microsoft Edge WebView2 Runtime, which isn't installed on this PC.\n\n" +
                     "Get the Evergreen Runtime (x64) from:\n" + AppInfo.WebView2DownloadUrl + "\n\n" +
                     "It comes with Windows 11. The \"Evergreen Standalone Installer\" works offline, so it can be " +
                     "downloaded on another computer and copied over.\n\nOpen the download page now?",
-                    "MIMI - WebView2 Runtime required", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                    "Mimi - WebView2 Runtime required", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                 if (answer == DialogResult.Yes) ShellOpen(AppInfo.WebView2DownloadUrl);
                 return false;
             }
@@ -256,7 +256,7 @@ namespace Mimi.Shell
         /// <summary>Asks the already-running shell to show itself.</summary>
         private static void SignalRunningInstance()
         {
-            Log.Info("MIMI is already running; asking it to come forward.");
+            Log.Info("Mimi is already running; asking it to come forward.");
 
             // This process was just launched by the user, so it may pass its right to take the
             // foreground on to the instance that is already running.
@@ -383,7 +383,7 @@ namespace Mimi.Shell
             Tuple.Create(65.0, "This is taking longer than usual\u2026"),
         };
 
-        /// <summary>Permissions granted without asking when MIMI's own UI requests them.</summary>
+        /// <summary>Permissions granted without asking when Mimi's own UI requests them.</summary>
         private static readonly HashSet<CoreWebView2PermissionKind> AutoGrantedPermissions = new HashSet<CoreWebView2PermissionKind>
         {
             CoreWebView2PermissionKind.Microphone,
@@ -450,8 +450,8 @@ namespace Mimi.Shell
             this.options = options;
             this.activateSignal = activateSignal;
 
-            Text = "MIMI";
-            AccessibleName = "MIMI";
+            Text = "Mimi";
+            AccessibleName = "Mimi";
             BackColor = AppInfo.Background;
             Icon = AppIcon.Load(SystemInformation.IconSize);
             AutoScaleMode = AutoScaleMode.None;
@@ -593,7 +593,7 @@ namespace Mimi.Shell
             {
                 BeginInvoke(new Action(() =>
                 {
-                    Log.Info("A second launch asked MIMI to come forward.");
+                    Log.Info("A second launch asked Mimi to come forward.");
                     ShowFromTray(true);
                 }));
             }
@@ -640,7 +640,7 @@ namespace Mimi.Shell
             try
             {
                 Directory.CreateDirectory(AppPaths.WebViewData);
-                // Autoplay without a prior click, so MIMI can speak as soon as an answer is ready.
+                // Autoplay without a prior click, so Mimi can speak as soon as an answer is ready.
                 var environmentOptions = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
                 environmentOptions.IsCustomCrashReportingEnabled = true;   // crash dumps stay on this PC
                 environmentOptions.EnableTrackingPrevention = false;       // nothing to block offline
@@ -654,9 +654,9 @@ namespace Mimi.Shell
                 Log.Error("WebView2 failed to start", ex);
                 if (quitting || view != webView) return;
                 MessageBox.Show(this,
-                    "MIMI couldn't start its display engine (Microsoft Edge WebView2).\n\n" + ex.Message +
+                    "Mimi couldn't start its display engine (Microsoft Edge WebView2).\n\n" + ex.Message +
                     "\n\nDetails are in logs\\shell.log.",
-                    "MIMI", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Mimi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 BeginQuit("WebView2 failed to start");
                 return;
             }
@@ -737,7 +737,7 @@ namespace Mimi.Shell
             string uri = e.Uri ?? string.Empty;
             if (!IsAppUri(uri))
             {
-                // Only MIMI itself is shown inside MIMI. Everything else goes to the default browser,
+                // Only Mimi itself is shown inside Mimi. Everything else goes to the default browser,
                 // and only when the user actually clicked it.
                 e.Cancel = true;
                 if (IsWebUri(uri) && e.IsUserInitiated) OpenInDefaultBrowser(uri);
@@ -788,7 +788,7 @@ namespace Mimi.Shell
 
             if (e.IsSuccess)
             {
-                if (phase != Phase.Ready) Log.Info("MIMI UI loaded.");
+                if (phase != Phase.Ready) Log.Info("Mimi UI loaded.");
                 phase = Phase.Ready;
                 RevealWebView();
                 PostHostInfo();
@@ -796,13 +796,13 @@ namespace Mimi.Shell
             }
             else if (IsConnectionError(e.WebErrorStatus))
             {
-                ShowFailure("MIMI lost touch with its Core",
-                    "The interface couldn't be loaded from MIMI Core (" + e.WebErrorStatus + "). Core may have stopped.");
+                ShowFailure("Mimi lost touch with its Core",
+                    "The interface couldn't be loaded from Mimi Core (" + e.WebErrorStatus + "). Core may have stopped.");
             }
             else if (shellNavigation && status >= 400)
             {
-                ShowFailure("MIMI's interface didn't load",
-                    "MIMI Core answered with HTTP " + status + " instead of its interface.");
+                ShowFailure("Mimi's interface didn't load",
+                    "Mimi Core answered with HTTP " + status + " instead of its interface.");
             }
         }
 
@@ -821,7 +821,7 @@ namespace Mimi.Shell
         private void OnNewWindowRequested(object sender, CoreWebView2NewWindowRequestedEventArgs e)
         {
             // Never open browser pop-up windows. Anything that asks for a new window (target=_blank,
-            // window.open) goes to the default browser, local links included, so MIMI keeps its state.
+            // window.open) goes to the default browser, local links included, so Mimi keeps its state.
             e.Handled = true;
             string uri = e.Uri ?? string.Empty;
             if (IsWebUri(uri) && e.IsUserInitiated) OpenInDefaultBrowser(uri);
@@ -835,7 +835,7 @@ namespace Mimi.Shell
                 e.State = CoreWebView2PermissionState.Allow;
             else if (!fromCore)
                 e.State = CoreWebView2PermissionState.Deny;
-            // Rare permissions requested by MIMI's own UI fall through to WebView2's normal prompt.
+            // Rare permissions requested by Mimi's own UI fall through to WebView2's normal prompt.
             Log.Info("Permission " + e.PermissionKind + " for " + Describe(e.Uri) + ": " + e.State + ".");
         }
 
@@ -914,8 +914,8 @@ namespace Mimi.Shell
             {
                 Log.Error("WebView2 keeps crashing; giving up.", null);
                 MessageBox.Show(this,
-                    "MIMI's display engine (Microsoft Edge WebView2) keeps crashing, so MIMI will close.\n\nDetails are in logs\\shell.log.",
-                    "MIMI", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Mimi's display engine (Microsoft Edge WebView2) keeps crashing, so Mimi will close.\n\nDetails are in logs\\shell.log.",
+                    "Mimi", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 BeginQuit("WebView2 keeps crashing");
                 return;
             }
@@ -950,7 +950,7 @@ namespace Mimi.Shell
         }
 
         /// <summary>
-        /// Shows the boot screen, waits for Core, then loads the MIMI UI. <paramref name="retry"/>
+        /// Shows the boot screen, waits for Core, then loads the Mimi UI. <paramref name="retry"/>
         /// is true when the user asked to try again: only then is a Core that died restarted.
         /// </summary>
         private async void StartBoot(string status, bool retry)
@@ -990,10 +990,10 @@ namespace Mimi.Shell
 
             string startError = await EnsureCoreStarted();
             cancel.ThrowIfCancellationRequested();
-            if (startError != null) return BootResult.Failed("MIMI Core couldn\u2019t start", startError);
+            if (startError != null) return BootResult.Failed("Mimi Core couldn\u2019t start", startError);
 
             bool ours = core.OwnsRunningProcess;
-            SetBootStatus(ours ? "Starting MIMI Core\u2026" : "Connecting to MIMI Core\u2026");
+            SetBootStatus(ours ? "Starting Mimi Core\u2026" : "Connecting to Mimi Core\u2026");
             return await WaitForCoreAsync(ours, cancel);
         }
 
@@ -1040,7 +1040,7 @@ namespace Mimi.Shell
                     pings.RemoveAt(i);
                     if (ok)
                     {
-                        Log.Info("MIMI Core answered after " + clock.ElapsedMilliseconds + " ms.");
+                        Log.Info("Mimi Core answered after " + clock.ElapsedMilliseconds + " ms.");
                         return BootResult.Ready();
                     }
                 }
@@ -1052,7 +1052,7 @@ namespace Mimi.Shell
                     if (!exitSeenAt.HasValue)
                     {
                         exitSeenAt = clock.Elapsed;
-                        Log.Warn("MIMI Core exited early with code " + exitCode.Value + ".");
+                        Log.Warn("Mimi Core exited early with code " + exitCode.Value + ".");
                     }
                     else if (clock.Elapsed - exitSeenAt.Value >= EarlyExitGrace)
                     {
@@ -1063,23 +1063,23 @@ namespace Mimi.Shell
                 if (clock.Elapsed >= BootTimeout)
                 {
                     if (core.OwnsRunningProcess)
-                        return BootResult.Failed("MIMI Core is taking too long",
-                            "MIMI Core is still not answering after " + (int)BootTimeout.TotalSeconds +
+                        return BootResult.Failed("Mimi Core is taking too long",
+                            "Mimi Core is still not answering after " + (int)BootTimeout.TotalSeconds +
                             " seconds. It may still be loading, or it may be stuck. Retry gives it more time.");
                     if (!ours && CoreSupervisor.IsPortListening() == true)
                         return BootResult.Failed("Port " + AppInfo.CorePort + " is busy",
-                            "Something is using port " + AppInfo.CorePort + " but isn't answering like MIMI Core. " +
+                            "Something is using port " + AppInfo.CorePort + " but isn't answering like Mimi Core. " +
                             "Closing the other program (or restarting the PC) should fix it.");
-                    return BootResult.Failed("MIMI Core isn't answering",
-                        "MIMI Core didn't respond within " + (int)BootTimeout.TotalSeconds + " seconds.");
+                    return BootResult.Failed("Mimi Core isn't answering",
+                        "Mimi Core didn't respond within " + (int)BootTimeout.TotalSeconds + " seconds.");
                 }
             }
         }
 
         private static BootResult CoreExitedEarly(int exitCode)
         {
-            return BootResult.Failed("MIMI Core stopped unexpectedly",
-                "MIMI Core exited (code " + exitCode + ") before it was ready. The logs folder may say why.");
+            return BootResult.Failed("Mimi Core stopped unexpectedly",
+                "Mimi Core exited (code " + exitCode + ") before it was ready. The logs folder may say why.");
         }
 
         private async Task EnterAppAsync(CancellationToken cancel)
@@ -1411,8 +1411,8 @@ namespace Mimi.Shell
             if (!trayHintShown && tray != null)
             {
                 trayHintShown = true;
-                tray.ShowBalloonTip(5000, "MIMI is still here",
-                    "Press Ctrl+Alt+M or click the tray icon to bring MIMI back.", ToolTipIcon.None);
+                tray.ShowBalloonTip(5000, "Mimi is still here",
+                    "Press Ctrl+Alt+M or click the tray icon to bring Mimi back.", ToolTipIcon.None);
             }
         }
 
@@ -1487,7 +1487,7 @@ namespace Mimi.Shell
 
         private void ApplyWindowTheme()
         {
-            // Dark title bar in --windowed mode, tinted to MIMI's background (caption colour: Windows 11).
+            // Dark title bar in --windowed mode, tinted to Mimi's background (caption colour: Windows 11).
             try
             {
                 int on = 1;
@@ -1531,7 +1531,7 @@ namespace Mimi.Shell
                 Font = new Font("Segoe UI", 10f),
                 Padding = new Padding(2, 4, 2, 4),
             };
-            var show = new ToolStripMenuItem("Show MIMI", null, (s, e) => ShowFromTray(true));
+            var show = new ToolStripMenuItem("Show Mimi", null, (s, e) => ShowFromTray(true));
             show.Font = new Font(menu.Font, FontStyle.Bold);
             trayFullScreenItem = new ToolStripMenuItem("Full screen", null, (s, e) =>
             {
@@ -1539,7 +1539,7 @@ namespace Mimi.Shell
                 SetFullScreen(!fullScreen);
             });
             trayFullScreenItem.Checked = fullScreen;
-            var quit = new ToolStripMenuItem("Quit MIMI", null, (s, e) => BeginQuit("tray menu"));
+            var quit = new ToolStripMenuItem("Quit Mimi", null, (s, e) => BeginQuit("tray menu"));
             foreach (ToolStripMenuItem item in new[] { show, trayFullScreenItem, quit })
                 item.Padding = new Padding(4, 6, 16, 6);   // roomier rows for fingers on the touch screen
             menu.Items.AddRange(new ToolStripItem[] { show, trayFullScreenItem, new ToolStripSeparator(), quit });
@@ -1547,7 +1547,7 @@ namespace Mimi.Shell
             var icon = new NotifyIcon
             {
                 Icon = AppIcon.Load(SystemInformation.SmallIconSize),
-                Text = "MIMI",
+                Text = "Mimi",
                 ContextMenuStrip = menu,
                 Visible = true,
             };
@@ -1559,7 +1559,7 @@ namespace Mimi.Shell
             return icon;
         }
 
-        /// <summary>Quits MIMI: hides at once, stops Core if the shell started it, then closes.</summary>
+        /// <summary>Quits Mimi: hides at once, stops Core if the shell started it, then closes.</summary>
         private async void BeginQuit(string reason)
         {
             if (quitting) return;
@@ -1581,7 +1581,7 @@ namespace Mimi.Shell
             }
             catch (Exception ex)
             {
-                Log.Error("Stopping MIMI Core failed", ex);
+                Log.Error("Stopping Mimi Core failed", ex);
             }
             readyToClose = true;
             Close();
@@ -1589,7 +1589,7 @@ namespace Mimi.Shell
 
         // ---- URL helpers ----------------------------------------------------------------------------
 
-        /// <summary>True for MIMI Core's origin (127.0.0.1:7600, or its localhost alias).</summary>
+        /// <summary>True for Mimi Core's origin (127.0.0.1:7600, or its localhost alias).</summary>
         internal static bool IsCoreUri(string uri)
         {
             Uri parsed;
@@ -1605,7 +1605,7 @@ namespace Mimi.Shell
                    uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>Top-level documents allowed inside the MIMI window.</summary>
+        /// <summary>Top-level documents allowed inside the Mimi window.</summary>
         private static bool IsAppUri(string uri)
         {
             if (IsCoreUri(uri) || IsLocalDocumentUri(uri)) return true;
@@ -1657,11 +1657,11 @@ namespace Mimi.Shell
     }
 
     // =============================================================================================
-    // MIMI Core process
+    // Mimi Core process
     // =============================================================================================
 
     /// <summary>
-    /// Reaches MIMI Core over HTTP and starts/stops its process. The shell only ever stops a Core
+    /// Reaches Mimi Core over HTTP and starts/stops its process. The shell only ever stops a Core
     /// process that it started itself (and that is still the one running).
     /// </summary>
     internal sealed class CoreSupervisor : IDisposable
@@ -1755,9 +1755,9 @@ namespace Mimi.Shell
             string pythonw = AppPaths.PythonW;
             string coreDir = AppPaths.CoreDir;
             if (!File.Exists(pythonw))
-                return "The bundled Python runtime is missing (" + pythonw + "). Is the MIMI folder complete?";
+                return "The bundled Python runtime is missing (" + pythonw + "). Is the Mimi folder complete?";
             if (!Directory.Exists(coreDir))
-                return "MIMI Core is missing (" + coreDir + "). Is the MIMI folder complete?";
+                return "Mimi Core is missing (" + coreDir + "). Is the Mimi folder complete?";
 
             var info = new ProcessStartInfo(pythonw, "-m mimi serve")
             {
@@ -1776,10 +1776,10 @@ namespace Mimi.Shell
             }
             catch (Exception ex)
             {
-                Log.Error("Could not start MIMI Core", ex);
-                return "Windows couldn't start MIMI Core: " + ex.Message;
+                Log.Error("Could not start Mimi Core", ex);
+                return "Windows couldn't start Mimi Core: " + ex.Message;
             }
-            Log.Info("Started MIMI Core, pid " + process.Id + " (python\\pythonw.exe -m mimi serve in core\\).");
+            Log.Info("Started Mimi Core, pid " + process.Id + " (python\\pythonw.exe -m mimi serve in core\\).");
             return null;
         }
 
@@ -1848,14 +1848,14 @@ namespace Mimi.Shell
                 // request may have arrived even though the reply didn't, so allow a graceful exit.
                 if (!p.WaitForExit(listening == false || !servedByOurs ? 500 : 3000))
                 {
-                    Log.Warn("MIMI Core did not shut down; ending pid " + p.Id + ".");
+                    Log.Warn("Mimi Core did not shut down; ending pid " + p.Id + ".");
                     p.Kill();
                     p.WaitForExit(2000);
                 }
             }
             catch (Exception ex)
             {
-                Log.Warn("Could not end MIMI Core: " + ex.Message);
+                Log.Warn("Could not end Mimi Core: " + ex.Message);
             }
         }
 
@@ -1868,7 +1868,7 @@ namespace Mimi.Shell
             }
             catch (Exception ex)
             {
-                Log.Warn("Stopping MIMI Core failed: " + ex.Message);
+                Log.Warn("Stopping Mimi Core failed: " + ex.Message);
             }
         }
 
@@ -1962,7 +1962,7 @@ namespace Mimi.Shell
                 {
                     Log.Error("Embedded resource " + ResourceName + " is missing.", null);
                     return "<!DOCTYPE html><html><body style=\"margin:0;height:100vh;display:grid;place-items:center;" +
-                           "background:#060a12;color:#eaf6ff;font:300 48px 'Segoe UI';letter-spacing:.5em\">MIMI</body></html>";
+                           "background:#060a12;color:#eaf6ff;font:300 48px 'Segoe UI';letter-spacing:.5em\">Mimi</body></html>";
                 }
                 using (var reader = new StreamReader(stream, Encoding.UTF8)) return reader.ReadToEnd();
             }
@@ -2055,7 +2055,7 @@ namespace Mimi.Shell
     {
         /// <summary>
         /// Resolves <paramref name="requested"/> (relative to the root, or absolute) and accepts it
-        /// only if it lies inside the MIMI root. No network/device paths, no ".." escapes, no streams.
+        /// only if it lies inside the Mimi root. No network/device paths, no ".." escapes, no streams.
         /// </summary>
         public static bool TryResolveInsideRoot(string root, string requested, out string fullPath, out string error)
         {
@@ -2078,7 +2078,7 @@ namespace Mimi.Shell
                 string full = Path.GetFullPath(candidate);   // resolves "..", "." and mixed slashes
                 if (!(full.TrimEnd('\\', '/') + "\\").StartsWith(rootFull, StringComparison.OrdinalIgnoreCase))
                 {
-                    error = "Only folders inside the MIMI folder can be opened.";
+                    error = "Only folders inside the Mimi folder can be opened.";
                     return false;
                 }
                 fullPath = full;
@@ -2132,7 +2132,7 @@ namespace Mimi.Shell
             }
             catch (Exception)
             {
-                // Logging must never stop MIMI from starting.
+                // Logging must never stop Mimi from starting.
             }
         }
 
@@ -2191,7 +2191,7 @@ namespace Mimi.Shell
         }
     }
 
-    /// <summary>Dark renderer for the tray menu, so it matches the rest of MIMI.</summary>
+    /// <summary>Dark renderer for the tray menu, so it matches the rest of Mimi.</summary>
     internal sealed class DarkMenuRenderer : ToolStripProfessionalRenderer
     {
         private static readonly Color TextColor = Color.FromArgb(232, 240, 248);

@@ -3,13 +3,13 @@
   Application manifest for MIMI.exe (embedded by build.ps1 via csc /win32manifest).
   - Per-Monitor V2 DPI awareness: crisp text on the handheld's high-DPI panel and on external
     monitors; WebView2 follows each monitor's scale on its own.
-  - asInvoker: MIMI never needs elevation.
+  - asInvoker: Mimi never needs elevation.
   - Windows 10/11 compatibility GUID so the OS doesn't apply legacy shims.
   - Common Controls v6 so message boxes shown before WinForms starts are themed too.
 -->
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="0.1.0.0" processorArchitecture="amd64" name="MIMI.Shell" type="win32" />
-  <description>MIMI - Machine Intelligence, Minus the Internet</description>
+  <description>Mimi - Machine Intelligence, Minus the Internet</description>
 
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>

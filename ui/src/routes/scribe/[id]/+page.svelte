@@ -50,7 +50,7 @@
 	}
 </script>
 
-<svelte:head><title>{note?.title || 'Note'} · MIMI</title></svelte:head>
+<svelte:head><title>{note?.title || 'Note'} · Mimi</title></svelte:head>
 
 <div class="page">
 	<div class="page-inner narrow">
@@ -67,7 +67,7 @@
 				<p class="page-sub">{new Date(note.created_at * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}{#if note.duration} · {fmt(note.duration)}{/if}</p>
 				<div class="acts">
 					{#if note.status === 'ready'}
-						<button class="btn btn-sm btn-primary" onclick={ask}><Sparkles size={14} /> Ask MIMI</button>
+						<button class="btn btn-sm btn-primary" onclick={ask}><Sparkles size={14} /> Ask Mimi</button>
 						<a class="btn btn-sm" href="/api/scribe/{note.id}/export" download><Download size={14} /> Export</a>
 					{/if}
 					<button class="btn btn-sm btn-ghost" onclick={remove}><Trash2 size={14} /> Delete</button>

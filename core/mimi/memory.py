@@ -1,6 +1,6 @@
 """Personal memory: small, transparent, user-controlled facts about each user.
 
-* Memories are created explicitly ("remember that…") or suggested by MIMI via
+* Memories are created explicitly ("remember that…") or suggested by Mimi via
   the `remember` tool. With the default "ask" setting, suggestions wait for the
   user's approval (a chip in the chat and the Memory page).
 * Relevant memories are injected into the system prompt each turn; the reply

@@ -14,7 +14,7 @@
 		mode = $bindable('everyday'),
 		value = $bindable(''),
 		attachments = $bindable<Att[]>([]),
-		placeholder = 'Ask MIMI anything…',
+		placeholder = 'Ask Mimi anything…',
 		big = false,
 		autofocus = false
 	}: {
