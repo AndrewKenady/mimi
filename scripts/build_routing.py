@@ -250,7 +250,8 @@ def main() -> None:
 
     # Valhalla's scratch files peak at ~13x the input (ways.bin + way_nodes.bin + a sorted copy).
     shutil.rmtree(work, ignore_errors=True)
-    need = 13 * sum(p.stat().st_size for p in pbfs)
+    # (lean files keep their orphan nodes, so per byte they carry ~25% fewer way-node references)
+    need = sum((10 if ".lean." in p.name else 13) * p.stat().st_size for p in pbfs)
     work.parent.mkdir(parents=True, exist_ok=True)
     free = shutil.disk_usage(work.parent).free
     if free < need:
