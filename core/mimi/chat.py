@@ -516,4 +516,5 @@ def _pending_label(name: str, args: dict) -> str:
         "where_am_i": "Checking location…",
         "nearby_places": "Looking around…",
         "calculate": "Calculating…",
+        "get_directions": f"Planning a route to {args.get('destination') or 'there'}…",
     }.get(name, f"Using {name}…")

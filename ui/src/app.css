@@ -1,0 +1,564 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/source-serif-4';
+@import '@fontsource-variable/jetbrains-mono';
+
+/* ============================================================================
+   MIMI design tokens — "deep water"
+   Everything visual derives from these variables; themes only redefine them.
+   ========================================================================== */
+:root,
+[data-theme='dark'] {
+	--bg: #070b12;
+	--bg-2: #0a1019;
+	--surface: #0e1521;
+	--surface-2: #131c2a;
+	--surface-3: #1a2436;
+	--glass: rgba(14, 21, 33, 0.72);
+	--line: rgba(150, 180, 220, 0.09);
+	--line-2: rgba(150, 180, 220, 0.16);
+	--text: #e8eef7;
+	--text-2: #a9b5c8;
+	--text-3: #6c7a90;
+	--accent: #6ee7d2;
+	--accent-2: #8ab4ff;
+	--accent-ink: #032520;
+	--accent-soft: color-mix(in oklab, var(--accent) 14%, transparent);
+	--accent-line: color-mix(in oklab, var(--accent) 34%, transparent);
+	--ok: #7dd3a8;
+	--warn: #f5c27a;
+	--danger: #ff8f86;
+	--shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+	--shadow-2: 0 12px 36px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+	--shadow-glow: 0 0 0 1px var(--accent-line), 0 0 32px color-mix(in oklab, var(--accent) 18%, transparent);
+	--well-a: var(--accent);
+	--well-b: #1e7f8f;
+	--well-c: #0b2432;
+	color-scheme: dark;
+}
+
+[data-theme='oled'] {
+	--bg: #000000;
+	--bg-2: #04070b;
+	--surface: #080c13;
+	--surface-2: #0d131d;
+	--surface-3: #141c29;
+	--glass: rgba(6, 9, 14, 0.8);
+}
+
+[data-theme='light'] {
+	--bg: #f4f6f9;
+	--bg-2: #eef1f6;
+	--surface: #ffffff;
+	--surface-2: #f6f8fb;
+	--surface-3: #eceff5;
+	--glass: rgba(255, 255, 255, 0.78);
+	--line: rgba(20, 35, 60, 0.08);
+	--line-2: rgba(20, 35, 60, 0.15);
+	--text: #0f1726;
+	--text-2: #465367;
+	--text-3: #7d8899;
+	--accent-ink: #ffffff;
+	--accent-soft: color-mix(in oklab, var(--accent) 16%, transparent);
+	--shadow-1: 0 1px 2px rgba(15, 25, 45, 0.08);
+	--shadow-2: 0 12px 32px rgba(15, 25, 45, 0.12), 0 2px 6px rgba(15, 25, 45, 0.06);
+	--well-b: #3aa6b3;
+	--well-c: #d8eef2;
+	color-scheme: light;
+}
+[data-contrast='high'] {
+	--line: rgba(200, 220, 255, 0.28);
+	--line-2: rgba(200, 220, 255, 0.45);
+	--text-2: #d3dbe8;
+	--text-3: #a3afc2;
+}
+
+@theme inline {
+	--font-sans: 'Inter Variable', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+	--font-serif: 'Source Serif 4 Variable', Georgia, serif;
+	--font-mono: 'JetBrains Mono Variable', ui-monospace, Consolas, monospace;
+	--color-bg: var(--bg);
+	--color-bg-2: var(--bg-2);
+	--color-surface: var(--surface);
+	--color-surface-2: var(--surface-2);
+	--color-surface-3: var(--surface-3);
+	--color-line: var(--line);
+	--color-line-2: var(--line-2);
+	--color-text: var(--text);
+	--color-text-2: var(--text-2);
+	--color-text-3: var(--text-3);
+	--color-accent: var(--accent);
+	--color-accent-ink: var(--accent-ink);
+	--color-ok: var(--ok);
+	--color-warn: var(--warn);
+	--color-danger: var(--danger);
+	--ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ============================================================================
+   Base
+   ========================================================================== */
+* {
+	box-sizing: border-box;
+}
+html {
+	font-size: calc(16px * var(--font-scale, 1));
+	-webkit-text-size-adjust: 100%;
+	-webkit-tap-highlight-color: transparent;
+}
+html,
+body {
+	height: 100%;
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--font-sans);
+	font-feature-settings: 'cv11', 'ss01', 'ss03';
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+	overflow: hidden;
+}
+body {
+	user-select: none;
+}
+input,
+textarea,
+[contenteditable],
+.selectable,
+.prose {
+	user-select: text;
+}
+::selection {
+	background: color-mix(in oklab, var(--accent) 30%, transparent);
+}
+button,
+input,
+textarea,
+select {
+	font: inherit;
+	color: inherit;
+}
+button {
+	cursor: pointer;
+	background: none;
+	border: 0;
+	padding: 0;
+}
+a {
+	color: inherit;
+	text-decoration: none;
+}
+img {
+	max-width: 100%;
+}
+
+/* Scrollbars: thin and quiet */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--line-2) transparent;
+}
+*::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+	background: var(--line-2);
+	border-radius: 10px;
+	border: 3px solid transparent;
+	background-clip: padding-box;
+}
+
+/* Focus: invisible for mouse/touch, a luminous ring for keyboard & gamepad */
+:focus {
+	outline: none;
+}
+[data-input='keys'] :focus-visible,
+[data-input='pad'] :focus {
+	outline: 2px solid var(--accent);
+	outline-offset: 3px;
+	box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent) 18%, transparent);
+	border-radius: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.001ms !important;
+		transition-duration: 0.001ms !important;
+	}
+}
+[data-motion='reduced'] *,
+[data-motion='reduced'] *::before,
+[data-motion='reduced'] *::after {
+	animation-duration: 0.001ms !important;
+	transition-duration: 0.001ms !important;
+}
+
+/* ============================================================================
+   Primitives
+   ========================================================================== */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	height: 2.5rem;
+	padding: 0 1rem;
+	border-radius: 999px;
+	font-size: 0.9rem;
+	font-weight: 550;
+	letter-spacing: -0.005em;
+	white-space: nowrap;
+	transition:
+		background 0.18s,
+		border-color 0.18s,
+		transform 0.12s,
+		color 0.18s;
+	border: 1px solid var(--line-2);
+	background: var(--surface-2);
+	color: var(--text);
+}
+.btn:hover {
+	background: var(--surface-3);
+}
+.btn:active {
+	transform: scale(0.97);
+}
+.btn:disabled {
+	opacity: 0.45;
+	pointer-events: none;
+}
+.btn-primary {
+	background: var(--accent);
+	border-color: transparent;
+	color: var(--accent-ink);
+}
+.btn-primary:hover {
+	background: color-mix(in oklab, var(--accent) 88%, white);
+}
+.btn-ghost {
+	background: transparent;
+	border-color: transparent;
+	color: var(--text-2);
+}
+.btn-ghost:hover {
+	background: var(--surface-2);
+	color: var(--text);
+}
+.btn-danger {
+	color: var(--danger);
+	border-color: color-mix(in oklab, var(--danger) 35%, transparent);
+	background: color-mix(in oklab, var(--danger) 8%, transparent);
+}
+.btn-sm {
+	height: 2rem;
+	padding: 0 0.75rem;
+	font-size: 0.82rem;
+}
+.btn-lg {
+	height: 3rem;
+	padding: 0 1.4rem;
+	font-size: 1rem;
+}
+.icon-btn {
+	display: inline-grid;
+	place-items: center;
+	width: 2.5rem;
+	height: 2.5rem;
+	border-radius: 999px;
+	color: var(--text-2);
+	transition:
+		background 0.15s,
+		color 0.15s,
+		transform 0.12s;
+}
+.icon-btn:hover {
+	background: var(--surface-2);
+	color: var(--text);
+}
+.icon-btn:active {
+	transform: scale(0.94);
+}
+.icon-btn.sm {
+	width: 2rem;
+	height: 2rem;
+}
+
+.card {
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 20px;
+}
+.card-hover {
+	transition:
+		border-color 0.2s,
+		background 0.2s,
+		transform 0.2s var(--ease-out-soft);
+}
+.card-hover:hover {
+	border-color: var(--line-2);
+	background: var(--surface-2);
+}
+
+.input {
+	width: 100%;
+	height: 2.75rem;
+	padding: 0 1rem;
+	border-radius: 14px;
+	background: var(--surface-2);
+	border: 1px solid var(--line);
+	color: var(--text);
+	transition:
+		border-color 0.15s,
+		background 0.15s;
+}
+.input::placeholder {
+	color: var(--text-3);
+}
+.input:focus {
+	border-color: var(--accent-line);
+	background: var(--surface-3);
+}
+textarea.input {
+	height: auto;
+	padding: 0.75rem 1rem;
+	line-height: 1.5;
+	resize: vertical;
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	height: 1.9rem;
+	padding: 0 0.75rem;
+	border-radius: 999px;
+	font-size: 0.8rem;
+	font-weight: 500;
+	color: var(--text-2);
+	background: var(--surface-2);
+	border: 1px solid var(--line);
+	white-space: nowrap;
+	transition:
+		background 0.15s,
+		color 0.15s,
+		border-color 0.15s;
+}
+button.chip:hover {
+	color: var(--text);
+	border-color: var(--line-2);
+}
+.chip.active {
+	color: var(--accent);
+	border-color: var(--accent-line);
+	background: var(--accent-soft);
+}
+
+.label {
+	font-size: 0.72rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-3);
+}
+.muted {
+	color: var(--text-2);
+}
+.faint {
+	color: var(--text-3);
+}
+.hairline {
+	border-color: var(--line);
+}
+
+.glass {
+	background: var(--glass);
+	backdrop-filter: blur(18px) saturate(1.2);
+	-webkit-backdrop-filter: blur(18px) saturate(1.2);
+}
+
+/* Page scaffolding */
+.page {
+	height: 100%;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+.page-inner {
+	max-width: 1120px;
+	margin: 0 auto;
+	padding: 1.75rem clamp(1rem, 3vw, 2.5rem) 4rem;
+}
+.page-title {
+	font-size: clamp(1.6rem, 2.2vw, 2rem);
+	font-weight: 650;
+	letter-spacing: -0.025em;
+	margin: 0;
+}
+.page-sub {
+	margin: 0.35rem 0 0;
+	color: var(--text-2);
+	font-size: 0.98rem;
+}
+
+/* Shimmer for loading placeholders */
+.shimmer {
+	background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+	background-size: 200% 100%;
+	animation: shimmer 1.6s linear infinite;
+	border-radius: 10px;
+}
+@keyframes shimmer {
+	to {
+		background-position: -200% 0;
+	}
+}
+
+@keyframes fade-up {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+.fade-up {
+	animation: fade-up 0.45s var(--ease-out-soft) both;
+}
+
+/* ============================================================================
+   Long-form reading (answers and library articles)
+   ========================================================================== */
+.prose {
+	font-size: 1rem;
+	line-height: 1.68;
+	color: var(--text);
+	overflow-wrap: anywhere;
+}
+.prose > :first-child {
+	margin-top: 0;
+}
+.prose > :last-child {
+	margin-bottom: 0;
+}
+.prose p {
+	margin: 0 0 0.85em;
+}
+.prose h1,
+.prose h2,
+.prose h3 {
+	font-weight: 650;
+	letter-spacing: -0.015em;
+	line-height: 1.3;
+	margin: 1.4em 0 0.5em;
+}
+.prose h1 {
+	font-size: 1.35em;
+}
+.prose h2 {
+	font-size: 1.18em;
+}
+.prose h3 {
+	font-size: 1.05em;
+}
+.prose ul,
+.prose ol {
+	margin: 0 0 0.9em;
+	padding-left: 1.35em;
+}
+.prose li {
+	margin: 0.3em 0;
+}
+.prose li::marker {
+	color: var(--text-3);
+}
+.prose strong {
+	font-weight: 650;
+	color: var(--text);
+}
+.prose a {
+	color: var(--accent);
+	text-decoration: underline;
+	text-decoration-color: var(--accent-line);
+	text-underline-offset: 3px;
+}
+.prose code {
+	font-family: var(--font-mono);
+	font-size: 0.88em;
+	background: var(--surface-2);
+	border: 1px solid var(--line);
+	padding: 0.1em 0.35em;
+	border-radius: 6px;
+}
+.prose pre {
+	background: var(--surface-2);
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	padding: 0.9rem 1rem;
+	overflow-x: auto;
+	font-size: 0.86em;
+	line-height: 1.55;
+}
+.prose pre code {
+	background: none;
+	border: 0;
+	padding: 0;
+}
+.prose blockquote {
+	margin: 0 0 1em;
+	padding: 0.1em 0 0.1em 1em;
+	border-left: 3px solid var(--accent-line);
+	color: var(--text-2);
+}
+.prose table {
+	border-collapse: collapse;
+	width: 100%;
+	margin: 0 0 1em;
+	font-size: 0.92em;
+}
+.prose th,
+.prose td {
+	border-bottom: 1px solid var(--line);
+	padding: 0.5em 0.6em;
+	text-align: left;
+	vertical-align: top;
+}
+.prose th {
+	color: var(--text-2);
+	font-weight: 600;
+}
+.prose hr {
+	border: 0;
+	border-top: 1px solid var(--line);
+	margin: 1.5em 0;
+}
+
+/* Citation pills rendered inside answers */
+.cite {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.35em;
+	height: 1.35em;
+	padding: 0 0.35em;
+	margin: 0 0.1em;
+	border-radius: 999px;
+	font-size: 0.7em;
+	font-weight: 650;
+	vertical-align: 0.18em;
+	color: var(--accent);
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-line);
+	cursor: pointer;
+	transition:
+		background 0.15s,
+		transform 0.15s;
+	font-family: var(--font-sans);
+	line-height: 1;
+}
+.cite:hover {
+	background: color-mix(in oklab, var(--accent) 26%, transparent);
+	transform: translateY(-1px);
+}

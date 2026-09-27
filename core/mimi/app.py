@@ -23,6 +23,7 @@ from .llm import ModelManager
 from .location import LocationService
 from .memory import MemoryService
 from .mydocs import DocsService
+from .routing import RoutingService
 from .paths import Paths
 from .scribe import ScribeService
 from .settings import SettingsStore
@@ -54,6 +55,7 @@ class Services:
         self.memory = MemoryService(self.db, self.models, self.events, self.settings)
         self.docs = DocsService(self.db, self.models, self.events, paths)
         self.location = LocationService(paths, self.settings, self.events, self.db)
+        self.routing = RoutingService(paths)
         self.voice = VoiceService(paths, cores=int(self.hw.get("cores") or 4))
         self.lens = LensService()
         self.uploads = UploadService(paths)
@@ -134,7 +136,7 @@ class Services:
             "voice": self.voice.status(),
             "location": {"geodata": bool(self.location.geo), "gps": bool(self.location.gps_port)},
             "share": {"running": self.share.running},
-            "maps": {"tiles": (self.paths.maps / "tiles.pmtiles").exists()},
+            "maps": {"tiles": (self.paths.maps / "tiles.pmtiles").exists(), "routing": self.routing.available()},
         }
 
 

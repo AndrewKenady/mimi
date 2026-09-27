@@ -270,6 +270,47 @@ async def nearby_places(args: dict, st: TurnState, svc) -> ToolResult:
     return ToolResult("Nearby:\n" + "\n".join(lines), label="Looked around nearby", summary=f"{len(places)} places", sources=sources, data={"places": places})
 
 
+async def get_directions(args: dict, st: TurnState, svc) -> ToolResult:
+    dest_q = str(args.get("destination") or "").strip()
+    if not dest_q:
+        return ToolResult("Which destination?", label="Planned a route", ok=False)
+    origin = None
+    from_q = str(args.get("origin") or "").strip()
+    if from_q:
+        hits = await asyncio.to_thread(svc.location.search, from_q, 3)
+        if hits:
+            origin = {"lat": hits[0]["lat"], "lon": hits[0]["lon"], "name": hits[0]["name"]}
+    if origin is None:
+        cur = svc.location.current()
+        if not cur:
+            return ToolResult("The current location is unknown, so I can't plan a route from here. Ask the user where they're starting from, or to set their location on the Map.",
+                              label="Planned a route", summary="Location unknown", ok=False)
+        desc = svc.location.describe() or {}
+        origin = {"lat": cur["lat"], "lon": cur["lon"], "name": cur.get("label") or desc.get("description") or "your location"}
+    hits = await asyncio.to_thread(svc.location.search, dest_q, 3)
+    if not hits:
+        return ToolResult(f"Couldn't find a place called “{dest_q}” on the offline map.", label=f"Looked up “{dest_q}”", summary="Not found", ok=False)
+    dest = hits[0]
+    units = "kilometers" if svc.settings.device("general").units == "metric" else "miles"
+    mode = str(args.get("mode") or "auto")
+    try:
+        r = await asyncio.to_thread(svc.routing.route, (origin["lat"], origin["lon"]), (dest["lat"], dest["lon"]), mode, units)
+    except ValueError as e:
+        return ToolResult(str(e), label=f"Planned a route to {dest['name']}", summary="No route", ok=False)
+    unit = "km" if units == "kilometers" else "mi"
+    dest_name = ", ".join(x for x in (dest["name"], dest.get("admin1")) if x)
+    steps = [m["instruction"] for m in r["maneuvers"] if m["instruction"]][:10]
+    text = (f"Route from {origin['name']} to {dest_name} by {'car' if r['mode'] == 'auto' else r['mode']}: {r['distance']} {unit}, about {r['duration']}"
+            + (f", mainly via {', '.join(r['via'])}" if r["via"] else "") + "."
+            + (" Includes tolls." if r["has_toll"] else "") + (" Includes a ferry." if r["has_ferry"] else "")
+            + "\nFirst steps:\n" + "\n".join(f"- {s}" for s in steps)
+            + "\n(Estimate from offline map data; no live traffic or closures.)")
+    data = {"route": {k: r[k] for k in ("distance", "duration", "duration_s", "via", "mode", "units", "bbox")},
+            "to": {"lat": dest["lat"], "lon": dest["lon"], "name": dest_name}, "from": origin,
+            "map_url": f"/map?to={dest['lat']:.5f},{dest['lon']:.5f}&name={dest_name}"}
+    return ToolResult(text, label=f"Planned a route to {dest_name}", summary=f"{r['distance']} {unit} · {r['duration']}", data=data)
+
+
 # --------------------------------------------------------------------------- math
 _OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv, ast.Pow: operator.pow,
         ast.Mod: operator.mod, ast.FloorDiv: operator.floordiv, ast.USub: operator.neg, ast.UAdd: operator.pos}
@@ -342,6 +383,12 @@ TOOLS: list[Tool] = [
          _obj({"radius_km": {"type": "number", "description": "Search radius in km (default 15)"},
                "kind": {"type": "string", "enum": ["all", "nature", "history", "culture", "towns", "water", "mountains"]}}),
          nearby_places, lambda st, svc: svc.location.available()),
+    Tool("get_directions",
+         "Plan a route on the offline road map: distance, drive time and turn-by-turn steps. Starts from the current location unless an origin is given.",
+         _obj({"destination": {"type": "string", "description": "Place name, e.g. 'Jackson, Wyoming' or 'Yellowstone Lake'"},
+               "origin": {"type": "string", "description": "Optional starting place; omit to start from the current location"},
+               "mode": {"type": "string", "enum": ["auto", "pedestrian", "bicycle"]}}, ["destination"]),
+         get_directions, lambda st, svc: svc.routing.available()),
     Tool("calculate", "Evaluate an arithmetic expression exactly (supports + - * / ** % sqrt, sin, log, pi…).",
          _obj({"expression": {"type": "string"}}, ["expression"]), calculate),
 ]

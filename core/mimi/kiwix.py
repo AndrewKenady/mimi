@@ -312,6 +312,10 @@ class KiwixClient:
             if not m:
                 continue
             book_name, path = m.group(1), unquote(m.group(2))
+            title = item.findtext("title") or ""
+            # Index/listing pages (Stack Exchange tag pages, user pages) make poor sources.
+            if re.match(r"^(questions/tagged/|tags/|users/|questions$)", path) or title.startswith(("Questions tagged", "Newest ")):
+                continue
             book = next((b for b in group if b.name == book_name), None) or by_title.get(item.findtext("book/title") or "")
             snippet = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", item.findtext("description") or "")).strip()
             hits.append(
@@ -418,12 +422,18 @@ def _clean(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+_NOT_CONTENT_IMG = re.compile(r"(logo|icon|favicon|sprite|badge|avatar|gravatar|button|spinner|flag_of|filler|blank|pixel)", re.I)
+
+
 def lead_image(tree: HTMLParser, book: str, path: str) -> str | None:
-    for sel in ("table.infobox img", "figure img", ".thumb img", ".mw-file-element", "img"):
+    for sel in ("table.infobox img", "figure img", ".thumb img", ".mw-file-element", "article img", "img"):
         for img in tree.css(sel):
             src = img.attributes.get("src") or ""
             w = int(re.sub(r"\D", "", img.attributes.get("width") or "0") or 0)
-            if not src or src.startswith("data:") or (w and w < 60):
+            h = int(re.sub(r"\D", "", img.attributes.get("height") or "0") or 0)
+            if not src or src.startswith("data:") or (w and w < 80) or (h and h < 60) or _NOT_CONTENT_IMG.search(src + " " + (img.attributes.get("alt") or "")):
+                continue
+            if src.lower().endswith(".svg") and not tree.css_first("table.infobox"):
                 continue
             abs_src = urljoin(f"/content/{book}/{path}", src)
             return "/kiwix" + abs_src

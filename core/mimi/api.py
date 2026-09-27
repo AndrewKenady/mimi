@@ -672,16 +672,27 @@ async def library_random(request: Request, book: str | None = None, ctx: Ctx = D
     b = await svc.kiwix.book(book) if book else next((x for x in bs if x.collection == "encyclopedia"), bs[0] if bs else None)
     if not b:
         raise HTTPException(404)
-    for _ in range(4):
+    fallback = None
+    for _ in range(8):  # prefer a substantial article with a picture
         r = await svc.kiwix.http.get(f"{svc.kiwix_service.base}/random", params={"content": b.name}, follow_redirects=False)
         loc = r.headers.get("location", "")
         path = loc.split(f"/content/{b.name}/", 1)[-1] if loc else ""
-        if path:
-            art = await svc.kiwix.reader(b.name, path)
-            if art and len(art.get("html", "")) > 1500:
-                text = re.sub(r"<[^>]+>", " ", art["html"])
-                text = re.sub(r"\s+", " ", text).strip()
-                return {"book": b.alias, "book_title": b.title, "path": art["path"], "title": art["title"], "image": art["image"], "excerpt": text[:280]}
+        if not path or re.search(r"(^List_of|discography|filmography|_\(disambiguation\)|^\d{4}_in_)", path):
+            continue
+        art = await svc.kiwix.reader(b.name, path)
+        if not art or len(art.get("html", "")) < 4000:
+            continue
+        from selectolax.parser import HTMLParser
+
+        paras = [re.sub(r"\s+", " ", p.text()).strip() for p in HTMLParser(art["html"]).css("p")]
+        text = re.sub(r"\s+", " ", " ".join(p for p in paras if len(p) > 60)).strip()
+        text = re.sub(r"\[\d+\]", "", text)
+        item = {"book": b.alias, "book_title": b.title, "path": art["path"], "title": art["title"], "image": art["image"], "excerpt": text[:300]}
+        if art["image"] and text:
+            return item
+        fallback = fallback or (item if text else None)
+    if fallback:
+        return fallback
     raise HTTPException(404)
 
 
@@ -807,6 +818,33 @@ async def maps_info(request: Request, ctx: Ctx = Depends(get_ctx)):
         "maxzoom": meta.get("maxzoom"),
         "attribution": "© OpenStreetMap contributors · Protomaps · GeoNames",
     }
+
+
+class RouteIn(BaseModel):
+    to: dict
+    origin: dict | None = None  # {lat, lon}; defaults to the current location
+    mode: str = "auto"
+
+
+@router.get("/route/status")
+async def route_status(request: Request, ctx: Ctx = Depends(get_ctx)):
+    return S(request).routing.status()
+
+
+@router.post("/route")
+async def route(body: RouteIn, request: Request, ctx: Ctx = Depends(get_ctx)):
+    svc = S(request)
+    if not svc.routing.available():
+        raise HTTPException(503, "Offline directions aren't installed yet.")
+    origin = body.origin or svc.location.current()
+    if not origin:
+        raise HTTPException(400, "Set your location first (tap the map), or connect a GPS.")
+    units = "kilometers" if svc.settings.device("general").units == "metric" else "miles"
+    try:
+        return await asyncio.to_thread(svc.routing.route, (float(origin["lat"]), float(origin["lon"])),
+                                       (float(body.to["lat"]), float(body.to["lon"])), body.mode, units)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
 
 
 def _range_file(path: Path, request: Request, media_type: str) -> Response:

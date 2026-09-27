@@ -76,10 +76,19 @@ class LocationService:
         self._stop.set()
 
     def reload_geodata(self) -> None:
+        # Close the old handles first: on Windows an open file can't be replaced,
+        # and GeoData swaps in freshly built *.sqlite.new files when it opens.
+        if self.geo is not None:
+            try:
+                self.geo.close()
+            except Exception:
+                pass
+            self.geo = None
         try:
             from .geodata import GeoData
 
-            self.geo = GeoData(self.paths.maps)
+            geo = GeoData(self.paths.maps)
+            self.geo = geo if geo else None
         except Exception as e:
             L.info("geodata unavailable: %s", e)
             self.geo = None
@@ -128,6 +137,8 @@ class LocationService:
             try:
                 w = self.geo.where_am_i(cur["lat"], cur["lon"]) or {}
                 info.update({k: w.get(k) for k in ("place", "admin1", "country", "distance_km", "distance_mi", "direction", "description") if k in w})
+                if self.settings.device("general").units == "imperial" and w.get("description_mi"):
+                    info["description"] = w["description_mi"]
             except Exception as e:
                 L.warning("where_am_i failed: %s", e)
         if cur.get("label") and not info.get("description"):

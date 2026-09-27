@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>MIMI</title>
+<!--
+  MIMI boot screen, embedded in MIMI.exe and shown with NavigateToString while MIMI Core
+  starts (and, with an error state, when it can't). Self-contained: no network, no web fonts.
+
+  Host -> page   mimiBoot.render({ mode: "waking", status: "..." })
+                 mimiBoot.render({ mode: "error", title: "...", detail: "..." })
+                 mimiBoot.leave()          fade out before the host navigates to the real UI
+  Page -> host   chrome.webview.postMessage({ type: "retry" | "open-logs" | "quit" })
+-->
+<style>
+  :root {
+    --bg: #060a12;
+    --ink: #eaf6ff;
+    --ink-2: rgba(214, 232, 248, .72);
+    --ink-3: rgba(156, 184, 212, .52);
+    --cyan: 94, 234, 255;
+    --amber: 255, 184, 108;
+    --orb: min(34vmin, 280px);
+    --ease-out: cubic-bezier(.16, .84, .3, 1);
+    --sans: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* A faint column of light, as if looking down into a well, plus fine grain against banding. */
+  .sky {
+    position: fixed; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(60vmax 44vmax at 50% 36%, rgba(20, 58, 98, .40), transparent 70%),
+      radial-gradient(90vmax 60vmax at 50% 112%, rgba(8, 26, 54, .55), transparent 70%);
+  }
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; opacity: .05;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
+  }
+
+  .stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+    text-align: center;
+    animation: stage-in 1100ms var(--ease-out) both;
+  }
+  body.leaving .stage { animation: stage-out 300ms ease-in both; }
+
+  /* ---- The Well ------------------------------------------------------------------------ */
+  .well {
+    position: relative;
+    width: var(--orb);
+    height: var(--orb);
+    margin-bottom: calc(var(--orb) * .30);
+  }
+  .well div, .well i { position: absolute; border-radius: 50%; }
+
+  .glow { inset: -75%; animation: glow-breathe 5.6s ease-in-out infinite; }
+  .halo { inset: 0; transition: opacity 1.4s ease; }
+  .halo.cool { background: radial-gradient(closest-side, rgba(var(--cyan), .30), rgba(var(--cyan), .10) 42%, rgba(var(--cyan), 0) 100%); }
+  .halo.warm { background: radial-gradient(closest-side, rgba(var(--amber), .24), rgba(var(--amber), .08) 42%, rgba(var(--amber), 0) 100%); opacity: 0; }
+
+  .ripples { inset: 0; transition: opacity .8s ease; }
+  .ring {
+    inset: 0;
+    border: 1.5px solid rgba(var(--cyan), .55);
+    opacity: 0;
+    animation: ripple 5.6s cubic-bezier(.22, .61, .36, 1) infinite;
+  }
+  .ring.r2 { animation-delay: 1.87s; }
+  .ring.r3 { animation-delay: 3.73s; }
+
+  .orbs { inset: 0; animation: breathe 5.6s ease-in-out infinite; }
+  .orb { inset: 0; transition: opacity 1.4s ease; }
+  .orb.cool {
+    background: radial-gradient(circle at 42% 36%, #ffffff 0%, #dafdff 9%, #92f3ff 24%, #35d1ef 46%, #1393c3 66%, #0b5088 84%, #0a2f57 100%);
+    box-shadow:
+      0 0 calc(var(--orb) * .16) calc(var(--orb) * .02) rgba(var(--cyan), .55),
+      0 0 calc(var(--orb) * .46) calc(var(--orb) * .06) rgba(var(--cyan), .22),
+      inset 0 0 calc(var(--orb) * .12) rgba(255, 255, 255, .28),
+      inset calc(var(--orb) * -.05) calc(var(--orb) * -.08) calc(var(--orb) * .16) rgba(4, 40, 82, .55);
+  }
+  .orb.warm {
+    opacity: 0;
+    background: radial-gradient(circle at 42% 36%, #fffaf2 0%, #ffe7c6 9%, #ffca8e 25%, #f39b4c 47%, #c3622a 67%, #773314 85%, #471c0b 100%);
+    box-shadow:
+      0 0 calc(var(--orb) * .16) calc(var(--orb) * .02) rgba(var(--amber), .45),
+      0 0 calc(var(--orb) * .46) calc(var(--orb) * .06) rgba(var(--amber), .16),
+      inset 0 0 calc(var(--orb) * .12) rgba(255, 255, 255, .22),
+      inset calc(var(--orb) * -.05) calc(var(--orb) * -.08) calc(var(--orb) * .16) rgba(70, 24, 6, .5);
+  }
+  .caustics {
+    inset: 6%;
+    opacity: .55;
+    mix-blend-mode: screen;
+    filter: blur(calc(var(--orb) * .025));
+    background: conic-gradient(from 0deg, transparent 0 8%, rgba(255, 255, 255, .55) 12%, transparent 19% 38%,
+      rgba(190, 250, 255, .45) 45%, transparent 53% 70%, rgba(255, 255, 255, .40) 77%, transparent 85%);
+    -webkit-mask: radial-gradient(closest-side, #000 40%, transparent 100%);
+    mask: radial-gradient(closest-side, #000 40%, transparent 100%);
+    animation: spin 16s linear infinite;
+  }
+  .core {
+    inset: 28%;
+    mix-blend-mode: screen;
+    background: radial-gradient(closest-side, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0));
+    animation: pulse 2.8s ease-in-out infinite;
+  }
+  .sheen {
+    inset: 11% 34% 58% 17%;
+    background: radial-gradient(closest-side, rgba(255, 255, 255, .70), rgba(255, 255, 255, 0));
+    transform: rotate(-32deg);
+  }
+
+  /* ---- Type ---------------------------------------------------------------------------- */
+  .wordmark {
+    margin: 0;
+    padding-left: .5em;                 /* keeps the tracked word optically centred */
+    font-size: clamp(30px, 6.4vmin, 60px);
+    font-weight: 300;
+    letter-spacing: .5em;
+    line-height: 1;
+    color: transparent;
+    background: linear-gradient(180deg, #f7fcff 10%, #a8e8f6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0 18px rgba(var(--cyan), .25));
+  }
+  .tagline {
+    margin: 16px 0 0;
+    padding-left: .34em;
+    font-size: clamp(10px, 1.45vmin, 12.5px);
+    font-weight: 400;
+    letter-spacing: .34em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .status {
+    min-height: 1.5em;
+    margin-top: clamp(28px, 5.5vmin, 48px);
+    font-size: clamp(13px, 1.9vmin, 16px);
+    letter-spacing: .02em;
+    color: var(--ink-2);
+    transition: opacity 220ms ease, transform 220ms ease;
+  }
+  .status.swap { opacity: 0; transform: translateY(3px); }
+
+  /* ---- Error state (body.state-error) ------------------------------------------------------ */
+  .error-panel { display: none; flex-direction: column; align-items: center; margin-top: clamp(22px, 4vmin, 36px); }
+  .error-panel h2 { margin: 0; font-size: clamp(19px, 2.8vmin, 26px); font-weight: 600; letter-spacing: .01em; color: #fff4e8; }
+  .error-panel p {
+    max-width: 50ch;
+    margin: 10px 0 0;
+    font-size: clamp(14px, 1.9vmin, 16px);
+    line-height: 1.55;
+    color: var(--ink-2);
+    cursor: text;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: clamp(22px, 4vmin, 32px); }
+  button {
+    min-height: 48px;                   /* comfortable touch targets on the handheld */
+    padding: 0 24px;
+    border: 1px solid rgba(255, 255, 255, .16);
+    border-radius: 999px;
+    outline: none;
+    background: rgba(255, 255, 255, .05);
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 120ms ease;
+  }
+  button:hover { background: rgba(255, 255, 255, .09); border-color: rgba(255, 255, 255, .28); }
+  button:active { transform: scale(.97); }
+  button:focus-visible { border-color: rgba(var(--cyan), .85); box-shadow: 0 0 0 3px rgba(var(--cyan), .5), 0 0 26px rgba(var(--cyan), .35); }
+  button.primary { border-color: rgba(var(--cyan), .6); background: linear-gradient(180deg, rgba(var(--cyan), .26), rgba(var(--cyan), .12)); color: #effdff; }
+  button.primary:hover { background: linear-gradient(180deg, rgba(var(--cyan), .34), rgba(var(--cyan), .18)); }
+  button.quiet { border-color: transparent; background: transparent; color: var(--ink-2); }
+  button.quiet:hover { background: rgba(255, 255, 255, .05); color: var(--ink); }
+  .pad-hint { display: none; margin-top: 18px; font-size: 12.5px; letter-spacing: .04em; color: var(--ink-3); }
+  .pad-hint b { display: inline-grid; place-items: center; width: 1.7em; height: 1.7em; margin-right: .35em; border: 1px solid rgba(255, 255, 255, .25); border-radius: 50%; font-weight: 600; }
+
+  body.state-error .tagline, body.state-error .status { display: none; }
+  body.state-error .error-panel { display: flex; animation: rise 650ms var(--ease-out) both; }
+  body.state-error.has-gamepad .pad-hint { display: block; }
+  body.state-error .halo.cool, body.state-error .orb.cool, body.state-error .ripples { opacity: 0; }
+  body.state-error .halo.warm, body.state-error .orb.warm { opacity: 1; }
+
+  /* ---- Motion ---------------------------------------------------------------------------- */
+  @keyframes stage-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+  @keyframes stage-out { to { opacity: 0; transform: scale(1.02); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes breathe { 0%, 100% { transform: scale(.965); } 50% { transform: scale(1.035); } }
+  @keyframes glow-breathe { 0%, 100% { transform: scale(.94); opacity: .8; } 50% { transform: scale(1.06); opacity: 1; } }
+  @keyframes ripple { 0% { transform: scale(1); opacity: 0; } 8% { opacity: .6; } 100% { transform: scale(2.4); opacity: 0; } }
+  @keyframes spin { to { transform: rotate(1turn); } }
+  @keyframes pulse { 0%, 100% { opacity: .55; transform: scale(.9); } 50% { opacity: .95; transform: scale(1.08); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ripples, .caustics { display: none; }
+    .glow, .orbs, .core { animation: none; }
+    .stage, body.state-error .error-panel { animation-duration: 1ms; }
+  }
+</style>
+</head>
+<body>
+  <div class="sky"></div>
+  <div class="grain"></div>
+
+  <main class="stage">
+    <div class="well" aria-hidden="true">
+      <div class="glow"><div class="halo cool"></div><div class="halo warm"></div></div>
+      <div class="ripples"><div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div></div>
+      <div class="orbs">
+        <div class="orb cool"><i class="caustics"></i><i class="core"></i><i class="sheen"></i></div>
+        <div class="orb warm"><i class="core"></i><i class="sheen"></i></div>
+      </div>
+    </div>
+
+    <h1 class="wordmark">MIMI</h1>
+    <p class="tagline">Machine Intelligence, Minus the Internet</p>
+    <div class="status" id="status" role="status" aria-live="polite">Waking up&hellip;</div>
+
+    <section class="error-panel" role="alert">
+      <h2 id="error-title">MIMI couldn&rsquo;t wake up</h2>
+      <p id="error-detail"></p>
+      <div class="actions">
+        <button type="button" class="primary" data-message="retry">Retry</button>
+        <button type="button" data-message="open-logs">Open logs folder</button>
+        <button type="button" class="quiet" data-message="quit">Quit</button>
+      </div>
+      <div class="pad-hint"><b>A</b>select &nbsp;&middot;&nbsp; D-pad to move</div>
+    </section>
+  </main>
+
+<script>
+(function () {
+  'use strict';
+
+  // Replaced by MIMI.exe with the screen state to start in.
+  var INITIAL = /*@MIMI_BOOT_STATE@*/null;
+
+  var body = document.body;
+  var statusEl = document.getElementById('status');
+  var titleEl = document.getElementById('error-title');
+  var detailEl = document.getElementById('error-detail');
+  var actions = Array.prototype.slice.call(document.querySelectorAll('.actions button'));
+  var shownStatus = statusEl.textContent;
+  var swapTimer = 0;
+
+  function post(type) {
+    try { window.chrome.webview.postMessage({ type: type }); } catch (e) { /* not hosted */ }
+  }
+
+  function setStatus(text) {
+    if (!text || text === shownStatus) return;
+    shownStatus = text;
+    clearTimeout(swapTimer);
+    statusEl.classList.add('swap');
+    swapTimer = setTimeout(function () {
+      statusEl.textContent = text;
+      statusEl.classList.remove('swap');
+    }, 220);
+  }
+
+  function focusAction(index) {
+    if (!actions.length) return;
+    actions[(index + actions.length) % actions.length].focus({ preventScroll: true });
+  }
+
+  function moveFocus(delta) {
+    var index = actions.indexOf(document.activeElement);
+    focusAction(index < 0 ? 0 : index + delta);
+  }
+
+  function inError() { return body.classList.contains('state-error'); }
+
+  // Enter or A with no button focused presses the primary button (Retry), like a dialog.
+  function pressFocusedOrPrimary() {
+    var focused = actions.indexOf(document.activeElement) >= 0 ? document.activeElement : actions[0];
+    if (focused) focused.click();
+  }
+
+  function render(state) {
+    state = state || {};
+    if (state.mode === 'error') {
+      titleEl.textContent = state.title || 'MIMI couldn\u2019t wake up';
+      detailEl.textContent = state.detail || '';
+      if (!inError()) {
+        body.classList.add('state-error');
+        setTimeout(function () { focusAction(0); }, 60);
+      }
+    } else {
+      body.classList.remove('state-error');
+      setStatus(state.status || 'Waking up\u2026');
+    }
+  }
+
+  actions.forEach(function (button) {
+    button.addEventListener('click', function () {
+      var type = button.getAttribute('data-message');
+      if (type === 'retry') render({ mode: 'waking', status: 'Trying again\u2026' });
+      post(type);
+    });
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (!inError()) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { moveFocus(1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { moveFocus(-1); e.preventDefault(); }
+    else if (e.key === 'Enter' && actions.indexOf(document.activeElement) < 0) { pressFocusedOrPrimary(); e.preventDefault(); }
+  });
+
+  // Built-in controllers: D-pad or left stick moves between the buttons, A presses one.
+  var previous = [];
+  function isPressed(pad, index) { var b = pad.buttons[index]; return !!(b && b.pressed); }
+  function pollGamepads() {
+    var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (var i = 0; i < pads.length; i++) {
+      var pad = pads[i];
+      if (!pad) continue;
+      body.classList.add('has-gamepad');
+      var now = {
+        a: isPressed(pad, 0),
+        back: isPressed(pad, 14) || isPressed(pad, 12) || pad.axes[0] < -0.6 || pad.axes[1] < -0.6,
+        next: isPressed(pad, 15) || isPressed(pad, 13) || pad.axes[0] > 0.6 || pad.axes[1] > 0.6
+      };
+      var was = previous[i] || {};
+      if (inError()) {
+        if (now.back && !was.back) moveFocus(-1);
+        if (now.next && !was.next) moveFocus(1);
+        if (now.a && !was.a) pressFocusedOrPrimary();
+      }
+      previous[i] = now;
+    }
+    window.requestAnimationFrame(pollGamepads);
+  }
+  window.requestAnimationFrame(pollGamepads);
+
+  window.mimiBoot = {
+    render: render,
+    status: setStatus,
+    leave: function () { body.classList.add('leaving'); }
+  };
+
+  render(INITIAL);
+})();
+</script>
+</body>
+</html>
