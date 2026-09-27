@@ -12,6 +12,7 @@
 	import CommandPalette from '$components/CommandPalette.svelte';
 	import QuickMenu from '$components/QuickMenu.svelte';
 	import VoiceOverlay from '$components/VoiceOverlay.svelte';
+	import PairRequest from '$components/PairRequest.svelte';
 
 	let { children } = $props();
 
@@ -78,6 +79,7 @@
 		<CommandPalette />
 		<QuickMenu />
 		{#if app.voice}<VoiceOverlay />{/if}
+		<PairRequest />
 	{/if}
 {/if}
 {#if app.offline && app.ready}

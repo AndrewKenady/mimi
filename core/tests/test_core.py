@@ -289,3 +289,62 @@ def test_repeated_paragraphs_are_dropped():
     assert drop_repeated_paragraphs(a).count("\n\n") == 1
     b = "Old Faithful erupts about every 90 minutes, shooting water up to 180 feet.\n\nGrand Prismatic Spring is the largest hot spring in the United States."
     assert drop_repeated_paragraphs(b) == b
+
+
+def test_approve_on_device_sign_in(client, monkeypatch):
+    """A phone signs in without a PIN once the owner taps Allow on the device."""
+    from fastapi.testclient import TestClient
+
+    from mimi import pairing
+
+    monkeypatch.setattr(pairing, "MIN_INTERVAL", 0)
+    client.post("/api/auth/setup", json={"name": "Ada"})  # no PIN
+    phone = TestClient(client.app, base_url="https://phone", headers={"user-agent": "Mozilla/5.0 (iPhone) Version/19 Safari/605"})
+    assert phone.post("/api/auth/login", json={"name": "Ada", "secret": ""}).status_code == 401
+    assert phone.post("/api/auth/pair", json={"name": "nobody"}).status_code == 404
+    assert client.post("/api/auth/pair", json={"name": "Ada"}).status_code == 400  # the device itself doesn't need it
+
+    r = phone.post("/api/auth/pair", json={"name": "ada"}).json()
+    assert len(r["code"]) == 4 and r["expires_in"] > 0
+    pending = client.get("/api/auth/pair/pending").json()["requests"]
+    assert pending[0]["client"] == "Safari on iPhone" and pending[0]["code"] == r["code"] and "poll" not in pending[0]
+    assert phone.get(f"/api/auth/pair/{r['id']}?poll={r['poll']}").json()["status"] == "pending"
+    # nobody on the network can approve, not even with the request id
+    assert phone.post(f"/api/auth/pair/{r['id']}/decide", json={"approve": True}).status_code in (401, 403)
+    assert phone.get("/api/auth/pair/pending").status_code in (401, 403)
+    assert client.post(f"/api/auth/pair/{r['id']}/decide", json={"approve": True}).json()["status"] == "approved"
+    # the id alone is useless; the requester's poll token claims the session, once
+    assert phone.get(f"/api/auth/pair/{r['id']}?poll=wrong").json()["status"] == "expired"
+    ok = phone.get(f"/api/auth/pair/{r['id']}?poll={r['poll']}").json()
+    assert ok["status"] == "approved" and ok["user"]["role"] == "owner"
+    assert phone.get("/api/chats").status_code == 200
+    assert phone.get(f"/api/auth/pair/{r['id']}?poll={r['poll']}").json()["status"] == "expired"
+
+    laptop = TestClient(client.app, base_url="https://laptop")
+    d = laptop.post("/api/auth/pair", json={"name": "Ada"}).json()
+    assert client.post(f"/api/auth/pair/{d['id']}/decide", json={"approve": False}).json()["status"] == "denied"
+    assert laptop.get(f"/api/auth/pair/{d['id']}?poll={d['poll']}").json()["status"] == "denied"
+    assert laptop.get("/api/chats").status_code == 401
+
+
+def test_pairing_rate_limits():
+    from mimi.pairing import PairingService, describe_client
+
+    class FakeAuth:
+        def owner(self):
+            return {"id": "o"}
+
+    class FakeEvents:
+        def __init__(self):
+            self.sent = []
+
+        def publish(self, t, d=None, **kw):
+            self.sent.append(t)
+
+    svc = PairingService(FakeAuth(), FakeEvents())
+    u = {"id": "o", "name": "Ada"}
+    svc.request(u, "", "10.0.0.5")
+    with pytest.raises(ValueError):
+        svc.request(u, "", "10.0.0.5")  # too soon from the same address
+    assert describe_client("Mozilla/5.0 (Linux; Android 15) Chrome/140 Mobile") == "Chrome on Android"
+    assert describe_client("Mozilla/5.0 (Windows NT 10.0) Chrome/140 Edg/140") == "Edge on Windows"

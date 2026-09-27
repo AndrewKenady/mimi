@@ -24,6 +24,7 @@ from .location import LocationService
 from .memory import MemoryService
 from .mydocs import DocsService
 from .routing import RoutingService
+from .pairing import PairingService
 from .paths import Paths
 from .scribe import ScribeService
 from .settings import SettingsStore
@@ -46,6 +47,7 @@ class Services:
         self.settings = SettingsStore(self.db)
         self.events = EventBus()
         self.auth = Auth(self.db)
+        self.pairing = PairingService(self.auth, self.events)
         self.catalog = Catalog(paths)
         self.hw = hardware.detect(paths, use_cache=True, max_age=10**9) if (paths.data / "hardware.json").exists() else {
             "profile": "standard", "backend": "vulkan", "cores": os.cpu_count() or 4, "gpus": [], "battery": hardware.battery()}

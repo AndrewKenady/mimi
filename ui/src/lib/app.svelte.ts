@@ -20,6 +20,8 @@ class AppState {
 	location = $state<any>(null);
 	/** This browser is streaming its GPS position to MIMI (a phone in the car, or a device with a sensor). */
 	live = $state(false);
+	/** Sign-in requests from browsers on the network, waiting for the owner's OK (device only). */
+	pairRequests = $state<any[]>([]);
 	share = $state<any>(null);
 	features = $state<Record<string, boolean>>({});
 	toasts = $state<Toast[]>([]);
@@ -66,6 +68,11 @@ class AppState {
 			this.applyAppearance();
 			if (b.me) this.connect();
 			if (b.me && this.readLive()) this.startLive(true);
+			if (b.local && b.me?.role === 'owner') {
+				api('/api/auth/pair/pending')
+					.then((r: any) => (this.pairRequests = r.requests || []))
+					.catch(() => {});
+			}
 		} catch {
 			this.offline = true;
 			setTimeout(() => this.load(), 2000);
@@ -132,6 +139,12 @@ class AppState {
 				break;
 			case 'memory.changed':
 				this.memoryVersion++;
+				break;
+			case 'auth.request':
+				if (this.boot?.local && this.isOwner && !this.pairRequests.some((r) => r.id === d.id)) this.pairRequests = [...this.pairRequests, d];
+				break;
+			case 'auth.request.done':
+				this.pairRequests = this.pairRequests.filter((r) => r.id !== d.id);
 				break;
 			case 'docs.changed':
 				window.dispatchEvent(new CustomEvent('mimi:docs', { detail: d }));

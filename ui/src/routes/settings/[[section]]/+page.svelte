@@ -450,10 +450,10 @@
 									<ol class="how steps-list">
 										<li>On the other device, open the address above (or scan the code).</li>
 										<li>If the browser warns about the connection, choose <b>Advanced → Continue</b>. It's MIMI's own local certificate. To remove the warning and enable the microphone and camera, install the <a href="/cert" download>MIMI certificate</a> on that device once.</li>
-										<li>Sign in as <b>{share.owner_name || 'you'}</b> with your PIN for full access, or join as a guest.</li>
+										<li>Choose <b>Sign in</b> and enter <b>{share.owner_name || 'your name'}</b>. {share.owner_can_sign_in ? 'Type your PIN, or leave it blank' : 'Leave the PIN blank'} and tap <b>Allow</b> when this screen asks. Guests can join without an account.</li>
 									</ol>
 									{#if !share.owner_can_sign_in}
-										<p class="warn-line"><Info size={14} style="vertical-align:-2px" /> Set a PIN in <a href="/settings/accounts">Accounts</a> so you can sign in from other devices with full access.</p>
+										<p class="fine-line"><Info size={14} style="vertical-align:-2px" /> Tip: set a PIN in <a href="/settings/accounts">Accounts</a> to sign in without walking over to approve.</p>
 									{/if}
 								</div>
 								{#if qrUrl}
@@ -940,6 +940,17 @@
 		gap: 4px;
 		color: var(--danger);
 		background: color-mix(in oklab, var(--danger) 12%, transparent);
+	}
+	.fine-line {
+		color: var(--text-3);
+		font-size: 0.85rem;
+		margin: 6px 0 0;
+	}
+	.fine-line a {
+		color: var(--accent);
+	}
+	.fine-line :global(svg) {
+		display: inline;
 	}
 	.warn-line :global(svg) {
 		display: inline;

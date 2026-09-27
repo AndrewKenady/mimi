@@ -199,6 +199,57 @@ async def login(body: LoginIn, request: Request):
     return resp
 
 
+class PairIn(BaseModel):
+    name: str
+
+
+class DecideIn(BaseModel):
+    approve: bool
+
+
+@router.post("/auth/pair")
+async def pair_request(body: PairIn, request: Request):
+    """A browser on the network asks the device to let it sign in (no PIN needed)."""
+    svc = S(request)
+    if is_local(request):
+        raise HTTPException(400, "You're on the MIMI device already.")
+    u = svc.auth.by_name(body.name.strip())
+    if not u or u["role"] == "guest":
+        await asyncio.sleep(0.5)
+        raise HTTPException(404, "There's no account with that name on this MIMI.")
+    try:
+        return svc.pairing.request(u, request.headers.get("user-agent", ""), request.client.host if request.client else "")
+    except ValueError as e:
+        raise HTTPException(429, str(e))
+
+
+@router.get("/auth/pair/pending")
+async def pair_pending(request: Request, ctx: Ctx = Depends(owner_ctx)):
+    if not is_local(request):
+        raise HTTPException(403, "Sign-in requests are approved on the MIMI device.")
+    return {"requests": S(request).pairing.pending()}
+
+
+@router.post("/auth/pair/{rid}/decide")
+async def pair_decide(rid: str, body: DecideIn, request: Request, ctx: Ctx = Depends(owner_ctx)):
+    # Only the owner, on the device's own screen, can let someone in.
+    if not is_local(request):
+        raise HTTPException(403, "Sign-in requests are approved on the MIMI device.")
+    return {"status": S(request).pairing.decide(rid, body.approve)}
+
+
+@router.get("/auth/pair/{rid}")
+async def pair_poll(rid: str, request: Request, poll: str = ""):
+    svc = S(request)
+    status, user = svc.pairing.claim(rid, poll)
+    if status != "approved" or not user:
+        return {"status": status}
+    token = svc.auth.create_session(user["id"], request.headers.get("user-agent", ""), request.client.host if request.client else "")
+    resp = JSONResponse({"status": "approved", "user": public_user(user)})
+    _cookie(resp, token, request)
+    return resp
+
+
 @router.post("/auth/unlock")
 async def unlock(body: UnlockIn, request: Request):
     svc = S(request)
