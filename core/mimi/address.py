@@ -1017,7 +1017,23 @@ class AddressIndex:
         return out
 
     def _nearest_number(self, sid: int, n: int) -> tuple | None:
-        """The closest known number on one street row, from exact points and TIGER ranges."""
+        """The closest known number on one street row, from exact points and TIGER ranges.
+
+        Where only points are known (Canada), a number between two known ones on the same side
+        of the street is placed between them: 200 between 196 and 210, not across at 203.
+        """
+        par = n % 2
+        lo_pt = self._all("SELECT num, lat, lon, postcode, source FROM points WHERE sid = ? AND num < ? AND num % 2 = ? "
+                          "ORDER BY num DESC LIMIT 1", (sid, n, par))
+        hi_pt = self._all("SELECT num, lat, lon, postcode, source FROM points WHERE sid = ? AND num > ? AND num % 2 = ? "
+                          "ORDER BY num LIMIT 1", (sid, n, par))
+        if lo_pt and hi_pt:
+            (a, alat, alon, apc, src), (b, blat, blon, bpc, _) = lo_pt[0], hi_pt[0]
+            # only across a short gap on one block; a long gap may bend or cross a break in the street
+            if b - a <= 40 and haversine_km(alat / 1e6, alon / 1e6, blat / 1e6, blon / 1e6) <= 0.4:
+                f = (n - a) / (b - a)
+                return ("interpolated", (alat + (blat - alat) * f) / 1e6, (alon + (blon - alon) * f) / 1e6,
+                        str(n), None, apc if f < 0.5 else bpc, src, 0.0)
         cands = []  # (difference, parity differs, numtext, lat, lon, postcode, source)
         for sql in ("SELECT num, numtext, lat, lon, postcode, source FROM points WHERE sid = ? AND num < ? ORDER BY num DESC LIMIT 1",
                     "SELECT num, numtext, lat, lon, postcode, source FROM points WHERE sid = ? AND num > ? ORDER BY num LIMIT 1"):

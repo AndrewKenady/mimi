@@ -325,8 +325,10 @@ def test_one_result_per_street(idx):
 
 
 def test_nearby_number(idx):
-    r = search(idx, "16 Oak St, Springfield, IL")[0]
-    assert (r["name"], r["precision"], r["source"]) == ("14 Oak St", "nearby", "nar")
+    r = search(idx, "16 Oak St, Springfield, IL")[0]  # between 14 and 20 on the same side
+    assert (r["name"], r["precision"], r["source"]) == ("16 Oak St", "interpolated", "nar")
+    r = search(idx, "24 Oak St, Springfield, IL")[0]  # past the last known number
+    assert (r["name"], r["precision"], r["source"]) == ("20 Oak St", "nearby", "nar")
     past_end = search(idx, "500 Main St, Springfield, IL")[0]  # beyond every range: the closest end
     assert (past_end["name"], past_end["precision"]) == ("398 Main St", "nearby")
     other_side = search(idx, "301 Main St, Springfield, IL")[0]  # only the even side is known here
@@ -739,5 +741,27 @@ def test_city_suffix_either_way(tmp_path):
         qc = ix.search("250 Rue Saint-Jean, Quebec City, QC", resolve_place=resolve, describe=None)[0]
         assert abs(qc["lat"] - 46.808) < 0.01
         assert "Hilton" not in qc["label"] and "Québec" in qc["label"]
+    finally:
+        ix.close()
+
+
+def test_points_only_street_places_a_missing_number_on_its_own_side(tmp_path):
+    """Canada has points but no ranges: 200 between 196 and 210 is placed between them,
+    not at 203 across the street; a gap too wide to trust still gives the nearest number."""
+    path = tmp_path / "addresses.sqlite"
+    b = Builder(path)
+    st = b.street("Rue Saint-Jean", 46.8080, -71.2200, "qc")
+    b.point(st, "196", 46.8080, -71.2210, source="nar", postcode="G1R1N8")
+    b.point(st, "203", 46.8082, -71.2205, source="nar")
+    b.point(st, "210", 46.8080, -71.2190, source="nar", postcode="G1R1N9")
+    b.point(st, "260", 46.8080, -71.2100, source="nar")
+    b.close()
+    ix = AddressIndex(path)
+    try:
+        r = ix.search("200 Rue Saint-Jean", near=(46.808, -71.22), resolve_place=None, describe=None)[0]
+        assert r["name"].startswith("200 ") and r["precision"] == "interpolated"
+        assert abs(r["lon"] - (-71.2210 + 0.0020 * 4 / 14)) < 1e-5 and r["lat"] == 46.808
+        far = ix.search("240 Rue Saint-Jean", near=(46.808, -71.22), resolve_place=None, describe=None)[0]
+        assert far["precision"] == "nearby"
     finally:
         ix.close()
