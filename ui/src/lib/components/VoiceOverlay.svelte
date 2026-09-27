@@ -72,7 +72,18 @@
 		await ask(heard);
 	}
 
+	const FILLERS: Record<string, string> = {
+		search_library: 'Let me look that up.',
+		read_article: 'Let me look that up.',
+		search_my_files: 'Checking your files.',
+		nearby_places: "Let me see what's nearby.",
+		where_am_i: 'Checking where we are.',
+		get_directions: 'Let me work out the route.',
+		show_reference_image: 'Let me find a picture.'
+	};
+
 	async function ask(text: string) {
+		let filled = false;
 		phase = 'thinking';
 		hint = '';
 		abort = new AbortController();
@@ -81,8 +92,14 @@
 				if (ev.event === 'meta' && !chatId) {
 					chatId = ev.data.chat_id;
 					sessionStorage.setItem('mimi.voiceChat', ev.data.chat_id);
-				} else if (ev.event === 'tool' && ev.data.state === 'start') tool = ev.data.label;
-				else if (ev.event === 'delta') {
+				} else if (ev.event === 'tool' && ev.data.state === 'start') {
+					tool = ev.data.label;
+					// A lookup adds a few seconds; say so out loud instead of going quiet.
+					if (!reply && !filled) {
+						filled = true;
+						speaker.say(FILLERS[ev.data.name] || 'One moment.');
+					}
+				} else if (ev.event === 'delta') {
 					tool = '';
 					reply += ev.data.text;
 					speaker.feed(ev.data.text);

@@ -199,3 +199,72 @@ def test_unauthenticated_remote_is_rejected(client):
     assert remote.get("/api/bootstrap").json()["me"] is None
     # …and cannot run onboarding or shut the device down.
     assert remote.post("/api/system/shutdown").status_code == 403
+
+
+# --------------------------------------------------------------------- community tools
+def test_community_tool_plugins(client, tmp_path):
+    import asyncio
+
+    from mimi import tools
+    from mimi.auth import Ctx
+
+    folder = tmp_path / "tools"
+    folder.mkdir()
+    (folder / "shout.py").write_text(
+        'NAME = "shout"\nDESCRIPTION = "Upper-case some text."\n'
+        'PARAMETERS = {"type": "object", "properties": {"text": {"type": "string"}}}\n'
+        'def run(args, ctx):\n    return {"text": args["text"].upper() + "!", "label": "Shouted"}\n', encoding="utf-8")
+    (folder / "broken.py").write_text("raise RuntimeError('nope')\n", encoding="utf-8")
+    (folder / "clash.py").write_text('NAME = "calculate"\ndef run(a, c):\n    return ""\n', encoding="utf-8")
+    info = {p["file"]: p for p in tools.load_plugins(folder)}
+    assert info["shout.py"]["error"] == "" and "nope" in info["broken.py"]["error"] and "already used" in info["clash.py"]["error"]
+
+    client.post("/api/auth/setup", json={"name": "Ada"})
+    svc = client.app.state.svc
+    user = svc.auth.list()[0]
+    st = tools.TurnState(ctx=Ctx(dict(user), None, True), chat_id="c", message_id="m", query="", mode={}, vision=False)
+    names = lambda: {s["function"]["name"] for s in tools.schemas(st, svc)}
+    # plugins are off until the owner enables them; built-ins can be switched off
+    assert "shout" not in names() and "calculate" in names()
+    assert asyncio.run(tools.run("shout", '{"text": "hi"}', st, svc)).ok is False
+    r = client.patch("/api/settings/device/tools", json={"plugins": ["shout"], "disabled": ["calculate"]})
+    assert r.status_code == 200
+    assert "shout" in names() and "calculate" not in names()
+    res = asyncio.run(tools.run("shout", '{"text": "hi"}', st, svc))
+    assert res.ok and res.text == "HI!" and res.label == "Shouted"
+    cat = {t["name"]: t for t in client.get("/api/tools").json()["tools"]}
+    assert cat["shout"]["enabled"] and not cat["calculate"]["enabled"] and cat["remember"]["locked"]
+    tools.load_plugins(tmp_path / "missing")  # leave the registry empty for other tests
+
+
+def test_example_tools():
+    import importlib.util
+    from datetime import date, datetime
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "tools"
+
+    def load(name):
+        spec = importlib.util.spec_from_file_location(name, root / f"{name}.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    sun = load("sun_times")
+    rise, set_ = sun.solar_events(date(2026, 6, 21), 51.5074, -0.1278)["sun"]  # London, midsummer
+    assert rise.strftime("%H:%M") in ("03:43", "03:44") and set_.strftime("%H:%M") in ("20:21", "20:22")
+    assert sun.solar_events(date(2026, 6, 21), 69.65, 18.96)["sun"] == "above"  # Tromsø midnight sun
+    conv = load("unit_converter")
+    assert conv.run({"value": 32, "from_unit": "psi", "to_unit": "kPa"}, None) == "32 psi = 220.6322 kPa"
+    assert conv.run({"value": 212, "from_unit": "F", "to_unit": "C"}, None) == "212 F = 100 C"
+    assert "Can't convert" in conv.run({"value": 1, "from_unit": "mi", "to_unit": "kg"}, None)
+
+
+def test_memory_chip_only_when_answer_uses_it():
+    from mimi.chat import memories_referenced
+
+    mems = [{"id": "a", "text": "Drives a 2014 Toyota Tacoma."}, {"id": "b", "text": "Has a daughter named Lily who is 7."},
+            {"id": "c", "text": "Vegetarian."}]
+    assert memories_referenced(mems, "Old Faithful erupts about every 90 minutes.") == []
+    assert [m["id"] for m in memories_referenced(mems, "For your Tacoma, use 0W-20 synthetic oil.")] == ["a"]
+    assert [m["id"] for m in memories_referenced(mems, "Your daughter might enjoy the boardwalk; lots of vegetarian options too.")] == ["b", "c"]

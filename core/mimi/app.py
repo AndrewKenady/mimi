@@ -30,7 +30,7 @@ from .settings import SettingsStore
 from .share import ShareService
 from .uploads import UploadService
 from .voice import VoiceService
-from . import system
+from . import system, tools
 
 L = log.get("app")
 MAIN_PORT = int(os.environ.get("MIMI_PORT", "7600"))
@@ -76,6 +76,7 @@ class Services:
         await self.kiwix_service.start()
         self.kiwix_service.watch(self.kiwix)
         self.location.start()
+        await asyncio.to_thread(tools.load_plugins, self.paths.root / "tools")
         self.docs.start()
         self.scribe.start()
         self.models.start_janitor()

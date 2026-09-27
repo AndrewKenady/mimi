@@ -10,7 +10,7 @@
 	import Slider from '$components/settings/Slider.svelte';
 	import {
 		SlidersHorizontal, Palette, Sparkles, Cpu, AudioLines, Library, MapPin, Share2, Users, Gamepad2, BatteryCharging, HardDrive,
-		Search, Volume2, Check, Download, Upload, RotateCcw, ShieldCheck, Wifi, FolderOpen, Trash2, Plus, Copy, Eye, EyeOff, Info
+		Search, Volume2, Check, Download, Upload, RotateCcw, ShieldCheck, Wifi, FolderOpen, Trash2, Plus, Copy, Eye, EyeOff, Info, Puzzle, RefreshCw, TriangleAlert
 	} from '@lucide/svelte';
 
 	const SECTIONS = [
@@ -21,6 +21,7 @@
 		{ id: 'voice', label: 'Voice', icon: AudioLines, owner: false, keys: 'voice speech speed read aloud whisper transcription' },
 		{ id: 'library', label: 'Library', icon: Library, owner: true, keys: 'collections wikipedia zim sources passages' },
 		{ id: 'location', label: 'Maps & Location', icon: MapPin, owner: true, keys: 'gps location map history' },
+		{ id: 'tools', label: 'Tools', icon: Puzzle, owner: true, keys: 'tools plugins extensions community sunrise sunset units convert calculator directions search' },
 		{ id: 'sharing', label: 'Sharing & access', icon: Share2, owner: true, keys: 'wifi hotspot share phones qr guests network certificate browser url remote access lan other devices' },
 		{ id: 'accounts', label: 'Accounts & Privacy', icon: Users, owner: false, keys: 'users pin password guests privacy history delete memory' },
 		{ id: 'controls', label: 'Controls', icon: Gamepad2, owner: true, keys: 'gamepad controller buttons mapping keyboard shortcuts' },
@@ -51,6 +52,7 @@
 	let newUser = $state({ name: '', password: '' });
 	let myPin = $state('');
 	let playing = $state('');
+	let toolList = $state<any>(null);
 
 	$effect(() => {
 		const s = section;
@@ -60,7 +62,27 @@
 		if (s === 'accounts' && app.isOwner) get('/api/users').then((r) => (users = r));
 		if (s === 'system') loadSystem();
 		if (s === 'sharing') loadShare();
+		if (s === 'tools') get('/api/tools').then((r) => (toolList = r));
 	});
+
+	async function toggleTool(t: any, on: boolean) {
+		const cfg = D.tools || { disabled: [], plugins: [] };
+		if (t.builtin) {
+			const dis = new Set<string>(cfg.disabled);
+			on ? dis.delete(t.name) : dis.add(t.name);
+			await dev('tools', { disabled: [...dis] });
+		} else {
+			const en = new Set<string>(cfg.plugins);
+			on ? en.add(t.name) : en.delete(t.name);
+			await dev('tools', { plugins: [...en] });
+		}
+		toolList = { ...toolList, tools: toolList.tools.map((x: any) => (x.name === t.name ? { ...x, enabled: on } : x)) };
+	}
+	async function reloadTools() {
+		toolList = await post('/api/tools/reload', {});
+		app.toast('Tools folder rescanned', 'ok');
+	}
+	const toolTitle = (n: string) => n.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 
 	async function loadSystem() {
 		sys = await get('/api/system');
@@ -369,6 +391,35 @@
 						<Row label="Keep history for"><Segmented value={String(D.location.history_days)} options={[['7', 'A week'], ['30', 'A month'], ['365', 'A year']]} onchange={(v) => dev('location', { history_days: Number(v) })} /></Row>
 					{/if}
 				</div>
+			{:else if section === 'tools'}
+				<p class="intro">Tools are what MIMI can do beyond talking: search the library, plan routes, look around. Switch off any you don't want it to use.</p>
+				{#if toolList}
+					<h3 class="label sub">Built in</h3>
+					<div class="group card">
+						{#each toolList.tools.filter((t: any) => t.builtin) as t (t.name)}
+							<Row label={toolTitle(t.name)} hint={t.locked ? 'Controlled by the memory setting in Accounts & Privacy.' : t.description}>
+								<Toggle checked={t.enabled} disabled={t.locked} onchange={(v) => toggleTool(t, v)} label={toolTitle(t.name)} />
+							</Row>
+						{/each}
+					</div>
+					<h3 class="label sub">Community tools</h3>
+					<div class="group card">
+						{#each toolList.tools.filter((t: any) => !t.builtin) as t (t.file)}
+							<Row label={toolTitle(t.name)} hint={t.error ? `Couldn't load ${t.file}: ${t.error}` : `${t.description} (${t.file})`}>
+								{#if t.error}<span class="tag err"><TriangleAlert size={12} /> Error</span>{:else}<Toggle checked={t.enabled} onchange={(v) => toggleTool(t, v)} label={toolTitle(t.name)} />{/if}
+							</Row>
+						{:else}
+							<Row label="No community tools yet" hint="Drop a Python tool file into the tools folder, then rescan." />
+						{/each}
+					</div>
+					<p class="warn-line"><Info size={14} style="vertical-align:-2px" /> Community tools are Python code that runs on this device with MIMI's permissions. Only turn on tools you trust.</p>
+					<div class="acts-row">
+						<button class="btn btn-sm" onclick={reloadTools}><RefreshCw size={14} /> Rescan folder</button>
+						{#if app.boot?.local}<button class="btn btn-sm" onclick={() => post('/api/system/open-folder?which=tools')}><FolderOpen size={14} /> Open tools folder</button>{/if}
+					</div>
+				{:else}
+					<div class="shimmer" style="height:200px"></div>
+				{/if}
 			{:else if section === 'sharing' && D.sharing}
 				<div class="group card">
 					<Row label="Access from other devices" hint="Open MIMI in the web browser of any phone, tablet or laptop on the same network (your home Wi-Fi, a router, or MIMI's own hotspot).">
@@ -867,6 +918,28 @@
 	.how a,
 	.warn-line a {
 		color: var(--accent);
+	}
+	.intro {
+		color: var(--text-2);
+		margin: -4px 0 14px;
+		font-size: 0.92rem;
+		line-height: 1.5;
+	}
+	.acts-row {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		margin-top: 14px;
+	}
+	.tag.err {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		color: var(--danger);
+		background: color-mix(in oklab, var(--danger) 12%, transparent);
+	}
+	.warn-line :global(svg) {
+		display: inline;
 	}
 	.warn-line {
 		display: block;

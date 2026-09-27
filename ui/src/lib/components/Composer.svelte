@@ -3,7 +3,8 @@
 	import { app } from '$lib/app.svelte';
 	import { upload } from '$lib/api';
 	import { Recorder, transcribe } from '$lib/audio';
-	import { ArrowUp, Square, Paperclip, Mic, X, FileText, Sparkles, Car, HeartPulse, Wrench, GraduationCap, BookOpen, Check, Loader } from '@lucide/svelte';
+	import { ArrowUp, Square, Paperclip, Mic, X, FileText, Sparkles, Car, HeartPulse, Wrench, GraduationCap, BookOpen, Check, Loader, Slash } from '@lucide/svelte';
+	import { COMMANDS, expandCommand, matchCommands } from '$lib/commands';
 
 	type Att = { id: string; name: string; kind: string; url: string; preview?: string };
 	let {
@@ -41,6 +42,25 @@
 	const CurIcon = $derived(ICONS[current.icon] || Sparkles);
 	const canSend = $derived((value.trim().length > 0 || attachments.length > 0) && !uploading);
 
+	// Slash commands: "/" opens a menu of prompt templates; Tab/Enter completes one.
+	let cmdIndex = $state(0);
+	let cmdDismissed = $state('');
+	const cmdMatches = $derived(value.startsWith('/') && !/\s/.test(value) && value !== cmdDismissed ? matchCommands(value.slice(1)) : []);
+	const cmdActive = $derived.by(() => {
+		const m = /^\/(\S+)\s/.exec(value);
+		return m ? COMMANDS.find((c) => c.cmd === m[1].toLowerCase()) : undefined;
+	});
+	$effect(() => {
+		cmdMatches.length;
+		cmdIndex = 0;
+	});
+	function pickCommand(i: number) {
+		const c = cmdMatches[i];
+		if (!c) return;
+		value = `/${c.cmd} `;
+		ta?.focus();
+	}
+
 	$effect(() => {
 		value;
 		if (ta) {
@@ -57,12 +77,44 @@
 	function send() {
 		if (busy) return onstop();
 		if (!canSend) return;
-		onsend(value.trim(), attachments);
+		let text = value.trim();
+		const r = expandCommand(text, app.modes);
+		if (r.mode) {
+			mode = r.mode;
+			app.toast(`Mode: ${app.modes[r.mode]?.name || r.mode}`);
+			if (!r.text) {
+				value = '';
+				return;
+			}
+		}
+		if (r.error) return app.toast(r.error, 'error');
+		text = r.text ?? text;
+		onsend(text, attachments);
 		value = '';
 		attachments = [];
 	}
 
 	function onKey(e: KeyboardEvent) {
+		if (cmdMatches.length) {
+			if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+				e.preventDefault();
+				const n = cmdMatches.length;
+				cmdIndex = (cmdIndex + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+				return;
+			}
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				e.stopPropagation();
+				cmdDismissed = value;
+				return;
+			}
+			const exact = cmdMatches.some((c) => '/' + c.cmd === value.toLowerCase() && !c.needsArg);
+			if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !exact)) {
+				e.preventDefault();
+				pickCommand(cmdIndex);
+				return;
+			}
+		}
 		if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
 			e.preventDefault();
 			send();
@@ -142,6 +194,20 @@
 			{#if uploading}<div class="att"><span class="doc spin"><Loader size={16} /></span><span class="an">Uploading…</span></div>{/if}
 		</div>
 	{/if}
+	{#if cmdMatches.length}
+		<div class="menu cmds glass" role="listbox" aria-label="Commands">
+			{#each cmdMatches as c, i (c.cmd)}
+				<button role="option" aria-selected={i === cmdIndex} class="mi cmd" class:on={i === cmdIndex} onmouseenter={() => (cmdIndex = i)} onclick={() => pickCommand(i)}>
+					<span class="slash"><Slash size={13} /></span>
+					<span><b>/{c.cmd} <em>{c.hint}</em></b><small>{c.label}</small></span>
+				</button>
+			{/each}
+			<p class="cmdtip">Tab to pick · Esc to type a plain “/”</p>
+		</div>
+	{/if}
+	{#if cmdActive}
+		<div class="cmdchip"><Slash size={12} /> {cmdActive.label}<span>· {cmdActive.hint}</span></div>
+	{/if}
 	<textarea
 		bind:this={ta}
 		bind:value
@@ -216,6 +282,9 @@
 	.big textarea {
 		font-size: 1.1rem;
 	}
+	textarea:focus-visible {
+		outline: none; /* the composer's focus-within glow is the focus indicator */
+	}
 	textarea::placeholder {
 		color: var(--text-3);
 	}
@@ -257,6 +326,7 @@
 		border: 1px solid var(--line-2);
 		box-shadow: var(--shadow-2);
 		z-index: 20;
+		background: color-mix(in oklab, var(--surface) 96%, transparent);
 	}
 	.mi {
 		display: flex;
@@ -284,6 +354,56 @@
 	}
 	.mi span {
 		flex: 1;
+	}
+	.cmds {
+		left: 10px;
+		right: 10px;
+		width: auto;
+		max-width: 460px;
+		max-height: 340px;
+		overflow-y: auto;
+	}
+	.cmd {
+		align-items: center;
+		padding: 8px 10px;
+	}
+	.cmd em {
+		font-style: normal;
+		font-weight: 400;
+		color: var(--text-3);
+		margin-left: 4px;
+		font-size: 0.8rem;
+	}
+	.slash {
+		flex: none !important;
+		width: 26px;
+		height: 26px;
+		border-radius: 8px;
+		display: grid;
+		place-items: center;
+		background: var(--accent-soft);
+		color: var(--accent);
+	}
+	.cmdtip {
+		margin: 4px 10px 4px;
+		font-size: 0.72rem;
+		color: var(--text-3);
+	}
+	.cmdchip {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin: 0 8px 2px;
+		padding: 3px 10px;
+		border-radius: 999px;
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--accent);
+		background: var(--accent-soft);
+	}
+	.cmdchip span {
+		font-weight: 400;
+		color: var(--text-3);
 	}
 	.send {
 		width: 38px;

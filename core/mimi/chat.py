@@ -68,6 +68,30 @@ _REFLIST_HEADER = re.compile(r"(?mi)^\s*(\*\*)?(sources?|references?|citations?)
 _REFLIST_LINE = re.compile(r"(?m)^\s*\[\d+\][^\n]*$")
 
 
+_MEM_STOP = set(
+    "about after also always another because been being does doing drives during each from have having into just like likes "
+    "lives love loves make made many more most much named called never often only other over person people prefer prefers "
+    "really should some than that their them then there these they thing things this those through time times under until "
+    "user usually very want wants well were what when where which while will with works would year years your".split()
+)
+
+
+def memories_referenced(memories: list[dict], answer: str) -> list[dict]:
+    """The memories an answer actually drew on: one of the memory's distinctive words shows up in it.
+
+    All of a user's memories may be in the context, but the "Memory used" chip should only
+    appear when the reply leans on one (e.g. it names the Tacoma), not on every answer.
+    """
+    words = set(re.findall(r"[a-z][a-z'-]+", answer.lower()))
+    stems = {w[:6] for w in words if len(w) >= 6}
+    out = []
+    for m in memories:
+        keys = {w for w in re.findall(r"[a-z][a-z'-]+", m["text"].lower()) if len(w) >= 4 and w not in _MEM_STOP}
+        if any(k in words or (len(k) >= 6 and k[:6] in stems) for k in keys):
+            out.append(m)
+    return out
+
+
 def sanitize_citations(text: str, n_sources: int) -> str:
     """Drop invented citations: numbers with no matching source, and model-written reference lists."""
     text = _REFLIST_HEADER.sub("", text)
@@ -325,8 +349,6 @@ class ChatService:
             # --- context: memories, location, system prompt, history
             if not chat["temporary"]:
                 memories = await svc.memory.retrieve(ctx, content)
-            if memories:
-                yield {"event": "memory", "data": {"used": memories}}
             general = svc.settings.device("general")
             loc = svc.location.describe()
             system = persona.build_system_prompt(
@@ -456,9 +478,13 @@ class ChatService:
             self.active.pop(chat_id, None)
 
         answer = sanitize_citations(answer, len(state.sources))
+        used = memories_referenced(memories, answer)
+        if used:
+            svc.memory.mark_used([m["id"] for m in used])
+            yield {"event": "memory", "data": {"used": used}}
         meta = {
             "model": spec.id, "model_name": spec.name, "mode": mode_id, "sources": state.sources, "tools": trail,
-            "memories_used": memories, "timings": {"total_ms": int((time.time() - t_start) * 1000), **{k: timings.get(k) for k in ("predicted_per_second", "prompt_per_second", "predicted_n", "prompt_n") if k in timings}},
+            "memories_used": used, "timings": {"total_ms": int((time.time() - t_start) * 1000), **{k: timings.get(k) for k in ("predicted_per_second", "prompt_per_second", "predicted_n", "prompt_n") if k in timings}},
             "voice": voice, "cancelled": cancel.is_set(), "error": error,
         }
         if reasoning and svc.settings.device("models").think_harder:
@@ -521,4 +547,4 @@ def _pending_label(name: str, args: dict) -> str:
         "nearby_places": "Looking around…",
         "calculate": "Calculating…",
         "get_directions": f"Planning a route to {args.get('destination') or 'there'}…",
-    }.get(name, f"Using {name}…")
+    }.get(name) or f"{(tools.PLUGINS[name].label if name in tools.PLUGINS else '') or 'Using ' + name}…"

@@ -15,9 +15,10 @@ import json
 import math
 import operator
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Awaitable, Callable
 
-from . import log
+from . import log, plugins
 from .auth import Ctx
 
 L = log.get("tools")
@@ -393,17 +394,85 @@ TOOLS: list[Tool] = [
          _obj({"expression": {"type": "string"}}, ["expression"]), calculate),
 ]
 BY_NAME = {t.name: t for t in TOOLS}
+# Never switched off from Settings: memory has its own on/off switch in Privacy.
+ALWAYS_ON = {"remember"}
+
+# --------------------------------------------------------------------------- community tools
+PLUGINS: dict[str, plugins.Plugin] = {}
+PLUGIN_ERRORS: list[plugins.Plugin] = []
+
+
+def load_plugins(folder) -> list[dict]:
+    found = plugins.discover(folder, set(BY_NAME))
+    PLUGINS.clear()
+    PLUGIN_ERRORS.clear()
+    for p in found:
+        (PLUGIN_ERRORS.append(p) if p.error else PLUGINS.__setitem__(p.name, p))
+    return [p.info() for p in found]
+
+
+def _plugin_ready(p: plugins.Plugin, st: TurnState | None, svc) -> bool:
+    if "location" in p.needs and not svc.location.current():
+        return False
+    if "vision" in p.needs and not (st and st.vision):
+        return False
+    return True
+
+
+def _enabled(svc) -> tuple[set[str], set[str]]:
+    cfg = svc.settings.device("tools")
+    return set(cfg.disabled) - ALWAYS_ON, set(cfg.plugins)
+
+
+def catalog(svc) -> list[dict]:
+    """Every tool for Settings -> Tools: built-ins first, then community tools."""
+    disabled, on = _enabled(svc)
+    out = [{"name": t.name, "description": t.description, "builtin": True, "enabled": t.name not in disabled,
+            "locked": t.name in ALWAYS_ON} for t in TOOLS]
+    for p in list(PLUGINS.values()) + PLUGIN_ERRORS:
+        out.append({**p.info(), "enabled": p.name in on and not p.error})
+    return out
 
 
 def schemas(st: TurnState, svc) -> list[dict]:
     out = []
+    disabled, on = _enabled(svc)
     for t in TOOLS:
+        if t.name in disabled:
+            continue
         try:
             if t.available(st, svc):
                 out.append(t.schema())
         except Exception as e:  # a broken availability check must not break chat
             L.warning("availability check for %s failed: %s", t.name, e)
+    for name in sorted(on):
+        p = PLUGINS.get(name)
+        try:
+            if p and _plugin_ready(p, st, svc):
+                out.append({"type": "function", "function": {"name": p.name, "description": p.description, "parameters": p.parameters}})
+        except Exception as e:
+            L.warning("availability check for plugin %s failed: %s", name, e)
     return out
+
+
+def _plugin_ctx(p: plugins.Plugin, st: TurnState, svc) -> plugins.PluginContext:
+    loc = None
+    cur = svc.location.current()
+    if cur:
+        desc = svc.location.describe() or {}
+        loc = {"lat": cur["lat"], "lon": cur["lon"], "name": desc.get("description") or cur.get("label")}
+
+    def find_place(name: str) -> dict | None:
+        hits = svc.location.search(str(name), 1)
+        if not hits:
+            return None
+        h = hits[0]
+        label = ", ".join(x for x in (h.get("name"), h.get("admin1"), h.get("country")) if x)
+        return {"lat": h["lat"], "lon": h["lon"], "name": label or h.get("name")}
+
+    return plugins.PluginContext(user_name=st.ctx.user.get("name", ""), units=svc.settings.device("general").units,
+                                 location=loc, now=datetime.now().astimezone(),
+                                 data_dir=svc.paths.data / "plugins" / p.name, find_place=find_place)
 
 
 def parse_args(raw: str | dict | None) -> dict:
@@ -423,12 +492,21 @@ def parse_args(raw: str | dict | None) -> dict:
             return {}
 
 
+async def _run_plugin(p: plugins.Plugin, args: dict, st: TurnState, svc) -> ToolResult:
+    r = await plugins.call(p, args, _plugin_ctx(p, st, svc))
+    return ToolResult(r["text"] or "(no result)", label=r["label"], summary=r["text"][:140], data=r["data"])
+
+
 async def run(name: str, raw_args: str | dict | None, st: TurnState, svc) -> ToolResult:
-    tool = BY_NAME.get(name)
-    if not tool:
+    disabled, on = _enabled(svc)
+    tool = BY_NAME.get(name) if name not in disabled else None
+    plugin = PLUGINS.get(name) if name in on else None
+    if not tool and not plugin:
         return ToolResult(f"Unknown tool '{name}'.", label=f"Unknown tool {name}", ok=False)
     args = parse_args(raw_args)
     try:
+        if plugin:
+            return await asyncio.wait_for(_run_plugin(plugin, args, st, svc), timeout=45)
         return await asyncio.wait_for(tool.run(args, st, svc), timeout=45)
     except asyncio.TimeoutError:
         return ToolResult("The tool took too long.", label=f"{name} timed out", ok=False)

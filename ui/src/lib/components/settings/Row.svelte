@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	let { label, hint = '', stack = false, children }: { label: string; hint?: string; stack?: boolean; children: Snippet } = $props();
+	let { label, hint = '', stack = false, children }: { label: string; hint?: string; stack?: boolean; children?: Snippet } = $props();
 </script>
 
 <div class="row" class:stack data-setting={label.toLowerCase()}>
@@ -8,7 +8,7 @@
 		<div class="l">{label}</div>
 		{#if hint}<div class="h">{hint}</div>{/if}
 	</div>
-	<div class="ctl">{@render children()}</div>
+	{#if children}<div class="ctl">{@render children()}</div>{/if}
 </div>
 
 <style>

@@ -176,13 +176,15 @@ class MemoryService:
                         scored.append((float(np.dot(v, q)), r))
                 scored.sort(key=lambda x: x[0], reverse=True)
                 chosen = pinned + [r for s, r in scored[:k] if s >= 0.30]
-        ids = [r["id"] for r in chosen]
+        return [{"id": r["id"], "text": r["text"], "category": r["category"]} for r in chosen]
+
+    def mark_used(self, ids: list[str]) -> None:
+        """Count a memory as used when an answer actually drew on it."""
         if ids:
             self.db.execute(
                 f"UPDATE memories SET last_used_at=?, use_count=use_count+1 WHERE id IN ({','.join('?' * len(ids))})",
                 (dbm.now(), *ids),
             )
-        return [{"id": r["id"], "text": r["text"], "category": r["category"]} for r in chosen]
 
     async def _embed(self, text: str) -> np.ndarray | None:
         try:

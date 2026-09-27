@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, log, system
+from . import __version__, log, system, tools
 from .app import MAIN_PORT, Services, ctx_or_none, get_ctx, is_local, member_ctx, owner_ctx
 from .auth import SESSION_COOKIE, AuthError, Ctx, public_user
 from .kiwix import COLLECTION_LABELS, book_dict, hit_dict
@@ -382,6 +382,20 @@ async def load_model(body: LoadIn, request: Request, ctx: Ctx = Depends(owner_ct
 async def unload_model(request: Request, ctx: Ctx = Depends(owner_ctx)):
     await S(request).models.unload()
     return {"ok": True}
+
+
+# =========================================================================== tools
+@router.get("/tools")
+async def list_tools(request: Request, ctx: Ctx = Depends(owner_ctx)):
+    svc = S(request)
+    return {"tools": tools.catalog(svc), "folder": str(svc.paths.root / "tools")}
+
+
+@router.post("/tools/reload")
+async def reload_tools(request: Request, ctx: Ctx = Depends(owner_ctx)):
+    svc = S(request)
+    await asyncio.to_thread(tools.load_plugins, svc.paths.root / "tools")
+    return {"tools": tools.catalog(svc), "folder": str(svc.paths.root / "tools")}
 
 
 # =========================================================================== chats
@@ -1066,7 +1080,7 @@ async def open_folder(request: Request, which: str = "root", ctx: Ctx = Depends(
     svc = S(request)
     if not is_local(request):
         raise HTTPException(403)
-    target = {"root": svc.paths.root, "logs": svc.paths.logs, "zim": svc.paths.zim, "data": svc.paths.data, "library": svc.paths.library}.get(which)
+    target = {"root": svc.paths.root, "logs": svc.paths.logs, "zim": svc.paths.zim, "data": svc.paths.data, "library": svc.paths.library, "tools": svc.paths.root / "tools"}.get(which)
     if not target:
         raise HTTPException(404)
     system.open_folder(target)

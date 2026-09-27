@@ -103,6 +103,11 @@ class Knowledge(Section):
     snippet_chars: int = Field(900, ge=400, le=4000)
 
 
+class Tools(Section):
+    disabled: list[str] = Field(default_factory=list)  # built-in tools the owner switched off
+    plugins: list[str] = Field(default_factory=list)   # community tools the owner switched on
+
+
 # --- personal sections -------------------------------------------------------
 class Appearance(Section):
     theme: Literal["dark", "light", "oled", "auto"] = "dark"
@@ -151,6 +156,7 @@ DEVICE_SECTIONS: dict[str, type[Section]] = {
     "controls": Controls,
     "location": Location,
     "knowledge": Knowledge,
+    "tools": Tools,
 }
 USER_SECTIONS: dict[str, type[Section]] = {
     "appearance": Appearance,
