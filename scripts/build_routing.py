@@ -94,6 +94,55 @@ def roads_only(src: Path) -> Path:
     return dst
 
 
+def merge_pbfs(files: list[Path]) -> Path:
+    """Stream-merge sorted extracts into one file, dropping the duplicates they share.
+
+    Neighbouring extracts (US and Canada) both contain the roads that cross the border.
+    Valhalla builds from several files badly: North America built that way can crash
+    with "Exceeding kMaxLinkEdges in ReclassifyLinks" (valhalla#3908, #3925), and the
+    advice is to merge first. pyosmium's MergeInputReader holds everything in memory,
+    so this is a two-pointer merge over (type, id) instead.
+    """
+    import osmium
+
+    dst = files[0].with_name("merged-" + "-".join(f.name.split(".")[0] for f in files) + ".osm.pbf")
+    if dst.exists():
+        print(f"✓ {dst.name} already merged")
+        return dst
+    t0 = time.time()
+    tmp = dst.with_suffix(".tmp.pbf")
+    order = {"n": 0, "w": 1, "r": 2}
+    iters = [iter(osmium.FileProcessor(str(f))) for f in files]
+    heads = [next(it, None) for it in iters]
+    last = [(-1, -1)] * len(files)
+    written = dupes = 0
+    with osmium.SimpleWriter(str(tmp), overwrite=True) as w:
+        while True:
+            keys = [(order[o.type_str()], o.id) if o is not None else None for o in heads]
+            live = [k for k in keys if k is not None]
+            if not live:
+                break
+            k = min(live)
+            first = True
+            for i, ki in enumerate(keys):
+                if ki != k:
+                    continue
+                if ki < last[i]:
+                    raise SystemExit(f"{files[i].name} isn't sorted by type and id; can't merge it in one pass")
+                last[i] = ki
+                if first:
+                    w.add(heads[i])
+                    written += 1
+                    first = False
+                else:
+                    dupes += 1
+                heads[i] = next(iters[i], None)
+    tmp.replace(dst)
+    print(f"✓ merged {len(files)} extracts into {dst.name}: {written:,} objects, {dupes:,} border duplicates dropped, "
+          f"{int(time.time() - t0)} s ({dst.stat().st_size / 1e9:.1f} GB)")
+    return dst
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         try:
@@ -129,6 +178,13 @@ def main() -> None:
     if not args.keep and not args.no_filter:
         for p in raw:  # free the space before the (disk-hungry) tile build
             p.unlink(missing_ok=True)
+    if len(pbfs) > 1:
+        merged = merge_pbfs(pbfs)
+        if not args.keep:
+            for p in pbfs:
+                if p not in raw or not args.pbf:  # never delete a file the user pointed at directly
+                    p.unlink(missing_ok=True)
+        pbfs = [merged]
 
     shutil.rmtree(work, ignore_errors=True)
     (work / "tiles").mkdir(parents=True)

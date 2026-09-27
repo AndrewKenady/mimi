@@ -93,15 +93,20 @@
 		</div>
 	{/if}
 
+	<div class="stack">
+	<!-- One Well for the whole flow: it shrinks from hero to presence instead of re-mounting
+	     (a new WebGL canvas per step stalled every transition). -->
+	<div class="orb" style="--s:{step === 0 ? 1 : step === TOTAL ? 0.6 : 0.42}" aria-hidden="true">
+		<div class="orb-in"><Well size={260} mood={step === TOTAL ? 'thinking' : 'idle'} /></div>
+	</div>
+	<div class="slot">
 	{#key step}
-		<section class="panel" in:fly={{ y: 18, duration: 420, delay: 120 }} out:fade={{ duration: 120 }}>
+		<section class="panel" in:fly={{ y: 14, duration: 320, delay: 60 }} out:fade={{ duration: 90 }}>
 			{#if step === 0}
-				<Well size={260} mood="idle" />
 				<h1 class="hello">Hi. I'm MIMI.</h1>
 				<p class="sub">Machine Intelligence, Minus the Internet.<br />Everything I know lives right here on this device.</p>
 				<button class="btn btn-primary btn-lg" data-autofocus onclick={() => (step = 1)}>Let's begin <ArrowRight size={18} /></button>
 			{:else if step === 1}
-				<Well size={120} mood="idle" />
 				<h2>What should I call you?</h2>
 				<p class="sub">You'll be the owner of this MIMI. Others can join later as guests or users.</p>
 				<form class="form" onsubmit={(e) => { e.preventDefault(); createOwner(); }}>
@@ -109,7 +114,7 @@
 					<label class="check">
 						<input type="checkbox" bind:checked={usePin} />
 						<span class="box">{#if usePin}<Check size={14} />{/if}</span>
-						<Lock size={15} /> Protect settings and memory with a PIN
+						<Lock size={15} /> <span>Set a PIN <small>Needed to sign in from your phone or laptop, and keeps settings and memory private.</small></span>
 					</label>
 					{#if usePin}
 						<input class="input" type="password" inputmode="numeric" placeholder="4–8 digit PIN" bind:value={pin} maxlength="8" transition:fade />
@@ -159,7 +164,6 @@
 				</div>
 				<button class="btn btn-primary btn-lg" onclick={() => (step = 5)}>Continue <ArrowRight size={18} /></button>
 			{:else}
-				<Well size={150} mood="thinking" />
 				<h2>You're all set, {name.trim()}.</h2>
 				<div class="tips">
 					<div><Sparkles size={18} /><span>Ask anything. I'll look it up in the offline library and show you my sources.</span></div>
@@ -171,6 +175,8 @@
 			{/if}
 		</section>
 	{/key}
+	</div>
+	</div>
 </div>
 
 <style>
@@ -189,6 +195,36 @@
 			radial-gradient(900px 500px at 50% 20%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 70%),
 			radial-gradient(700px 400px at 80% 110%, color-mix(in oklab, var(--accent-2) 6%, transparent), transparent 70%);
 		pointer-events: none;
+	}
+	.stack {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: 56px 0 32px;
+	}
+	.orb {
+		height: calc(260px * var(--s));
+		width: 260px;
+		transition: height 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+		margin-bottom: 8px;
+	}
+	.orb-in {
+		transform: scale(var(--s));
+		transform-origin: top center;
+		transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.orb,
+		.orb-in {
+			transition: none;
+		}
+	}
+	.check small {
+		display: block;
+		font-size: 0.78rem;
+		color: var(--text-3);
+		font-weight: 400;
+		margin-top: 2px;
 	}
 	.dots {
 		position: fixed;
@@ -253,9 +289,20 @@
 		text-align: center;
 		border-radius: 18px;
 	}
+	.slot {
+		display: grid;
+		width: 100%;
+		justify-items: center;
+	}
+	.slot > :global(.panel) {
+		grid-area: 1 / 1;
+	}
 	.check {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
+		text-align: left;
+		max-width: 440px;
+		margin: 0 auto;
 		gap: 10px;
 		justify-content: center;
 		color: var(--text-2);
