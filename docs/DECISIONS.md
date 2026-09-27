@@ -38,3 +38,6 @@ Kiwix only publishes the full Khan Academy edition (about 180 GB), which doesn't
 
 ### D10 · Title boost in library search
 Xapian full-text ranking sometimes buries the article whose title *is* the topic ("Bee sting"). Search now first tries the query's leading words as a title prefix in the largest collections.
+
+### D11 · Launch at startup is a Task Scheduler task, not a Run key entry
+The plan used the per-user `Run` registry key. On the reference device, Explorer ran every other entry in that key at sign-in but silently skipped Mimi's (its Shell-Core log lists each command it starts; Mimi's never appeared, and nothing marked it disabled). The setting now registers a per-user task with a logon trigger (`schtasks`, no admin rights), set to run on battery, with no time limit and normal priority. Core re-syncs it at every start, which also moves an old Run entry over and re-points the task when a portable drive comes back under a new letter.

@@ -82,6 +82,8 @@ class Services:
         self.kiwix_service.watch(self.kiwix)
         self.location.start()
         self.awake.start()
+        self._tasks.append(asyncio.create_task(asyncio.to_thread(
+            system.sync_autostart, self.settings.device("general").launch_at_startup, self.paths)))
         await asyncio.to_thread(tools.load_plugins, self.paths.root / "tools")
         self.docs.start()
         self.scribe.start()
