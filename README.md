@@ -12,7 +12,8 @@ MIMI turns a small PC into an assistant that works with **zero internet**. The r
 - **Takes notes.** Scribe records, transcribes, and writes the summary, key points and action items.
 - **Knows where you are.** Offline maps of the US and Canada, "what's near me" (GeoNames plus 1.2M geotagged Wikipedia articles), and **turn-by-turn driving directions** with time and distance (Valhalla).
 - **Remembers you, transparently.** Suggested memories wait for your OK. Every one can be seen, edited, pinned, paused or erased.
-- **Shares.** Phones join the MIMI Wi-Fi and open `https://mimi.local` as guests or users.
+- **Shares.** Phones join the MIMI Wi-Fi and open `https://mimi.local` as guests or users. Or, with no hotspot hardware, any phone or laptop on the same network opens the address shown in Settings and signs in with full access.
+- **Extensible.** Slash commands in the chat box (`/eli5`, `/translate spanish …`, `/steps`, `/quiz`…). Drop a Python file into `tools/` to give MIMI a new ability, like the included sunrise/sunset and unit-conversion tools. See [tools/README.md](tools/README.md).
 - **Feels like a frontier app.** A native full-screen app with a living "Well" orb, gamepad navigation, a command palette, 12 settings sections and dark, light and OLED themes.
 
 | Chat with citations | Offline directions | Library reader |
@@ -50,7 +51,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), the original [plan](docs/PLAN.
 
 ## Sharing with phones
 
-Settings → Sharing turns on the local HTTPS server and announces `mimi.local`. Allow it through Windows Firewall once (Windows asks for approval). Phones then join the `MIMI` Wi-Fi from a travel router or the Windows hotspot, scan the QR codes, and optionally install `MIMI-Local-CA.crt` so the microphone and camera work.
+Settings → Sharing & access → **Access from other devices** turns on the local HTTPS server and announces `mimi.local`. Allow it through Windows Firewall once (Windows asks for approval). Then either:
+
+- **Same network:** any phone, tablet or laptop on the same Wi-Fi or Ethernet opens the address listed there (for example `https://192.168.1.105/` or `https://mimi.local/`). The owner signs in with their name and PIN and gets everything: chat, library, maps, Scribe, Lens, memory and settings.
+- **MIMI Wi-Fi:** phones join the `MIMI` network from a travel router or the Windows hotspot and scan the QR codes.
+
+Install `MIMI-Local-CA.crt` (linked on the sign-in page) on a phone so the browser trusts the connection and allows the microphone and camera.
 
 ## Licenses
 

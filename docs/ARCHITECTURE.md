@@ -14,7 +14,7 @@ MIMI is three pieces that live in one portable folder:
  │                                                                                                 │
  │ chat.py ── tool loop ──► tools.py: search_library · read_article · show_reference_image         │
  │    │                              search_my_files · remember · where_am_i · nearby_places       │
- │    │                              get_directions · calculate                                    │
+ │    │                              get_directions · calculate · community tools (tools/*.py)     │
  │    ▼                                                                                            │
  │ llm.py  ModelManager ──► llama-server (Vulkan/CUDA/CPU, --fit) :7610   one chat model resident  │
  │                      └─► llama-server --embedding (CPU build)   :7611   bge-m3, idles out        │
@@ -37,7 +37,13 @@ MIMI is three pieces that live in one portable folder:
 3. The prompt is **cache-friendly**. A stable system prompt (persona, rules, mode) is followed by the history, which is replayed exactly as the model saw it. The per-turn facts (time, location, memories) go in a bracketed note on the *latest* message only, so llama.cpp reuses its KV cache for everything before it.
 4. Questions that look factual force a tool call on the first step (`tool_choice: required`), so the answer is grounded in the library rather than the model's memory.
 5. Tools return numbered sources. After generation, `sanitize_citations` removes any `[n]` that doesn't match a real source, and any reference list the model wrote itself.
-6. The assistant message is stored with its sources, tool trail, memories used, model and timings. The UI then refetches the canonical thread, including answer versions.
+6. The assistant message is stored with its sources, tool trail, memories used, model and timings. The UI then refetches the canonical thread, including answer versions. A memory counts as "used" (and gets a chip) only when the answer draws on it, meaning one of its distinctive words appears in the reply.
+
+## Tools and extensions
+
+- Built-in tools live in `core/mimi/tools.py`. Each has a JSON schema, an availability check (for example, `get_directions` only appears once routing tiles exist) and a label for the activity trail. The owner can switch any of them off in Settings → Tools.
+- **Community tools** are Python files in `tools/` (see [tools/README.md](../tools/README.md)). `plugins.py` imports them at startup, or on "Rescan folder". A file that fails to import is reported rather than crashing Core. A plugin reaches the model only after the owner enables it, and it runs in a worker thread with a 45-second limit and a small read-only context (user name, units, location, time, a private data folder, and an offline place lookup).
+- **Slash commands** (`ui/src/lib/commands.ts`) are prompt templates expanded in the browser, so history and the model only ever see plain text.
 
 ## Memory and models
 
