@@ -295,7 +295,10 @@ class ChatService:
         self.db.execute("UPDATE chats SET head_id=?, updated_at=? WHERE id=?", (user_msg["id"], dbm.now(), chat_id))
 
         # --- model selection
-        want_role = role if role in ("main", "quick", "reader") else ("quick" if voice else "main")
+        # Voice uses the resident main model too: short spoken replies are fast on it, and
+        # swapping models on a 16 GB machine costs more time than it saves (battery saver
+        # still maps "main" to the quick model).
+        want_role = role if role in ("main", "quick", "reader") else "main"
         has_images = any((self._load_attachment(ctx, a) or {}).get("kind") == "image" for a in (attachments or []))
         spec = svc.models.model_for(want_role)
         if has_images and spec and not spec.vision:
