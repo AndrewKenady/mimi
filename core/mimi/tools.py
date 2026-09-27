@@ -50,6 +50,7 @@ class TurnState:
     mode: dict
     vision: bool
     temporary: bool = False
+    voice: bool = False
     sources: list[dict] = field(default_factory=list)
     memory_events: list[dict] = field(default_factory=list)
 
@@ -132,12 +133,15 @@ async def search_library(args: dict, st: TurnState, svc) -> ToolResult:
     if coll not in COLLECTION_ENUM:
         coll = "auto"
     ks = svc.settings.device("knowledge")
+    n, chars = ks.articles_per_search, ks.snippet_chars
+    if st.voice:  # a spoken reply is one to three sentences; less to read means a faster first word
+        n, chars = min(n, 2), min(chars, 600)
     collections = (st.mode.get("collections") or None) if coll == "auto" else [coll]
-    hits = await svc.kiwix.search(q, collections=collections, limit=ks.articles_per_search + 2)
+    hits = await svc.kiwix.search(q, collections=collections, limit=n + 2)
     if not hits and coll != "auto":
-        hits = await svc.kiwix.search(q, collections=None, limit=ks.articles_per_search + 2)
-    top = _dedupe_hits(hits)[: ks.articles_per_search]
-    passages = await asyncio.gather(*(svc.kiwix.passage(h, q, ks.snippet_chars) for h in top), return_exceptions=True)
+        hits = await svc.kiwix.search(q, collections=None, limit=n + 2)
+    top = _dedupe_hits(hits)[:n]
+    passages = await asyncio.gather(*(svc.kiwix.passage(h, q, chars) for h in top), return_exceptions=True)
     blocks, sources = [], []
     for p in passages:
         if not p or isinstance(p, Exception):

@@ -82,10 +82,14 @@ class Services:
         self.models.start_janitor()
         self.chats.purge()
         if self.settings.device("models").preload and not os.environ.get("MIMI_NO_PRELOAD"):
-            self._tasks.append(asyncio.create_task(self.models.preload()))
+            self._tasks.append(asyncio.create_task(self._preload()))
         if self.settings.device("sharing").enabled:
             self._tasks.append(asyncio.create_task(self.share.start(app)))
         self._tasks.append(asyncio.create_task(self._housekeeping()))
+
+    async def _preload(self) -> None:
+        await self.models.preload()
+        await self.chats.warm()
 
     async def _refresh_hardware(self) -> None:
         try:

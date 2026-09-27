@@ -54,6 +54,7 @@ def test_grounding_heuristic_and_citations():
     assert not looks_factual("hi")
     assert not looks_factual("write a poem about rain")
     assert not looks_factual("2+2")
+    assert not looks_factual("What's a good name for a golden retriever?")
     assert sanitize_citations("It is tall [1]. Named after X [3].\n\n[1] made-up reference", 1) == "It is tall [1]. Named after X."
     assert sanitize_citations("Boil it [1, 2].\n\nSources:\n[1] a", 2) == "Boil it [1, 2]."
     assert heuristic_title("hey mimi, what's the weather like on Mars in winter and summer?").startswith("What's the weather")

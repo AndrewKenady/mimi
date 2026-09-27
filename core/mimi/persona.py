@@ -26,7 +26,7 @@ RULES = """How to answer:
 - Use Markdown only when it helps (short lists, numbered steps, small tables). No filler, no preamble, no "As an AI"."""
 
 VOICE_RULES = (
-    "You are speaking out loud in a live voice conversation. Reply in one to three short, natural sentences. "
+    "Spoken reply: this turn is a live voice conversation, so answer in one to three short, natural sentences. "
     "No Markdown, lists, emoji or citation markers. If you used the library, you may say where it came from in words."
 )
 
@@ -49,12 +49,11 @@ def build_system_prompt(
     user_name: str | None,
     mode: dict | None,
     units: str,
-    voice: bool,
     has_library: bool,
     has_files: bool,
 ) -> str:
-    """The stable part of the prompt. It must not change between turns, so the
-    model server can reuse its cached computation (a big latency win)."""
+    """The stable part of the prompt. It must not change between turns (or between text
+    and voice turns), so the model server can reuse its cached computation (a big latency win)."""
     parts = [IDENTITY]
     if user_name:
         parts.append(f"You're talking with {user_name}. Preferred units: {units}.")
@@ -73,12 +72,11 @@ def build_system_prompt(
         parts.append(f"Mode — {mode['name']}: {mode['instructions']}")
     if assistant.custom_instructions.strip():
         parts.append(f"User's instructions: {assistant.custom_instructions.strip()}")
-    if voice:
-        parts.append(VOICE_RULES)
     return "\n\n".join(parts)
 
 
-def build_context(*, memories: list[dict], location: str | None, time_format: str, now: datetime | None = None) -> str:
+def build_context(*, memories: list[dict], location: str | None, time_format: str, voice: bool = False,
+                  now: datetime | None = None) -> str:
     """Per-turn facts, prepended to the user's message (outside the cached prefix)."""
     now = now or datetime.now()
     clock = now.strftime("%I:%M %p").lstrip("0") if time_format == "12h" else now.strftime("%H:%M")
@@ -88,8 +86,15 @@ def build_context(*, memories: list[dict], location: str | None, time_format: st
     note = "[Context — " + " · ".join(bits) + "]"
     if memories:
         note += "\n[Remembered about the user — " + "; ".join(m["text"].rstrip(".") for m in memories) + "]"
+    if voice:
+        note += f"\n[{VOICE_RULES}]"
     return note
 
+
+TITLE_FOLLOWUP = (
+    "Now write a short, specific title for this conversation: 3 to 6 words, no quotes, no trailing period. "
+    "Reply with only the title."
+)
 
 TITLE_PROMPT = (
     "Write a short, specific title (3–6 words, no quotes, no trailing period) for a conversation that starts with this message:\n\n{text}"

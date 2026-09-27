@@ -317,9 +317,10 @@ class ModelManager:
         yield {"type": "done", "finish_reason": finish, "timings": timings, "usage": usage, "cancelled": bool(cancel and cancel.is_set())}
 
     async def chat_once(self, spec: ModelSpec, messages: list[dict], *, max_tokens: int = 512, temperature: float | None = None,
-                        json_schema: dict | None = None) -> str:
+                        json_schema: dict | None = None, tools: list[dict] | None = None, tool_choice: str = "none") -> str:
         base = await self.ensure(spec)
-        body = self._body(spec, messages, tools=None, max_tokens=max_tokens, temperature=temperature, think=False, stream=False, json_schema=json_schema)
+        body = self._body(spec, messages, tools=tools, max_tokens=max_tokens, temperature=temperature, think=False, stream=False,
+                          json_schema=json_schema, tool_choice=tool_choice)
         r = await self.client.post(f"{base}/v1/chat/completions", json=body)
         if r.status_code != 200:
             raise ModelError(f"model error {r.status_code}: {r.text[:300]}")

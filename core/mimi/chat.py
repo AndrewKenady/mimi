@@ -49,7 +49,8 @@ def heuristic_title(text: str) -> str:
     return (cut[:1].upper() + cut[1:]).rstrip(",;:") + "…"
 
 
-_CREATIVE = re.compile(r"\b(write|compose|draft|poem|story|haiku|joke|song|lyrics|limerick|rewrite|rephrase|translate|summari[sz]e (this|the following)|brainstorm|role.?play|pretend)\b", re.I)
+_CREATIVE = re.compile(r"\b(write|compose|draft|poem|story|haiku|joke|song|lyrics|limerick|rewrite|rephrase|translate|summari[sz]e (this|the following)|brainstorm|role.?play|pretend"
+                       r"|(good|cute|cool|funny|clever) names?|names? (for|ideas)|what should i (name|call)|gift ideas)\b", re.I)
 _CHITCHAT = re.compile(r"^\s*(hi|hey|hello|yo|thanks|thank you|ok(ay)?|cool|nice|good (morning|night|evening)|how are you|who are you|what can you do)\b[\s!.?]*$", re.I)
 _QUESTION = re.compile(r"(\?\s*$)|^\s*(who|what|when|where|why|which|how|is|are|was|were|can|could|does|do|did|should|tell me|explain|define|describe|list|compare|give me|show me|find)\b", re.I)
 
@@ -337,7 +338,7 @@ class ChatService:
         cancel = asyncio.Event()
         self.active[chat_id] = cancel
         state = tools.TurnState(ctx=ctx, chat_id=chat_id, message_id=asst_id, query=content, mode=mode_cfg,
-                                vision=spec.vision, temporary=bool(chat["temporary"]))
+                                vision=spec.vision, temporary=bool(chat["temporary"]), voice=voice)
         t_start = time.time()
         answer = ""
         reasoning = ""
@@ -345,19 +346,18 @@ class ChatService:
         timings: dict = {}
         error = None
         memories: list[dict] = []
+        base_messages: list[dict] = []  # the prompt as the next turn will replay it (for the title call)
+        first_tools: list[dict] | None = None
         try:
             # --- context: memories, location, system prompt, history
             if not chat["temporary"]:
                 memories = await svc.memory.retrieve(ctx, content)
             general = svc.settings.device("general")
             loc = svc.location.describe()
-            system = persona.build_system_prompt(
-                assistant=svc.settings.user(ctx.id, "assistant", ctx.role), user_name=None if ctx.is_guest else ctx.user["name"],
-                mode=mode_cfg if mode_id != "everyday" else None, units=general.units,
-                voice=voice, has_library=svc.kiwix_service.alive(), has_files=svc.docs.count(ctx.id) > 0,
-            )
+            system = self._system_prompt(ctx, mode_id)
             context_note = user_msg["meta"].get("context") or persona.build_context(
-                memories=memories, location=(loc or {}).get("description") or (loc or {}).get("label"), time_format=general.time_format)
+                memories=memories, location=(loc or {}).get("description") or (loc or {}).get("label"), time_format=general.time_format,
+                voice=voice)
             if not user_msg["meta"].get("context"):
                 user_msg["meta"]["context"] = context_note
                 self.db.execute("UPDATE messages SET meta=? WHERE id=?", (dbm.dumps(user_msg["meta"]), user_msg["id"]))
@@ -402,6 +402,7 @@ class ChatService:
                 history.insert(0, {"role": m["role"], "content": c})
                 used += t
             messages: list[dict] = [{"role": "system", "content": system}] + history + [{"role": "user", "content": user_parts}]
+            base_messages = list(messages)
 
             # --- wait for the model (single generation slot)
             if svc.models.gen_lock.locked():
@@ -424,6 +425,8 @@ class ChatService:
                 for step in range(MAX_STEPS):
                     avail = tools.schemas(state, svc) if step < MAX_STEPS - 1 else None
                     choice = "required" if (step == 0 and must_ground and avail) else "auto"
+                    if step == 0:
+                        first_tools = avail
                     step_text = ""
                     calls = None
                     async for ev in svc.models.chat_stream(spec, messages, tools=avail, max_tokens=max_out, think=bool(want_think),
@@ -499,21 +502,61 @@ class ChatService:
         if not title and content:
             title = heuristic_title(content)
             self.db.execute("UPDATE chats SET title=? WHERE id=?", (title, chat_id))
-            asyncio.create_task(self._smart_title(ctx, chat_id, content))
+            if base_messages and answer:
+                asyncio.create_task(self._smart_title(ctx, chat_id, spec, base_messages + [{"role": "assistant", "content": answer}], first_tools))
         final = self.thread(chat_id, asst_id)[-1]
         if error:
             yield {"event": "error", "data": {"message": error, "message_id": asst_id}}
         yield {"event": "done", "data": {"message": final, "chat": {"id": chat_id, "title": title}}}
 
-    async def _smart_title(self, ctx: Ctx, chat_id: str, text: str) -> None:
-        """Ask the already-loaded model for a better title, only if it's idle."""
+    def _system_prompt(self, ctx: Ctx, mode_id: str) -> str:
+        svc = self.svc
+        return persona.build_system_prompt(
+            assistant=svc.settings.user(ctx.id, "assistant", ctx.role), user_name=None if ctx.is_guest else ctx.user["name"],
+            mode=self.modes[mode_id] if mode_id != "everyday" else None, units=svc.settings.device("general").units,
+            has_library=svc.kiwix_service.alive(), has_files=svc.docs.count(ctx.id) > 0,
+        )
+
+    async def warm(self) -> None:
+        """Pre-fill the model server's prompt cache with the owner's system prompt and tools.
+
+        That prefix is ~1.7k tokens (~13 s on the 780M). Processing it right after the model
+        loads means the first question of the day starts answering in a second or two.
+        """
+        svc = self.svc
+        mm = svc.models
+        owner = self.db.one("SELECT * FROM users WHERE role='owner' ORDER BY created_at LIMIT 1")
+        spec = mm.chat_model
+        if not owner or not spec or mm.gen_lock.locked():
+            return
+        ctx = Ctx(dict(owner), None, True)
+        mode_id = svc.settings.user(ctx.id, "assistant", ctx.role).default_mode
+        mode_id = mode_id if mode_id in self.modes else "everyday"
+        st = tools.TurnState(ctx=ctx, chat_id="", message_id="", query="", mode=self.modes[mode_id], vision=spec.vision)
+        messages = [{"role": "system", "content": self._system_prompt(ctx, mode_id)}, {"role": "user", "content": "Hello"}]
+        t0 = time.time()
+        try:
+            async with mm.gen_lock:
+                await mm.chat_once(spec, messages, max_tokens=1, tools=tools.schemas(st, svc) or None, tool_choice="auto")
+            L.info("prompt cache warmed in %.1f s", time.time() - t0)
+        except Exception as e:
+            L.debug("prompt cache warm-up skipped: %s", e)
+
+    async def _smart_title(self, ctx: Ctx, chat_id: str, spec, convo: list[dict], tools_: list[dict] | None) -> None:
+        """Ask the already-loaded model for a better title, only if it's idle.
+
+        The request continues the conversation with the same system prompt and tools, so the
+        model server's prompt cache still holds that shared prefix afterwards. A standalone
+        title prompt would evict it and make the next chat reprocess ~1.7k tokens (~13 s).
+        """
         await asyncio.sleep(0.5)
         mm = self.svc.models
-        if mm.gen_lock.locked() or not mm.chat_model:
+        if mm.gen_lock.locked() or not mm.chat_model or mm.chat_model.id != spec.id:
             return
         try:
             async with mm.gen_lock:
-                raw = await mm.chat_once(mm.chat_model, [{"role": "user", "content": persona.TITLE_PROMPT.format(text=text[:600])}], max_tokens=24, temperature=0.3)
+                raw = await mm.chat_once(spec, convo + [{"role": "user", "content": persona.TITLE_FOLLOWUP}], max_tokens=24,
+                                         temperature=0.3, tools=tools_, tool_choice="none")
             title = re.sub(r'["“”*#]', "", raw).strip().split("\n")[0][:60].rstrip(".")
             if 2 <= len(title) <= 60:
                 self.db.execute("UPDATE chats SET title=? WHERE id=? AND user_id=?", (title, chat_id, ctx.id))
