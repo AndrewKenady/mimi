@@ -6,9 +6,9 @@
     powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -NoContent # code + runtimes only
 
   Steps: portable Python (uv) -> Python packages -> runtimes -> models ->
-         offline library -> maps (+ geodata, routing) -> app UI -> MIMI.exe
+         offline library -> maps (+ geodata, routing, addresses) -> app UI -> MIMI.exe
 #>
-param([switch]$NoContent, [switch]$NoRouting)
+param([switch]$NoContent, [switch]$NoRouting, [switch]$NoAddresses)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $Tools = Join-Path $Root '.tools'
@@ -47,6 +47,11 @@ if (-not $NoContent) {
   if (-not $NoRouting) {
     Step 'Offline routing graph (a few hours for US + Canada)'
     & $py "$Root\scripts\build_routing.py"
+  }
+  if (-not $NoAddresses) {
+    Step 'Street-address search (US + Canada: ~3.3 GB download, ~45 min build)'
+    & $py "$Root\scripts\fetch.py" --only addresses
+    & $py "$Root\scripts\build_addresses.py"
   }
 }
 

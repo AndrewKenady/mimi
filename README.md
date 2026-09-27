@@ -29,7 +29,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 .\MIMI.exe
 ```
 
-`setup.ps1` installs a portable Python and Node inside the folder, downloads the engines, models, library and maps (about 190 GB, resumable, from their original publishers), builds the geodata and routing graph, the UI, and `MIMI.exe`. It needs no administrator rights. Use `-NoContent` for code and runtimes only.
+`setup.ps1` installs a portable Python and Node inside the folder, downloads the engines, models, library and maps (about 200 GB, resumable, from their original publishers), builds the geodata, routing graph and street-address index, the UI, and `MIMI.exe`. It needs no administrator rights. Use `-NoContent` for code and runtimes only, `-NoRouting` or `-NoAddresses` to skip those builds.
 
 Development:
 
@@ -70,4 +70,4 @@ Install `Mimi-Local-CA.crt` (linked on the sign-in page) on a phone so the brows
 
 ## Licenses
 
-Mimi's own code is MIT. Models, engines and content keep their own licenses: Gemma 4 and Qwen3.5 (Apache-2.0), Wikipedia and Stack Exchange (CC BY-SA), OpenStreetMap (ODbL), GeoNames (CC BY), TED (CC BY-NC-ND) and others. Mimi is **non-commercial**, so Mimi drives and images may not be sold.
+Mimi's own code is MIT. Models, engines and content keep their own licenses: Gemma 4 and Qwen3.5 (Apache-2.0), Wikipedia and Stack Exchange (CC BY-SA), OpenStreetMap (ODbL), GeoNames (CC BY), iFixit (CC BY-NC-SA), TED (CC BY-NC-ND) and others; see [docs/LICENSING.md](docs/LICENSING.md). Mimi is **non-commercial**, so Mimi drives and images that include the non-commercial content may not be sold.

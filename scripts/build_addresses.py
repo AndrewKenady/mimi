@@ -902,7 +902,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     args = ap.parse_args(argv)
     if not (args.tiger or args.zips or args.nar or args.osm_roads or args.osm_points):
         args.tiger, args.zips, args.nar = (p if p.is_file() else None for p in (DEFAULTS["tiger"], DEFAULTS["zips"], DEFAULTS["nar"]))
-        args.osm_roads = [p for p in DEFAULTS["osm_roads"] if p.is_file()]
+        if args.nar is None:  # whichever register release scripts/fetch.py downloaded
+            args.nar = max((DL / "nar").glob("*.zip"), default=None)
+        # the routing build's roads-only extracts, if it kept them: they add named streets without numbers
+        args.osm_roads = [p for p in DEFAULTS["osm_roads"] if p.is_file()] or sorted((DL / "osm").glob("*.roads.osm.pbf"))
         if not (args.tiger or args.zips or args.nar or args.osm_roads):
             ap.error("no inputs given and none of the default inputs exist under .tools/dl")
     return args

@@ -22,6 +22,7 @@ SOFTWARE.
 
 ---------------------------------------------------------------------------
 Mimi bundles or downloads third-party software, models and content that are
-licensed separately (see LICENSES/ and docs/LICENSING.md). Mimi is a
-non-commercial project: some bundled content (e.g. TED talks) is licensed for
-non-commercial use only, so Mimi drives and images may not be sold.
+licensed separately (see docs/LICENSING.md). Mimi is a non-commercial
+project: some downloaded content (TED talks, iFixit) is licensed for
+non-commercial use only, so Mimi drives and images that include it may not be
+sold.

@@ -118,6 +118,20 @@ def maps(m: dict, dry: bool) -> None:
                             f"--bbox={bbox}", f"--maxzoom={t['maxzoom']}", "--download-threads=8"], check=True)
             part.replace(dest)
             (dest.parent / "tiles.json").write_text(json.dumps({"source": f"Protomaps {key}", "bounds": t["bbox"], "maxzoom": t["maxzoom"]}), "utf-8")
+    w = m["maps"].get("world")
+    if w:
+        wdest = ROOT / w["path"]
+        if wdest.exists():
+            print(f"  ✓ {w['path']}")
+        else:
+            builds = json.loads(urllib.request.urlopen("https://build-metadata.protomaps.dev/builds.json").read())
+            key = builds[-1]["key"]
+            print(f"  ↓ Protomaps {key} → {w['path']} (whole planet, z0-{w['maxzoom']})")
+            if not dry:
+                part = wdest.with_suffix(".pmtiles.part")
+                subprocess.run([str(ROOT / "bin" / "win-x64" / "pmtiles.exe"), "extract", f"https://build.protomaps.com/{key}", str(part),
+                                f"--maxzoom={w['maxzoom']}", "--download-threads=8"], check=True)
+                part.replace(wdest)
     a = m["maps"]["assets"]
     if not (ROOT / a["path"] / "fonts").exists():
         z = DL / "basemaps-assets.zip"
@@ -133,6 +147,12 @@ def maps(m: dict, dry: bool) -> None:
     print("  → then run scripts/build_geodata.py and scripts/build_routing.py")
 
 
+def addresses(m: dict, dry: bool) -> None:
+    for f in m["maps"]["addresses"]["files"]:
+        get(f["url"], ROOT / f["path"], dry)
+    print("  → then run scripts/build_addresses.py")
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):
         try:
@@ -141,12 +161,12 @@ def main() -> None:
             pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--manifest", default=str(ROOT / "manifests" / "standard.json"))
-    ap.add_argument("--only", nargs="*", choices=["runtimes", "models", "zim", "maps"])
+    ap.add_argument("--only", nargs="*", choices=["runtimes", "models", "zim", "maps", "addresses"])
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     m = json.loads(Path(args.manifest).read_text("utf-8"))
     DL.mkdir(parents=True, exist_ok=True)
-    for group, fn in (("runtimes", runtimes), ("models", models), ("zim", zims), ("maps", maps)):
+    for group, fn in (("runtimes", runtimes), ("models", models), ("zim", zims), ("maps", maps), ("addresses", addresses)):
         if args.only and group not in args.only:
             continue
         print(f"[{group}]")

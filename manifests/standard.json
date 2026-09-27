@@ -36,8 +36,17 @@
   },
   "maps": {
     "tiles": { "source": "https://build.protomaps.com/{latest}.pmtiles", "bbox": [-141.1, 24.3, -52.5, 72.0], "maxzoom": 14, "path": "maps/tiles.pmtiles", "size_mb": 15600 },
+    "world": { "source": "https://build.protomaps.com/{latest}.pmtiles", "maxzoom": 11, "path": "maps/world.pmtiles", "size_mb": 8000, "$comment": "the whole planet, drawn under the detailed region and on the globe" },
     "assets": { "url": "https://github.com/protomaps/basemaps-assets/archive/refs/heads/main.zip", "path": "maps/assets", "size_mb": 19 },
     "geodata": { "script": "scripts/build_geodata.py", "size_mb": 750 },
-    "routing": { "script": "scripts/build_routing.py", "regions": ["us", "canada"], "size_mb": 18000 }
+    "routing": { "script": "scripts/build_routing.py", "regions": ["us", "canada"], "size_mb": 18000 },
+    "addresses": {
+      "script": "scripts/build_addresses.py", "size_mb": 5500,
+      "files": [
+        { "url": "https://nominatim.org/data/tiger2025-nominatim-preprocessed.csv.tar.gz", "path": ".tools/dl/tiger/tiger2025-nominatim-preprocessed.csv.tar.gz", "size_mb": 1740, "license": "US Census TIGER/Line, public domain" },
+        { "url": "https://nominatim.org/data/us_postcodes.csv.gz", "path": ".tools/dl/tiger/us_postcodes.csv.gz", "size_mb": 1, "license": "derived from public-domain Census data" },
+        { "url": "https://www150.statcan.gc.ca/n1/pub/46-26-0002/2022001/202606.zip", "path": ".tools/dl/nar/202606.zip", "size_mb": 1590, "license": "Statistics Canada Open Licence" }
+      ]
+    }
   }
 }

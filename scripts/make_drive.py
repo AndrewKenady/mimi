@@ -142,6 +142,10 @@ def plan(args) -> tuple[list[tuple[Path, Path, list[str] | None]], int, list[str
             notes.append(f"Map tiles: extracting region {args.map_bbox} (size known after extraction; usually 0.3-3 GB per state).")
         elif (maps / "tiles.pmtiles").exists():
             total += add("maps/tiles.pmtiles")
+        if not args.no_world:
+            total += add("maps/world.pmtiles")  # the rest of the planet, at overview detail
+        if not args.no_addresses:
+            total += add("maps/addresses.sqlite")  # street-address search
         if not args.no_routing and args.edition != "lite":
             if (maps / "routing" / "config.json").exists():
                 total += add("maps/routing")
@@ -202,6 +206,8 @@ def main() -> None:
     ap.add_argument("--edition", choices=["lite", "standard", "full"], default="standard")
     ap.add_argument("--map-bbox", help="copy only this map region: west,south,east,north (degrees)")
     ap.add_argument("--no-routing", action="store_true", help="leave out the driving-directions graph")
+    ap.add_argument("--no-world", action="store_true", help="leave out the world overview map (~8 GB)")
+    ap.add_argument("--no-addresses", action="store_true", help="leave out street-address search (~5 GB)")
     ap.add_argument("--include-my-data", action="store_true", help="also copy data/ (accounts, chats, memories)")
     ap.add_argument("--max-gb", type=float, help="size budget instead of the drive's free space")
     ap.add_argument("--dry-run", action="store_true", help="show the plan without copying")
