@@ -157,6 +157,19 @@ class VoiceService:
             self._last_tts = time.time()
         return _wav(samples, sr)
 
+    def warm(self) -> None:
+        """Load speech-in and speech-out ahead of time (voice mode just opened), so the
+        first question isn't slowed by model loading (Whisper ~4 s, Kokoro ~1-3 s)."""
+        try:
+            if self.stt_available("small"):
+                with self._stt_lock:
+                    self._whisper("small")
+                    self._last_stt = time.time()
+            if self.tts_available():
+                self.synthesize("Ready.")
+        except Exception as e:
+            L.warning("voice warm-up failed: %s", e)
+
     # --- housekeeping ----------------------------------------------------------------
     def _idle_loop(self) -> None:
         while True:

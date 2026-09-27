@@ -81,18 +81,75 @@ export async function transcribe(blob: Blob): Promise<string> {
 	return (r.text || '').trim();
 }
 
-/** Speaks text sentence-by-sentence as it streams in; exposes output level for the Well. */
+
+// --------------------------------------------------------------------------- speech out
+const words = (s: string) => (s.match(/\S+/g) || []).length;
+
+/**
+ * Cut the next speakable chunk off streaming text, or return null to wait for more.
+ * The first chunk of an answer is short (first clause, or ~10 words) so speech starts
+ * about a second after the text does; later chunks follow sentences, merging very
+ * short ones ("Yes.") and splitting run-ons at a clause so no single request is slow.
+ */
+export function takeChunk(text: string, first: boolean): [string, string] | null {
+	const cut = (end: number): [string, string] => [text.slice(0, end).trim(), text.slice(end).replace(/^\s+/, '')];
+	const bounds = (re: RegExp) => [...text.matchAll(re)].map((m) => (m.index ?? 0) + m[0].length);
+	const sentences = bounds(/[.!?…]+["'”’)\]]*(?=\s)|\n+/g);
+	if (first) {
+		const clauses = bounds(/[,;:—–](?=\s)|\s[-–—](?=\s)/g);
+		// The opening phrase is kept short (3-8 words): it synthesizes ~3x faster than a full
+		// sentence, and the rest of the sentence is synthesized while it plays.
+		const end = [...sentences, ...clauses].sort((a, b) => a - b).find((e) => words(text.slice(0, e)) >= 3);
+		if (end && words(text.slice(0, end)) <= 12) return cut(end);
+		if (words(text) > 6) {
+			// no early punctuation: break before a joining word ("A clever fox noticed | that the...") so it sounds natural
+			const joins = [...text.matchAll(/\s(?=(?:and|but|or|so|because|which|who|that|when|while|where|with|until|after|before|had|has|was|is)\s)/gi)]
+				.map((m) => m.index ?? 0)
+				.filter((i) => words(text.slice(0, i)) >= 3 && words(text.slice(0, i)) <= 8);
+			if (joins.length) return cut(joins[joins.length - 1]);
+			if (words(text) > 10) return cut(text.trimEnd().lastIndexOf(" "));
+		}
+		return null;
+	}
+	const end = sentences.find((e) => words(text.slice(0, e)) >= 3);
+	if (end) return cut(end);
+	if (text.length > 100) {
+		// a long run-on: break at a clause or before a joining word rather than go quiet until it ends
+		const clauses = bounds(/[,;:—–](?=\s)/g).filter((e) => e <= 200 && words(text.slice(0, e)) >= 6);
+		if (clauses.length) return cut(clauses[clauses.length - 1]);
+		const joins = [...text.matchAll(/\s(?=(?:and|but|or|so|because|which|who|that|when|while|where|with|until)\s)/gi)]
+			.map((m) => m.index ?? 0)
+			.filter((i) => i <= 200 && words(text.slice(0, i)) >= 6);
+		if (joins.length) return cut(joins[joins.length - 1]);
+		if (text.length > 200) return cut(text.trimEnd().lastIndexOf(' '));
+	}
+	return null;
+}
+
+export type SpeechTimeline = { fed?: number; firstChunk?: number; firstAudio?: number };
+
+/**
+ * Speaks streaming text as it arrives and exposes the output level for the Well.
+ * Chunks are synthesized strictly one at a time and in order (synthesis runs ~3x faster
+ * than playback, so it stays ahead after the first chunk); firing them all at once made
+ * them contend for the CPU and the server's lock and could start speech late.
+ */
 export class Speaker {
 	private ctx: AudioContext | null = null;
 	private analyser: AnalyserNode | null = null;
-	private queue: Promise<void> = Promise.resolve();
-	private pending = '';
-	private sources: AudioBufferSourceNode[] = [];
 	private buf: Uint8Array<ArrayBuffer> | null = null;
+	private pending = '';
+	private toSynth: string[] = [];
+	private ready: AudioBuffer[] = [];
+	private synthesizing = false;
+	private source: AudioBufferSourceNode | null = null;
+	private started = false; // has the current answer produced its first chunk yet?
 	private gen = 0;
+	private inflight: AbortController | null = null;
 	speaking = false;
 	onIdle: (() => void) | null = null;
-	private inflight = 0;
+	/** performance.now() marks for the current answer (for latency checks). */
+	timeline: SpeechTimeline = {};
 
 	constructor(private voice?: string, private speed?: number) {}
 
@@ -104,7 +161,13 @@ export class Speaker {
 			this.buf = new Uint8Array(this.analyser.fftSize);
 			this.analyser.connect(this.ctx.destination);
 		}
+		if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
 		return this.ctx;
+	}
+
+	/** Audio is queued, being synthesized, or playing. */
+	get busy() {
+		return this.toSynth.length > 0 || this.synthesizing || this.ready.length > 0 || this.source !== null;
 	}
 
 	level(): number {
@@ -118,85 +181,116 @@ export class Speaker {
 		return Math.min(1, Math.sqrt(sum / this.buf.length) * 5);
 	}
 
-	/** Feed streaming text; complete sentences are spoken immediately. */
+	/** Feed streaming text; speakable chunks are queued as soon as they're complete. */
 	feed(delta: string) {
+		if (!this.timeline.fed) this.timeline = { fed: performance.now() };
 		this.pending += delta;
-		const re = /([^.!?\n]+[.!?]+["')\]]*\s+|[^\n]+\n)/g;
-		let m: RegExpExecArray | null;
-		let last = 0;
-		while ((m = re.exec(this.pending))) {
-			const s = m[0].trim();
-			if (s.length > 1) this.say(s);
-			last = re.lastIndex;
-		}
-		this.pending = this.pending.slice(last);
-	}
-
-	flush() {
-		const s = this.pending.trim();
-		this.pending = '';
-		if (s) this.say(s);
-	}
-
-	/** Audio is still being synthesized or played. */
-	get busy() {
-		return this.inflight > 0;
-	}
-
-	say(text: string) {
-		const gen = this.gen;
-		const ctx = this.ensure();
-		this.inflight++;
-		// Fetch synthesis immediately (in parallel), but play in order.
-		const audio = fetch('/api/voice/tts', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			credentials: 'same-origin',
-			body: JSON.stringify({ text, voice: this.voice, speed: this.speed })
-		})
-			.then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
-			.then((b) => ctx.decodeAudioData(b));
-		this.queue = this.queue.then(async () => {
-			try {
-				const buffer = await audio;
-				if (gen !== this.gen) return;
-				await new Promise<void>((resolve) => {
-					const src = ctx.createBufferSource();
-					src.buffer = buffer;
-					src.connect(this.analyser!);
-					src.onended = () => {
-						this.sources = this.sources.filter((s) => s !== src);
-						resolve();
-					};
-					this.sources.push(src);
-					this.speaking = true;
-					src.start();
-				});
-			} catch {
-				/* skip failed sentence */
-			} finally {
-				this.inflight--;
-				if (this.inflight <= 0 && gen === this.gen) {
-					this.speaking = false;
-					this.onIdle?.();
-				}
+		let c: [string, string] | null;
+		while ((c = takeChunk(this.pending, !this.started))) {
+			this.pending = c[1];
+			if (c[0]) {
+				this.started = true;
+				this.timeline.firstChunk ??= performance.now();
+				this.enqueue(c[0]);
 			}
-		});
+		}
 	}
 
+	/** The answer is complete: speak whatever is left, and reset for the next one. */
+	flush() {
+		const rest = this.pending.trim();
+		this.pending = '';
+		this.started = false;
+		if (rest) {
+			this.timeline.firstChunk ??= performance.now();
+			this.enqueue(rest);
+		}
+	}
+
+	/** Speak a standalone phrase now (e.g. "Let me look that up."). */
+	say(text: string) {
+		if (text.trim()) this.enqueue(text.trim());
+	}
+
+	private enqueue(text: string) {
+		this.ensure();
+		this.toSynth.push(text);
+		this.pump();
+	}
+
+	private async pump() {
+		if (this.synthesizing || !this.toSynth.length) return;
+		const gen = this.gen;
+		const text = this.toSynth.shift()!;
+		this.synthesizing = true;
+		const ctrl = (this.inflight = new AbortController());
+		try {
+			const r = await fetch('/api/voice/tts', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				credentials: 'same-origin',
+				body: JSON.stringify({ text, voice: this.voice, speed: this.speed }),
+				signal: ctrl.signal
+			});
+			if (!r.ok) throw new Error(String(r.status));
+			const audio = await this.ensure().decodeAudioData(await r.arrayBuffer());
+			if (gen !== this.gen) return;
+			this.ready.push(audio);
+			this.play();
+		} catch {
+			/* skip a sentence that failed to synthesize */
+		} finally {
+			if (gen === this.gen) {
+				this.synthesizing = false;
+				this.inflight = null;
+				this.pump();
+				this.checkIdle();
+			}
+		}
+	}
+
+	private play() {
+		if (this.source || !this.ready.length || !this.ctx) return;
+		const gen = this.gen;
+		const src = this.ctx.createBufferSource();
+		src.buffer = this.ready.shift()!;
+		src.connect(this.analyser!);
+		src.onended = () => {
+			if (gen !== this.gen) return;
+			this.source = null;
+			this.play();
+			this.checkIdle();
+		};
+		this.source = src;
+		this.speaking = true;
+		this.timeline.firstAudio ??= performance.now();
+		src.start();
+	}
+
+	private checkIdle() {
+		if (!this.busy && this.speaking) {
+			this.speaking = false;
+			this.onIdle?.();
+		}
+	}
+
+	/** Stop talking immediately (barge-in) and forget everything queued. */
 	stop() {
 		this.gen++;
 		this.pending = '';
-		this.sources.forEach((s) => {
-			try {
-				s.stop();
-			} catch {
-				/* ignore */
-			}
-		});
-		this.sources = [];
+		this.toSynth = [];
+		this.ready = [];
+		this.started = false;
+		this.inflight?.abort();
+		this.inflight = null;
+		this.synthesizing = false;
+		try {
+			this.source?.stop();
+		} catch {
+			/* already stopped */
+		}
+		this.source = null;
 		this.speaking = false;
-		this.inflight = 0;
-		this.queue = Promise.resolve();
+		this.timeline = {};
 	}
 }

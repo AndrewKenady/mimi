@@ -8,11 +8,11 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { app } from '$lib/app.svelte';
-	import { stream } from '$lib/api';
+	import { post, stream } from '$lib/api';
 	import { Recorder, Speaker, transcribe } from '$lib/audio';
 	import { plain } from '$lib/markdown';
 	import Well from './Well.svelte';
-	import { X, Mic, Square, MessagesSquare } from '@lucide/svelte';
+	import { X, Mic, Square, MessagesSquare, Keyboard, ArrowUp } from '@lucide/svelte';
 
 	type Phase = 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking' | 'error';
 	let phase = $state<Phase>('idle');
@@ -25,6 +25,15 @@
 	const v = app.settings.user?.voice || {};
 	const speaker = new Speaker(v.voice, v.speed);
 	let abort: AbortController | null = null;
+	let typing = $state(false);
+	let typed = $state('');
+	let typeBox: HTMLInputElement | undefined = $state();
+	// A little personality while MIMI works; a new line is picked for each turn.
+	const HEARING = ['Processing…', 'Decombobulating…', 'Untangling your words…', 'Deciphering…', 'Parsing syllables…', 'Making sense of that…', 'Unscrambling…'];
+	const THINKING = ['Thinking…', 'Mulling it over…', 'Pondering…', 'Connecting the dots…', 'Noodling on that…', 'Working it out…'];
+	const pick = (xs: string[]) => xs[Math.floor(Math.random() * xs.length)];
+	let hearingLine = $state(HEARING[0]);
+	let thinkingLine = $state(THINKING[0]);
 	let startedAt = 0;
 	let vadTimer: ReturnType<typeof setInterval> | undefined;
 	// Hands-free: after MIMI finishes speaking, listen again for a follow-up.
@@ -69,8 +78,27 @@
 			watchForEndOfTurn(auto);
 		} catch (e) {
 			phase = 'error';
-			hint = 'Microphone unavailable. Check that MIMI is allowed to use it.';
+			hint = 'The microphone isn’t available here. You can type instead.';
+			openTyping();
 		}
+	}
+
+	function openTyping() {
+		typing = true;
+		setTimeout(() => typeBox?.focus({ preventScroll: true }), 50);
+	}
+	function sendTyped(e: Event) {
+		e.preventDefault();
+		const text = typed.trim();
+		if (!text) return;
+		typed = '';
+		speaker.stop();
+		abort?.abort();
+		if (phase === 'listening') rec.cancel();
+		clearInterval(vadTimer);
+		heard = text;
+		reply = '';
+		ask(text);
 	}
 
 	function watchForEndOfTurn(auto: boolean) {
@@ -109,6 +137,7 @@
 			return;
 		}
 		phase = 'transcribing';
+		hearingLine = pick(HEARING);
 		try {
 			heard = await transcribe(blob);
 		} catch {
@@ -135,6 +164,10 @@
 	async function ask(text: string) {
 		let filled = false;
 		phase = 'thinking';
+		thinkingLine = pick(THINKING);
+		// latency marks (performance.now) for diagnostics: window.__mimiVoice
+		const marks: Record<string, any> = { ask: performance.now() };
+		(window as any).__mimiVoice = marks;
 		hint = '';
 		abort = new AbortController();
 		streaming = true;
@@ -151,6 +184,10 @@
 						speaker.say(FILLERS[ev.data.name] || 'One moment.');
 					}
 				} else if (ev.event === 'delta') {
+					if (!marks.firstText) {
+						marks.firstText = performance.now();
+						queueMicrotask(() => (marks.speech = speaker.timeline));
+					}
 					tool = '';
 					reply += ev.data.text;
 					speaker.feed(ev.data.text);
@@ -195,11 +232,12 @@
 	}
 
 	onMount(() => {
+		post('/api/voice/warm').catch(() => {}); // load Whisper + Kokoro while the user starts talking
 		followUp = true;
 		startListening(); // opening voice mode means "I want to talk"
 		const down = () => toggle();
 		const key = (e: KeyboardEvent) => {
-			if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement)) {
+			if (e.code === 'Space' && !e.repeat && !typing && !(e.target instanceof HTMLInputElement)) {
 				e.preventDefault();
 				toggle();
 			}
@@ -224,7 +262,7 @@
 	});
 
 	const status = $derived(
-		phase === 'listening' ? 'Listening…' : phase === 'transcribing' ? 'Got it…' : phase === 'thinking' ? tool || 'Thinking…' : phase === 'speaking' ? '' : phase === 'error' ? '' : 'Tap the mic to talk'
+		phase === 'listening' ? 'Listening…' : phase === 'transcribing' ? hearingLine : phase === 'thinking' ? tool || thinkingLine : phase === 'speaking' ? '' : phase === 'error' ? '' : 'Tap the mic to talk'
 	);
 </script>
 
@@ -254,11 +292,67 @@
 		>
 			{#if phase === 'listening'}<Square size={26} />{:else}<Mic size={28} />{/if}
 		</button>
+		{#if typing}
+			<form class="typebox" onsubmit={sendTyped}>
+				<input bind:this={typeBox} bind:value={typed} placeholder="Type your question" aria-label="Type your question" enterkeyhint="send" />
+				<button class="send" disabled={!typed.trim()} aria-label="Send"><ArrowUp size={18} /></button>
+			</form>
+		{:else}
+			<button class="typeit" onclick={openTyping}><Keyboard size={14} /> Type instead</button>
+		{/if}
 		<p class="fine">{phase === 'listening' ? 'Pause when you’re done, or tap to send' : phase === 'speaking' ? 'Tap to interrupt' : 'Tap the mic or press Space'} · B to close</p>
 	</div>
 </div>
 
 <style>
+	.typebox {
+		display: flex;
+		gap: 8px;
+		width: min(480px, calc(100vw - 32px));
+		margin-top: 14px;
+		padding: 6px 6px 6px 16px;
+		border-radius: 999px;
+		background: var(--surface);
+		border: 1px solid var(--line-2);
+	}
+	.typebox input {
+		flex: 1;
+		min-width: 0;
+		border: 0;
+		background: none;
+		color: var(--text);
+		font-size: 1rem;
+	}
+	.typebox input:focus-visible {
+		outline: none;
+	}
+	.typebox .send {
+		width: 38px;
+		height: 38px;
+		border-radius: 50%;
+		display: grid;
+		place-items: center;
+		background: var(--accent);
+		color: var(--accent-ink);
+	}
+	.typebox .send:disabled {
+		background: var(--surface-3);
+		color: var(--text-3);
+	}
+	.typeit {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 12px;
+		font-size: 0.82rem;
+		color: var(--text-3);
+		padding: 6px 12px;
+		border-radius: 999px;
+	}
+	.typeit:hover {
+		color: var(--text);
+		background: var(--surface);
+	}
 	.voice {
 		position: fixed;
 		inset: 0;

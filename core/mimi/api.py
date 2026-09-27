@@ -1029,6 +1029,14 @@ async def tts(body: TTSIn, request: Request, ctx: Ctx = Depends(get_ctx)):
     return Response(wav, media_type="audio/wav", headers={"Cache-Control": "no-store"})
 
 
+@router.post("/voice/warm")
+async def voice_warm(request: Request, ctx: Ctx = Depends(get_ctx)):
+    """Voice mode opened: load Whisper and Kokoro in the background."""
+    svc = S(request)
+    asyncio.get_running_loop().run_in_executor(None, svc.voice.warm)
+    return {"ok": True}
+
+
 @router.get("/voice/voices")
 async def voices(request: Request, ctx: Ctx = Depends(get_ctx)):
     svc = S(request)
