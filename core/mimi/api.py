@@ -987,7 +987,8 @@ async def nearby(request: Request, lat: float | None = None, lon: float | None =
 
 @router.get("/location/search")
 async def search_places(request: Request, q: str, ctx: Ctx = Depends(get_ctx)):
-    return {"results": await asyncio.to_thread(S(request).location.search, q, 10)}
+    results, note = await asyncio.to_thread(S(request).location.search_detailed, q, 10)
+    return {"results": results, **({"error": note} if note else {})}
 
 
 @router.get("/maps/info")
@@ -996,6 +997,8 @@ async def maps_info(request: Request, ctx: Ctx = Depends(get_ctx)):
     tiles = svc.paths.maps / "tiles.pmtiles"
     meta_file = svc.paths.maps / "tiles.json"
     meta = json.loads(meta_file.read_text("utf-8")) if meta_file.exists() else {}
+    addr = svc.location.addr
+    addresses = addr.info() if addr else {"available": False}
     return {
         "tiles": tiles.exists(),
         "tiles_url": "/maps/tiles.pmtiles" if tiles.exists() else None,
@@ -1003,7 +1006,11 @@ async def maps_info(request: Request, ctx: Ctx = Depends(get_ctx)):
         "assets": (svc.paths.maps / "assets").exists(),
         "bounds": meta.get("bounds"),
         "maxzoom": meta.get("maxzoom"),
-        "attribution": "© OpenStreetMap contributors · Protomaps · GeoNames",
+        "addresses": addresses["available"],
+        "address_counts": addresses.get("counts", {}),
+        "address_built": addresses.get("built_at"),
+        "attribution": "© OpenStreetMap contributors · Protomaps · GeoNames"
+                       + (" · US Census TIGER · Statistics Canada" if addresses["available"] else ""),
     }
 
 

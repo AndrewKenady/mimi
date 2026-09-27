@@ -23,6 +23,9 @@ if str(CORE) not in sys.path:  # allow running from any directory
 from mimi.geodata import (  # noqa: E402
     KM_PER_MILE,
     GeoData,
+    _fts_term,
+    _fts_tokens,
+    _near_bonus,
     bounding_boxes,
     compass_point,
     haversine_km,
@@ -43,6 +46,12 @@ WASHINGTON_MONUMENT = (38.8895, -77.0353)
 CN_TOWER = (43.6426, -79.3871)
 MAMMOTH_CAVE = (37.187, -86.100)
 SPRINGFIELD_MO = (37.2090, -93.2923)
+OLD_FAITHFUL = (44.4605, -110.8281)
+AUSTIN = (30.30, -97.70)
+MEMPHIS = (35.1495, -90.0490)
+DENVER = (39.7392, -104.9903)
+HALIFAX = (44.6488, -63.5752)
+PORTLAND_OR = (45.5152, -122.6784)
 
 NEARBY_KEYS = {
     "name", "kind", "categories", "lat", "lon", "distance_km", "distance_mi", "bearing_deg",
@@ -94,6 +103,36 @@ def test_name_key():
     assert name_key("Mt. St. Helens") == name_key("Mount Saint Helens")
     assert name_key("Montréal") == "montreal"
     assert name_key("The Dalles") == "dalles"
+    assert name_key("St. John's") == name_key("St Johns") == name_key("Saint John’s") == "saint johns"
+
+
+def test_fts_terms_match_saint_and_possessives():
+    assert _fts_term("denver") == '"denver"*' and _fts_term("a") == '"a"'
+    assert _fts_term("st") == '("st"* OR "saint")' and _fts_term("saint") == '("saint"* OR "st")'
+    assert _fts_term("johns") == '("johns"* OR "john s")'
+    assert _fts_term("cross") == '"cross"*'  # not "cros s"
+    # a typed possessive stays one word, so it also finds the spelling without the apostrophe
+    assert _fts_tokens("St. John's, MI") == ["st", "johns", "mi"] and _fts_tokens("Jo's") == ["jo", "s"]
+
+
+def test_near_bonus_decays_smoothly_on_a_log_scale():
+    distances = [0, 5, 25, 100, 500, 2000, 8000, 20_000]
+    bonus = [_near_bonus(d, True, 50) for d in distances]
+    assert bonus[0] == pytest.approx(60)
+    assert all(a > b for a, b in zip(bonus, bonus[1:]))  # strictly decreasing, never flat
+    assert bonus[-1] > 0  # no cutoff: the far side of the planet still ranks below the next state
+    # far away, every doubling of the distance costs the same
+    assert _near_bonus(4000, True, 50) - _near_bonus(8000, True, 50) == pytest.approx(6, abs=0.1)
+    assert _near_bonus(2000, True, 50) - _near_bonus(4000, True, 50) == pytest.approx(6, abs=0.1)
+
+
+def test_near_bonus_partial_names_share_it_by_importance():
+    full = _near_bonus(10, True, 0)
+    assert _near_bonus(10, True, 20) == full  # an exact town or admin name always gets all of it
+    assert _near_bonus(10, False, 30) == pytest.approx(0.3 * full)  # a creek or hamlet: little
+    assert _near_bonus(10, False, 90) == pytest.approx(0.9 * full)  # a city: nearly all
+    assert _near_bonus(10, False, 125) == full
+    assert _near_bonus(10, False, -10) == 0.0
 
 
 def test_missing_databases_degrade_gracefully(tmp_path):
@@ -244,10 +283,117 @@ def test_search_places_region_and_prefix(geo):
 
 
 @needs_places
+@pytest.mark.parametrize("query", ["St Johns, NL", "Saint John's, NL", "st johns nl", "St. John's"])
+def test_search_places_without_apostrophe_or_abbreviation(geo, query):
+    top = geo.search_places(query)[0]
+    assert (top["name"], top["admin1"]) == ("St. John's", "Newfoundland and Labrador")
+
+
+@needs_places
 def test_search_places_near_prefers_closer_match(geo):
     res = geo.search_places("springfield", near=SPRINGFIELD_MO)
     assert res[0]["admin1"] == "Missouri"
     assert res[0]["distance_km"] < 10
+
+
+@needs_places
+@pytest.mark.parametrize("query, near, regions", [
+    ("jackson", OLD_FAITHFUL, {"Wyoming"}),  # Jackson, WY (110 km) over Jackson, MS (2,240 km, 17x the people)
+    ("jackson", MEMPHIS, {"Tennessee", "Mississippi"}),
+    ("london", CN_TOWER, {"Ontario"}),
+    ("paris", CN_TOWER, {"Ontario"}),
+    ("georgetown", AUSTIN, {"Texas"}),
+    ("salem", PORTLAND_OR, {"Oregon"}),
+    ("windsor", HALIFAX, {"Nova Scotia"}),
+])
+def test_search_near_prefers_a_sizeable_namesake_close_by(geo, query, near, regions):
+    top = geo.search_places(query, near=near)[0]
+    assert name_key(top["name"]) == query and top["admin1"] in regions, top["label"]
+
+
+@needs_places
+def test_search_near_exact_names_beat_partial_ones(geo):
+    """A museum named "Georgetown ..." next door ranks below every sizeable Georgetown."""
+    res = geo.search_places("georgetown", near=AUSTIN, limit=5)
+    assert [name_key(r["name"]) for r in res] == ["georgetown"] * 5, [r["label"] for r in res]
+    res = geo.search_places("portland", near=PORTLAND_OR, limit=3)
+    assert [name_key(r["name"]) for r in res] == ["portland"] * 3, [r["label"] for r in res]
+
+
+@needs_places
+@pytest.mark.parametrize("near", [DENVER, HALIFAX, MEMPHIS, PORTLAND_OR, OLD_FAITHFUL, None])
+def test_search_partial_prefix_prefers_the_big_city(geo, near):
+    """Creeks, parks and hamlets next door that start with "Den" do not outrank Denver."""
+    top = geo.search_places("den", near=near)[0]
+    assert (top["name"], top["admin1"]) == ("Denver", "Colorado"), top["label"]
+
+
+@needs_places
+def test_search_near_keeps_notable_partial_matches(geo):
+    assert geo.search_places("mammoth", near=MEMPHIS)[0]["name"] == "Mammoth Cave National Park"
+    names = [r["name"] for r in geo.search_places("richmond", near=CN_TOWER, limit=3)]
+    assert "Richmond Hill" in names  # 185,000 people 25 km away, even if only a partial match
+
+
+@needs_places
+def test_search_near_exact_name_features_share_the_bonus_by_importance(geo):
+    """Unpeopled features named exactly "Grand Canyon" 400 km away don't bury the national park."""
+    res = geo.search_places("grand canyon", near=MEMPHIS)
+    names = [r["name"] for r in res]
+    assert "Grand Canyon National Park" in names[:2], [r["label"] for r in res[:5]]
+    park = names.index("Grand Canyon National Park")
+    assert not [r for r in res[:park] if "canyon" in (r["kind"] or "").lower()], [r["label"] for r in res[:park]]
+
+
+@needs_places
+@pytest.mark.parametrize("query", ["St. John's, MI", "St. John's, Michigan", "Saint Johns, MI"])
+def test_search_typed_apostrophe_finds_the_spelling_without_one(geo, query):
+    top = geo.search_places(query)[0]
+    assert (name_key(top["name"]), top["admin1"]) == ("saint johns", "Michigan"), top["label"]
+
+
+@needs_places
+def test_search_near_keeps_region_filters(geo):
+    assert geo.search_places("springfield, il", near=PORTLAND_OR)[0]["admin1"] == "Illinois"
+    assert geo.search_places("georgetown, sc", near=AUSTIN)[0]["admin1"] == "South Carolina"
+    assert geo.search_places("toronto on", near=OLD_FAITHFUL)[0]["admin1"] == "Ontario"
+
+
+@needs_wiki
+@pytest.mark.parametrize("query, near, top", [
+    ("paris", OLD_FAITHFUL, 3),
+    ("rome", OLD_FAITHFUL, 3),
+    ("paris", None, 1),
+    ("london", OLD_FAITHFUL, 5),  # untyped coordinates, but Wikipedia's primary topic
+    ("berlin", None, 3),
+    ("moscow", AUSTIN, 5),
+])
+def test_search_world_famous_places_stay_reachable(geo, query, near, top):
+    path = query.capitalize()
+    res = geo.search_places(query, near=near)
+    assert any(r["wiki_path"] == path for r in res[:top]), [r["label"] for r in res]
+
+
+@needs_both
+@pytest.mark.parametrize("query, path, village", [
+    ("london", "London", "London, Texas"),  # 180 people, 185 km from Austin
+    ("berlin", "Berlin", "Berlin, Wisconsin"),
+    ("moscow", "Moscow", "Moscow, Pennsylvania"),
+])
+def test_search_primary_topic_beats_small_namesakes_nearer(geo, query, path, village):
+    """A capital with an untyped Wikipedia article outranks US villages a state or two away."""
+    res = geo.search_places(query, near=AUSTIN)
+    labels = [r["label"] for r in res]
+    ranks = {r["wiki_path"]: i for i, r in enumerate(res) if r["wiki_path"]}
+    small = next(i for i, lbl in enumerate(labels) if lbl.startswith(village))
+    assert ranks.get(path, 99) < small, labels
+
+
+@needs_wiki
+def test_search_primary_topic_needs_the_exact_title(geo):
+    """"The Den" (a London stadium) matches "den" only after dropping "the": no boost."""
+    res = geo.search_places("den", near=HALIFAX, limit=5)
+    assert res[0]["name"] == "Denver" and all(r["wiki_path"] != "The_Den" for r in res[:3])
 
 
 @needs_wiki

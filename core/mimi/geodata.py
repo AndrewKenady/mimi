@@ -262,6 +262,15 @@ _ADMIN_LABELS = {
     ("ADM2", "US"): "county", ("ADM2", "CA"): "census division",
 }
 
+# Proximity in place search (see _near_bonus): points for being right here, minus
+# a fixed amount per doubling of the distance beyond _NEAR_KM. Towns gain 12 points
+# per tenfold population, so a place 10x bigger has to be less than ~4x farther away
+# to win: Jackson, WY (10k people, 110 km) beats Jackson, MS (170k, 2,240 km) seen
+# from Yellowstone, yet Paris, France still outranks the Parises of Texas and Idaho.
+_NEAR_POINTS = 60.0
+_NEAR_PER_DOUBLING = 6.0
+_NEAR_KM = 25.0
+
 # Name phrases that make a GeoNames feature more notable (substring match on
 # the lower-cased name). Each entry is (phrase, bonus, extra categories).
 _NAME_BOOSTS: tuple[tuple[str, int, frozenset[str]], ...] = (
@@ -438,9 +447,10 @@ _PAREN_SUFFIX = re.compile(r"\s*\([^()]*\)\s*$")
 
 
 def name_key(name: str) -> str:
-    """Loose comparison key: 'Mt. St. Helens' -> 'mount saint helens'."""
+    """Loose comparison key: 'Mt. St. Helens' -> 'mount saint helens', "St. John's" -> 'saint johns'."""
     s = unicodedata.normalize("NFKD", name)
     s = "".join(ch for ch in s if not unicodedata.combining(ch)).lower().replace("&", " and ")
+    s = s.replace("'", "").replace("’", "")
     s = "".join(ch if ch.isalnum() else " " for ch in s)
     words = [_ABBREV.get(w, w) for w in s.split()]
     if len(words) > 1 and words[0] == "the":
@@ -1045,8 +1055,9 @@ class GeoData:
 
         Accepts "Springfield", "springf", "Springfield, IL", "Lake Louise, Alberta"
         or "toronto on". Ranking combines feature importance and population,
-        exact-name matches and, if ``near=(lat, lon)`` is given, proximity.
-        Geotagged Wikipedia articles fill in places outside the US and Canada
+        exact-name matches and, if ``near=(lat, lon)`` is given, proximity on a log
+        scale (:func:`_near_bonus`), so a sizeable place nearby beats a big namesake
+        far away. Geotagged Wikipedia articles fill in places outside the US and Canada
         (for example "Paris"). Each result has the keys ``name, label, kind,
         fcode, lat, lon, admin1, country, population, source, wiki_path,
         distance_km`` (the last only when ``near`` is given).
@@ -1082,8 +1093,7 @@ class GeoData:
         tokens = _fts_tokens(name_part)
         if not tokens or (len(tokens) == 1 and len(tokens[0]) < 2):
             return []
-        # every token is a prefix ("spring" "fi" -> Springfield); single letters must match whole words
-        match = " ".join(f'"{t}"*' if len(t) >= 2 else f'"{t}"' for t in tokens)
+        match = " AND ".join(_fts_term(t) for t in tokens)
         qkey = name_key(name_part)
         results: list[dict] = []
         if self._places is not None:
@@ -1091,7 +1101,7 @@ class GeoData:
         if self._wiki is not None:
             # with a state/province filter, articles only lend their wiki_path to matches
             attach_only = region is not None and region[0] is not None
-            results += self._search_wiki(match, qkey, near, results, attach_only)
+            results += self._search_wiki(match, qkey, tokens, near, results, attach_only)
         return results
 
     def _split_region(self, query: str) -> tuple[str, tuple[str | None, str | None] | None, bool]:
@@ -1182,6 +1192,7 @@ class GeoData:
                 weight, _ = _name_boost(name, _GEONAMES_KINDS.get(fcode, _DEFAULT_KIND)[0])
                 kind = fdesc or "place"
             key = name_key(name)
+            exact = key == qkey
             score = weight + _text_bonus(key, qkey)
             item = {
                 "name": name,
@@ -1199,7 +1210,7 @@ class GeoData:
             if near is not None:
                 d = haversine_km(near[0], near[1], plat, plon)
                 item["distance_km"] = round(d, 1)
-                score += 45.0 / (1.0 + d / 75.0)
+                score += _near_bonus(d, exact and fclass in ("P", "A"), weight)
             item["_score"] = score
             item["_key"] = key
             # how far away a Wikipedia article about the same place may put its coordinates
@@ -1222,7 +1233,7 @@ class GeoData:
             kept.append(r)
         return kept
 
-    def _search_wiki(self, match, qkey, near, existing: list[dict], attach_only: bool) -> list[dict]:
+    def _search_wiki(self, match, qkey, tokens, near, existing: list[dict], attach_only: bool) -> list[dict]:
         sql = (
             "SELECT g.title, g.path, g.lat, g.lon, g.type, g.page_len, g.country, g.dim "
             "FROM geo_fts JOIN geo g ON g.page_id = geo_fts.rowid WHERE geo_fts MATCH ? "
@@ -1251,17 +1262,26 @@ class GeoData:
             # somewhere to set as your location. Landmarks etc. must match exactly.
             if attach_only or not (is_place or exact):
                 continue
+            # An article titled with exactly what was typed is Wikipedia's primary topic
+            # for it: famous by construction, even when its coordinates carry no type
+            # ("London", "Berlin", "Sydney"), so its length counts as for a place. Not so
+            # "The Den" for "den", "Victoria (state)" or "Hamilton, Massachusetts".
+            primary = exact and _fts_tokens(title) == tokens
             label, weight, _ = _WIKI_TYPES.get(gtype) or _WIKI_TYPES[None]
             if gtype in ("country", "adm1st"):
                 label, weight = ("country" if gtype == "country" else "state or province"), 45
             elif gtype == "adm2nd":
                 label, weight = "county or district", 35
-            elif gtype not in _WIKI_SEARCH_TYPES:
+            elif gtype not in _WIKI_SEARCH_TYPES and not primary:
                 weight = 30
             # a long article about a place of exactly this name ("Paris") outranks small
-            # North American namesakes; everything else from Wikipedia ranks below GeoNames
+            # North American namesakes; everything else from Wikipedia ranks below GeoNames.
+            # Article length saturates at 64 kB, so being the primary topic is what lifts
+            # London or Berlin above a 5,000-person London, Ohio or Berlin, Wisconsin.
             lb = _length_bonus(plen)
-            score = weight + (1.5 * lb if is_place and exact else lb) + _text_bonus(key, qkey) - (10 if exact else 20)
+            importance = (weight + (1.5 * lb if exact and (is_place or primary) else lb)
+                          - (10 if exact else 20) + (10 if primary else 0))
+            score = importance + _text_bonus(key, qkey)
             item = {
                 "name": title, "label": title if not cc or cc in title else f"{title}, {cc}",
                 "kind": label, "fcode": None, "lat": plat, "lon": plon, "admin1": None, "country": cc,
@@ -1270,7 +1290,7 @@ class GeoData:
             if near is not None:
                 d = haversine_km(near[0], near[1], plat, plon)
                 item["distance_km"] = round(d, 1)
-                score += 45.0 / (1.0 + d / 75.0)
+                score += _near_bonus(d, exact and (is_place or primary), importance)
             item["_score"] = score
             item["_key"] = key
             out.append(item)
@@ -1350,6 +1370,25 @@ def _length_bonus(page_len: int | None) -> float:
     return max(-10.0, min(35.0, 10.0 * math.log2(max(page_len or 0, 500) / 4000.0)))
 
 
+def _near_bonus(d_km: float, full: bool, importance: float) -> float:
+    """Search bonus for a result ``d_km`` from the user: 60 here, 46 at 100 km, 22 at
+    2,000 km, 10 at 8,000 km.
+
+    Log-scaled rather than a cutoff, so it still tells a namesake one state over
+    from one across the continent or an ocean. ``full`` (an exact name of a town or
+    admin area) gets all of it: "Jackson" means the nearest Jackson. Anything else,
+    partial names and exact-name features such as canyons, hills and landmarks, only
+    gets a share in proportion to the result's ``importance`` (its score before text
+    and distance, about 0-100): around any point the nearest of the many prefix
+    matches for "Den" are creeks, parks and hamlets rather than the city being typed,
+    and an unpeopled "Grand Canyon" in Missouri must not outrank the national park.
+    "Richmond" near Toronto still finds Richmond Hill (185,000 people) and "Mammoth"
+    near Memphis still finds Mammoth Cave.
+    """
+    bonus = max(0.0, _NEAR_POINTS - _NEAR_PER_DOUBLING * math.log2(1.0 + d_km / _NEAR_KM))
+    return bonus if full else bonus * min(1.0, max(0.0, importance) / 100.0)
+
+
 def _text_bonus(key: str, qkey: str) -> float:
     if not qkey:
         return 0.0
@@ -1360,8 +1399,36 @@ def _text_bonus(key: str, qkey: str) -> float:
     return 0.0
 
 
+_ABBREV_SHORT = {v: k for k, v in _ABBREV.items()}
+
+
+_POSSESSIVE = re.compile(r"(\w{3,})['’]s\b")
+
+
+def _fts_term(t: str) -> str:
+    """One query word as an FTS5 expression.
+
+    Every word is a prefix ("spring" "fi" -> Springfield) and single letters must match
+    whole words. The index splits "St. John's" into "st" "john" "s", so "saint" also
+    matches "st" (and back), and "johns" also matches "john's".
+    """
+    alts = [f'"{t}"*' if len(t) >= 2 else f'"{t}"']
+    for other in (_ABBREV.get(t), _ABBREV_SHORT.get(t)):
+        if other:
+            alts.append(f'"{other}"')
+    if len(t) >= 4 and t.endswith("s") and not t.endswith("ss"):
+        alts.append(f'"{t[:-1]} s"')
+    return alts[0] if len(alts) == 1 else "(" + " OR ".join(alts) + ")"
+
+
 def _fts_tokens(text: str) -> list[str]:
-    """Split user input into FTS5-safe tokens (letters/digits only)."""
-    s = unicodedata.normalize("NFKD", text)
+    """Split user input into FTS5-safe tokens (letters/digits only).
+
+    A possessive is kept as one word ("john's" -> "johns"), which :func:`_fts_term`
+    matches against both "Saint Johns" and the index's "john" "s"; a lone "s" would
+    have to be a whole word and miss the spelling without an apostrophe.
+    """
+    s = _POSSESSIVE.sub(r"\1s", text)
+    s = unicodedata.normalize("NFKD", s)
     s = "".join(ch for ch in s if not unicodedata.combining(ch)).lower()
     return "".join(ch if ch.isalnum() else " " for ch in s).split()
