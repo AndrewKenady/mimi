@@ -88,7 +88,7 @@
 		return () => ro.disconnect();
 	});
 	$effect(() => {
-		if (autofocus && ta && app.input !== 'touch') setTimeout(() => ta?.focus(), 50);
+		if (autofocus && ta && app.input !== 'touch') setTimeout(() => ta?.focus({ preventScroll: true }), 50);
 	});
 
 	function send() {

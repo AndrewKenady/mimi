@@ -4,7 +4,7 @@
 	import { app } from '$lib/app.svelte';
 	import { post } from '$lib/api';
 	import { hostPost, inShell, toggleFullscreen } from '$lib/host';
-	import { Mic, ScanText, AudioLines, Map, MessageSquarePlus, QrCode, Moon, Sun, Maximize, LogOut, MonitorDown, Search } from '@lucide/svelte';
+	import { Mic, ScanText, AudioLines, Map, MessageSquarePlus, QrCode, Moon, Sun, Maximize, LogOut, MonitorDown, Search, UserCog } from '@lucide/svelte';
 
 	const light = $derived(app.settings.user?.appearance?.theme === 'light');
 	const tiles = $derived(
@@ -57,6 +57,9 @@
 				<b>{app.me?.name}</b>
 				<small>{app.me?.role === 'owner' ? 'Device owner' : app.me?.role === 'guest' ? 'Guest' : 'User'} · {app.hardware?.device || 'MIMI'}</small>
 			</div>
+			{#if !app.isGuest}
+				<button class="btn btn-sm btn-ghost acct" onclick={() => run({ run: () => goto('/settings/accounts') })}><UserCog size={15} /> Account</button>
+			{/if}
 		</div>
 		<div class="grid">
 			{#each tiles as t (t.label)}
@@ -96,6 +99,9 @@
 		align-items: center;
 		gap: 12px;
 		padding: 0 4px 16px;
+	}
+	.who .acct {
+		margin-left: auto;
 	}
 	.who b {
 		display: block;

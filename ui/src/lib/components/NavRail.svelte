@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { app } from '$lib/app.svelte';
-	import { House, MessagesSquare, Library, Map, AudioLines, ScanText, Brain, Settings, Menu } from '@lucide/svelte';
+	import { House, MessagesSquare, Library, Map, AudioLines, ScanText, Brain, Settings, Menu, Mic } from '@lucide/svelte';
 
 	const items = [
 		{ href: '/', label: 'Home', icon: House, feature: null },
@@ -15,11 +15,17 @@
 	const shown = $derived(items.filter((i) => !i.feature || app.features[i.feature] !== false || i.feature === 'library'));
 	const active = (href: string) => (href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href));
 	const initial = $derived((app.me?.name || '?').trim().charAt(0).toUpperCase());
+	// The brand mark doubles as MIMI's presence: it breathes while a model wakes up and
+	// greys out when Core can't be reached. It is the only orb in the rail.
+	const presence = $derived(app.offline ? 'offline' : app.model?.status === 'loading' ? 'waking' : app.model?.status === 'error' ? 'error' : 'ok');
+	const presenceLabel = $derived(
+		presence === 'offline' ? 'MIMI can’t be reached' : presence === 'waking' ? `Waking up ${app.model?.model_name || 'the model'}…` : presence === 'error' ? 'The model needs attention' : `MIMI${app.model?.model_name ? ' · ' + app.model.model_name : ''}`
+	);
 </script>
 
 <nav class="rail" aria-label="Main">
-	<a href="/" class="brand" aria-label="MIMI home">
-		<span class="dot"></span>
+	<a href="/" class="brand" aria-label="MIMI home. {presenceLabel}" title={presenceLabel}>
+		<span class="dot {presence}"></span>
 	</a>
 	<div class="items">
 		{#each shown as it (it.href)}
@@ -31,9 +37,11 @@
 		{/each}
 	</div>
 	<div class="bottom">
-		<button class="voice" onclick={() => (app.voice = true)} aria-label="Talk to MIMI" title="Talk to MIMI (X)">
-			<span class="voice-orb"></span>
+		<button class="item talk" onclick={() => (app.voice = true)} title="Talk to MIMI · hold Space, or X on a controller">
+			<span class="ico"><Mic size={20} strokeWidth={2} /></span>
+			<span class="lbl">Talk</span>
 		</button>
+		<span class="sep" aria-hidden="true"></span>
 		<a href="/settings" class="item" class:active={active('/settings')} aria-label="Settings">
 			<span class="ico"><Settings size={21} strokeWidth={1.8} /></span>
 			<span class="lbl">Settings</span>
@@ -83,6 +91,31 @@
 		border-radius: 50%;
 		background: radial-gradient(circle at 36% 32%, #e7fffb 0, var(--well-a) 26%, var(--well-b) 56%, var(--well-c) 80%);
 		box-shadow: 0 0 22px color-mix(in oklab, var(--well-a) 40%, transparent);
+		transition:
+			filter 0.4s,
+			opacity 0.4s;
+	}
+	.dot.waking {
+		animation: breathe 1.6s ease-in-out infinite;
+	}
+	.dot.offline {
+		filter: grayscale(1) brightness(0.7);
+		box-shadow: none;
+	}
+	.dot.error {
+		filter: hue-rotate(150deg) saturate(1.3);
+	}
+	@keyframes breathe {
+		50% {
+			transform: scale(0.82);
+			opacity: 0.7;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.dot.waking {
+			animation: none;
+			opacity: 0.7;
+		}
 	}
 	.items {
 		display: flex;
@@ -135,34 +168,28 @@
 		align-items: center;
 		gap: 10px;
 	}
-	.voice {
-		width: 52px;
-		height: 52px;
-		border-radius: 50%;
-		display: grid;
-		place-items: center;
-		background: var(--surface);
-		border: 1px solid var(--line-2);
-		transition:
-			transform 0.2s,
-			box-shadow 0.2s;
+	/* Talk is an action, not a place: the one filled button in the rail. */
+	.talk {
+		color: var(--text-2);
 	}
-	.voice:hover {
-		transform: scale(1.06);
-		box-shadow: var(--shadow-glow);
+	.talk .ico {
+		width: 44px;
+		height: 32px;
+		background: var(--accent);
+		color: var(--accent-ink);
+		box-shadow: 0 4px 14px color-mix(in oklab, var(--accent) 30%, transparent);
 	}
-	.voice-orb {
-		width: 26px;
-		height: 26px;
-		border-radius: 50%;
-		background: radial-gradient(circle at 36% 32%, #e7fffb 0, var(--well-a) 30%, var(--well-b) 60%, transparent 76%);
-		animation: pulse 3s ease-in-out infinite;
+	.talk:hover .ico {
+		filter: brightness(1.08);
 	}
-	@keyframes pulse {
-		50% {
-			transform: scale(1.12);
-			filter: brightness(1.15);
-		}
+	.talk:active .ico {
+		transform: scale(0.94);
+	}
+	.sep {
+		width: 32px;
+		height: 1px;
+		background: var(--line);
+		margin: 2px 0;
 	}
 	.avatar {
 		width: 36px;
@@ -175,6 +202,33 @@
 		color: #06131a;
 		background: var(--c);
 		margin-top: 2px;
+	}
+	/* Short screens (the handheld runs 1280x720 at 150%): tighter rhythm so nothing is cut off. */
+	@media (max-height: 820px) {
+		.rail {
+			padding: 12px 0 10px;
+			overflow-y: auto;
+			scrollbar-width: none;
+		}
+		.brand {
+			margin-bottom: 8px;
+		}
+		.items {
+			gap: 1px;
+		}
+		.item {
+			padding: 5px 0 4px;
+			gap: 2px;
+		}
+		.ico {
+			height: 28px;
+		}
+		.talk .ico {
+			height: 30px;
+		}
+		.bottom {
+			gap: 4px;
+		}
 	}
 	.tabs {
 		display: none;
