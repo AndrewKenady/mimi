@@ -26,6 +26,12 @@
 	const speaker = new Speaker(v.voice, v.speed);
 	let abort: AbortController | null = null;
 	let typing = $state(false);
+	let replyEl: HTMLElement | undefined = $state();
+	// keep the newest words in view as a long answer streams in
+	$effect(() => {
+		reply;
+		if (replyEl) replyEl.scrollTop = replyEl.scrollHeight;
+	});
 	let typed = $state('');
 	let typeBox: HTMLInputElement | undefined = $state();
 	// A little personality while Mimi works; a new line is picked for each turn.
@@ -150,6 +156,10 @@
 		const long = performance.now() - startedAt;
 		phase = 'transcribing';
 		hearingLine = pick(HEARING);
+		// the new question replaces the previous exchange on screen (a hands-free follow-up
+		// kept the last answer visible while listening)
+		heard = '';
+		reply = '';
 		const blob = await rec.stop();
 		if (my !== turn || destroyed) return;
 		if (!blob || long < 400) {
@@ -187,6 +197,7 @@
 		if (my !== turn || destroyed) return;
 		let filled = false;
 		let stale = false;
+		reply = ''; // each answer starts a fresh caption (it used to append to the last one)
 		phase = 'thinking';
 		thinkingLine = pick(THINKING);
 		// latency marks (performance.now) for diagnostics: window.__mimiVoice
@@ -318,7 +329,7 @@
 		<Well size={Math.min(380, innerHeight * 0.42)} mood={wellState} getLevel={level} />
 		<div class="captions">
 			{#if heard}<p class="heard">“{heard}”</p>{/if}
-			{#if reply}<p class="reply">{plain(reply)}</p>{/if}
+			{#if reply}<p class="reply" bind:this={replyEl}>{plain(reply)}</p>{/if}
 			{#if status}<p class="status">{status}</p>{/if}
 			{#if hint}<p class="hint">{hint}</p>{/if}
 		</div>
