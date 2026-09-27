@@ -32,3 +32,13 @@ ONEXPLAYER F1 · AMD Ryzen 7 7840U (8C/16T) · Radeon 780M (Vulkan, 3 GB carve-o
 | GeoNames/Wikipedia nearby (16 km) | 3–22 ms |
 | Valhalla route, 98 mi | 0.1 s |
 | Map tiles (US + Canada, z0–14) | 15.6 GB, local range requests |
+
+## Voice turns (Gemma 4 12B, warm prompt cache)
+Measured from the request to the first streamed word and the first complete sentence (the sentence is what Kokoro starts speaking; add ~1.5 s for warm TTS).
+
+| Turn | First word | First sentence | Notes |
+|---|---|---|---|
+| Chit-chat, new chat | 1.7–1.9 s | 3.3–4.8 s | was 13.4 s before the cache fixes below |
+| Library lookup (2 passages × 600 chars) | 8.3 s | 11 s | "Let me look that up" is spoken at ~4.6 s when the search starts |
+
+What made the difference: the system prompt and tool schemas (~1.7k tokens) are identical for text and voice turns and for every chat. The chat-title request continues the conversation instead of evicting that prefix from llama-server's single slot. And the prefix is pre-filled right after the model loads (12 s, in the background).
