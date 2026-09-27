@@ -61,14 +61,31 @@
 		ta?.focus();
 	}
 
+	function autosize() {
+		if (!ta) return;
+		const max = big ? 220 : 260;
+		ta.style.height = 'auto';
+		ta.style.height = Math.min(ta.scrollHeight, max) + 'px';
+		ta.style.overflowY = ta.scrollHeight > max ? 'auto' : 'hidden';
+	}
 	$effect(() => {
 		value;
-		if (ta) {
-			const max = big ? 220 : 260;
-			ta.style.height = 'auto';
-			ta.style.height = Math.min(ta.scrollHeight, max) + 'px';
-			ta.style.overflowY = ta.scrollHeight > max ? 'auto' : 'hidden';
-		}
+		autosize();
+	});
+	// Re-measure when the box changes width (layout settling, sidebar toggles, rotation)
+	// or fonts finish loading; a measurement taken mid-layout would otherwise stick.
+	$effect(() => {
+		if (!ta) return;
+		let w = 0;
+		const ro = new ResizeObserver(([e]) => {
+			if (Math.abs(e.contentRect.width - w) > 1) {
+				w = e.contentRect.width;
+				autosize();
+			}
+		});
+		ro.observe(ta);
+		document.fonts?.ready.then(autosize);
+		return () => ro.disconnect();
 	});
 	$effect(() => {
 		if (autofocus && ta && app.input !== 'touch') setTimeout(() => ta?.focus(), 50);

@@ -7,7 +7,7 @@
 	import Composer from './Composer.svelte';
 	import Message from './Message.svelte';
 	import Well from './Well.svelte';
-	import { SquarePen, Search, Pin, PinOff, Trash2, PanelLeftClose, PanelLeft, Download, Archive, EllipsisVertical, MessagesSquare, Pencil } from '@lucide/svelte';
+	import { SquarePen, Search, Pin, PinOff, Trash2, PanelLeftClose, PanelLeft, Download, Archive, EllipsisVertical, MessagesSquare, Pencil, Folder, FolderInput, ArchiveRestore, Check } from '@lucide/svelte';
 
 	let { id = null }: { id?: string | null } = $props();
 
@@ -23,19 +23,66 @@
 	let scroller: HTMLDivElement | undefined = $state();
 	let stick = true;
 	let abort: AbortController | null = null;
-	let sideOpen = $state(typeof innerWidth === 'undefined' || innerWidth > 1100);
+	// The chat list remembers whether it was open (phones always start with it closed).
+	let sideOpen = $state(readSide());
+	function readSide() {
+		if (typeof innerWidth !== 'undefined' && innerWidth < 900) return false;
+		try {
+			const v = localStorage.getItem('mimi.chatSide');
+			if (v) return v === '1';
+		} catch {}
+		return typeof innerWidth === 'undefined' || innerWidth > 1100;
+	}
+	$effect(() => {
+		const open = sideOpen;
+		try {
+			if (innerWidth >= 900) localStorage.setItem('mimi.chatSide', open ? '1' : '0');
+		} catch {}
+	});
 	let menuFor = $state<string | null>(null);
 	let renaming = $state<string | null>(null);
 	let renameText = $state('');
 	let loadedId: string | null = null;
+	// Folders ("projects") and the archive. '' = all chats, ARCHIVE = archived ones.
+	const ARCHIVE = ':archived';
+	let projects = $state<string[]>([]);
+	let folder = $state('');
+	let moving = $state<string | null>(null);
+	let newFolder = $state('');
 
 	async function loadList() {
 		try {
-			const r = await get(`/api/chats${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`);
+			const qs = new URLSearchParams();
+			if (q.trim()) qs.set('q', q.trim());
+			if (folder === ARCHIVE) qs.set('archived', 'true');
+			else if (folder) qs.set('project', folder);
+			const r = await get(`/api/chats${qs.size ? '?' + qs : ''}`);
 			list = r.chats;
+			projects = r.projects || [];
+			if (folder && folder !== ARCHIVE && !projects.includes(folder)) {
+				folder = '';
+				loadList();
+			}
 		} catch {
 			/* offline */
 		}
+	}
+	function pickFolder(f: string) {
+		folder = folder === f ? '' : f;
+		loadList();
+	}
+	async function moveTo(c: any, name: string) {
+		await patch(`/api/chats/${c.id}`, { project: name.trim() });
+		moving = null;
+		menuFor = null;
+		newFolder = '';
+		app.toast(name.trim() ? `Moved to ${name.trim()}` : 'Removed from folder');
+		loadList();
+	}
+	async function unarchive(c: any) {
+		await patch(`/api/chats/${c.id}`, { archived: false });
+		menuFor = null;
+		loadList();
 	}
 
 	async function loadChat(cid: string | null) {
@@ -243,6 +290,13 @@
 			<Search size={15} />
 			<input placeholder="Search chats" bind:value={q} oninput={() => loadList()} />
 		</div>
+		<div class="folders" role="tablist" aria-label="Folders">
+			<button role="tab" aria-selected={folder === ''} class:on={folder === ''} onclick={() => pickFolder('')}>All</button>
+			{#each projects as p (p)}
+				<button role="tab" aria-selected={folder === p} class:on={folder === p} onclick={() => pickFolder(p)}><Folder size={12} /> {p}</button>
+			{/each}
+			<button role="tab" aria-selected={folder === ARCHIVE} class:on={folder === ARCHIVE} onclick={() => pickFolder(ARCHIVE)}><Archive size={12} /> Archived</button>
+		</div>
 		<div class="items" data-scroll>
 			{#each list as c (c.id)}
 				<div class="it" class:on={c.id === chat?.id}>
@@ -253,20 +307,33 @@
 							<span class="it-title">{#if c.pinned}<Pin size={12} class="pin" />{/if}{c.title || 'New chat'}</span>
 							<span class="it-sub">{timeAgo(c.updated_at)}{c.preview ? ' · ' + c.preview : ''}</span>
 						</a>
-						<button class="icon-btn sm more" onclick={() => (menuFor = menuFor === c.id ? null : c.id)} aria-label="Chat options"><EllipsisVertical size={15} /></button>
-						{#if menuFor === c.id}
+						<button class="icon-btn sm more" onclick={() => { menuFor = menuFor === c.id ? null : c.id; moving = null; }} aria-label="Chat options"><EllipsisVertical size={15} /></button>
+						{#if menuFor === c.id && moving === c.id}
+							<div class="cmenu glass" role="menu">
+								{#each projects as p (p)}
+									<button onclick={() => moveTo(c, p)}><Folder size={14} /> {p}{#if c.project === p}<Check size={13} class="ck" />{/if}</button>
+								{/each}
+								{#if c.project}<button onclick={() => moveTo(c, '')}><FolderInput size={14} /> No folder</button>{/if}
+								<input class="input nf" placeholder="New folder…" bind:value={newFolder} onkeydown={(e) => { if (e.key === 'Enter' && newFolder.trim()) moveTo(c, newFolder); if (e.key === 'Escape') moving = null; }} />
+							</div>
+						{:else if menuFor === c.id}
 							<div class="cmenu glass" role="menu">
 								<button onclick={() => { renaming = c.id; renameText = c.title; menuFor = null; }}><Pencil size={14} /> Rename</button>
 								<button onclick={() => togglePin(c)}>{#if c.pinned}<PinOff size={14} /> Unpin{:else}<Pin size={14} /> Pin{/if}</button>
+								<button onclick={() => (moving = c.id)}><FolderInput size={14} /> Move to folder…</button>
 								<a href="/api/chats/{c.id}/export" download><Download size={14} /> Export</a>
-								<button onclick={() => archive(c)}><Archive size={14} /> Archive</button>
+								{#if c.archived}
+									<button onclick={() => unarchive(c)}><ArchiveRestore size={14} /> Unarchive</button>
+								{:else}
+									<button onclick={() => archive(c)}><Archive size={14} /> Archive</button>
+								{/if}
 								<button class="danger" onclick={() => remove(c)}><Trash2 size={14} /> Delete</button>
 							</div>
 						{/if}
 					{/if}
 				</div>
 			{:else}
-				<div class="empty-list"><MessagesSquare size={20} /><span>{q ? 'No matching chats' : 'Your conversations will appear here'}</span></div>
+				<div class="empty-list"><MessagesSquare size={20} /><span>{q ? 'No matching chats' : folder === ARCHIVE ? 'No archived chats' : folder ? 'This folder is empty' : 'Your conversations will appear here'}</span></div>
 			{/each}
 		</div>
 	</aside>
@@ -361,6 +428,46 @@
 		font-size: 0.86rem;
 		color: var(--text);
 	}
+	.folders {
+		display: flex;
+		gap: 6px;
+		overflow-x: auto;
+		scrollbar-width: none;
+		margin: 0 14px 6px;
+		width: 262px;
+	}
+	.folders button {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		height: 28px;
+		padding: 0 10px;
+		border-radius: 999px;
+		font-size: 0.76rem;
+		font-weight: 550;
+		color: var(--text-3);
+		border: 1px solid var(--line);
+		white-space: nowrap;
+	}
+	.folders button:hover {
+		color: var(--text);
+	}
+	.folders button.on {
+		color: var(--accent);
+		border-color: var(--accent-line);
+		background: var(--accent-soft);
+	}
+	.nf {
+		height: 34px;
+		margin: 4px 2px 2px;
+		font-size: 0.82rem;
+		width: calc(100% - 4px);
+	}
+	.cmenu :global(.ck) {
+		margin-left: auto;
+		color: var(--accent);
+	}
 	.items {
 		flex: 1;
 		overflow-y: auto;
@@ -430,6 +537,7 @@
 		box-shadow: var(--shadow-2);
 		display: flex;
 		flex-direction: column;
+		background: color-mix(in oklab, var(--surface) 97%, transparent);
 	}
 	.cmenu button,
 	.cmenu a {

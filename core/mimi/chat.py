@@ -566,6 +566,11 @@ class ChatService:
         """
         await asyncio.sleep(0.5)
         mm = self.svc.models
+        # If another answer is already running, wait for it (up to 3 min) rather than skip.
+        for _ in range(180):
+            if not mm.gen_lock.locked():
+                break
+            await asyncio.sleep(1)
         if mm.gen_lock.locked() or not mm.chat_model or mm.chat_model.id != spec.id:
             return
         try:
