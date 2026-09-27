@@ -4,7 +4,7 @@
 	import { app } from '$lib/app.svelte';
 	import { get, timeAgo, upload } from '$lib/api';
 	import { Recorder } from '$lib/audio';
-	import { Mic, Square, Upload, AudioLines, Loader, CircleAlert, ChevronRight } from '@lucide/svelte';
+	import { Mic, Square, Upload, AudioLines, Loader, CircleAlert, ChevronRight, NotebookPen } from '@lucide/svelte';
 
 	let notes = $state<any[]>([]);
 	let loading = $state(true);
@@ -128,7 +128,7 @@
 				<button class="rec stop" onclick={stop} aria-label="Stop recording"><Square size={26} fill="currentColor" /></button>
 				<p class="faint">Recording. Tap to stop and transcribe.</p>
 			{:else}
-				<button class="rec" onclick={start} disabled={saving} aria-label="Start recording">{#if saving}<Loader size={28} class="spin" />{:else}<Mic size={30} />{/if}</button>
+				<button class="rec" onclick={start} disabled={saving} aria-label="Start recording">{#if saving}<Loader size={28} class="spin" />{:else}<span class="dotrec"></span>{/if}</button>
 				<p class="big">{saving ? 'Saving…' : 'Tap to record'}</p>
 				<button class="btn btn-sm btn-ghost" onclick={() => input?.click()}><Upload size={14} /> Or upload an audio file</button>
 				<input bind:this={input} type="file" accept="audio/*,video/mp4" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) addFile(f); e.currentTarget.value = ''; }} />
@@ -139,7 +139,7 @@
 		<div class="list">
 			{#each notes as n (n.id)}
 				<a class="note card card-hover" href="/scribe/{n.id}">
-					<span class="ni"><AudioLines size={18} /></span>
+					<span class="ni"><NotebookPen size={18} /></span>
 					<span class="info">
 						<b>{n.title}</b>
 						<small>
@@ -173,19 +173,27 @@
 		border-color: color-mix(in oklab, var(--danger) 40%, transparent);
 		box-shadow: 0 0 0 6px color-mix(in oklab, var(--danger) 8%, transparent);
 	}
+	/* The universal recorder control: a ring with a red dot, which turns into a red stop button. */
 	.rec {
 		width: 92px;
 		height: 92px;
 		border-radius: 50%;
 		display: grid;
 		place-items: center;
-		background: var(--accent);
-		color: var(--accent-ink);
+		background: var(--surface-2);
+		color: var(--text);
 		transition: transform 0.15s, box-shadow 0.2s;
-		box-shadow: 0 0 0 8px var(--accent-soft);
+		box-shadow: inset 0 0 0 3px var(--text-3), 0 0 0 8px var(--surface);
 	}
 	.rec:hover {
 		transform: scale(1.05);
+	}
+	.dotrec {
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background: var(--danger);
+		box-shadow: 0 0 18px color-mix(in oklab, var(--danger) 45%, transparent);
 	}
 	.rec.stop {
 		background: var(--danger);

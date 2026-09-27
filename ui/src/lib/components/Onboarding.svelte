@@ -3,7 +3,7 @@
 	import { app } from '$lib/app.svelte';
 	import { api, post } from '$lib/api';
 	import Well from './Well.svelte';
-	import { ArrowRight, Check, Volume2, Lock, Sparkles, Keyboard, Gamepad2, Mic } from '@lucide/svelte';
+	import { ArrowRight, Check, Volume2, Lock, Sparkles, Keyboard, Gamepad2, Mic, AudioLines } from '@lucide/svelte';
 
 	let step = $state(0);
 	let name = $state('');
@@ -163,7 +163,7 @@
 				<h2>You're all set, {name.trim()}.</h2>
 				<div class="tips">
 					<div><Sparkles size={18} /><span>Ask anything. I'll look it up in the offline library and show you my sources.</span></div>
-					<div><Mic size={18} /><span>Talk to me with the orb, or hold the left trigger on the controller.</span></div>
+					<div><AudioLines size={18} /><span>Tap Talk to have a spoken conversation, or hold the left trigger on the controller.</span></div>
 					<div><Gamepad2 size={18} /><span>D-pad moves, A selects, B goes back, Start opens the quick menu.</span></div>
 					<div><Keyboard size={18} /><span>Press Ctrl + K to jump anywhere.</span></div>
 				</div>

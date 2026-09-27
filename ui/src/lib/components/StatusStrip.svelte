@@ -20,7 +20,7 @@
 <div class="strip" role="status">
 	<span class="pill offline" title="MIMI runs entirely on this device">
 		<WifiOff size={13} strokeWidth={2} />
-		Offline · all local
+		<span class="txt">Offline · all local</span>
 	</span>
 	<a href="/settings/models" class="pill" class:loading={model?.status === 'loading'} class:bad={model?.status === 'error'} title={model?.error || 'Language model'}>
 		<Cpu size={13} strokeWidth={2} />
@@ -121,17 +121,29 @@
 		font-weight: 550;
 		padding-left: 4px;
 	}
+	.clock {
+		white-space: nowrap;
+	}
+	/* Phones: the phone is the device connecting (no "Shared" pill), its own status bar shows
+	   the time, and location lives on the Map tab. Keep just "offline" (icon) and the model. */
 	@media (max-width: 760px) {
 		.strip {
 			padding: 0 12px;
 			gap: 6px;
 		}
-		.pill.share {
-		color: var(--accent);
-		border-color: var(--accent-line);
-	}
-	.pill.ghost {
+		.pill.ghost,
+		.pill.share,
+		.clock {
 			display: none;
+		}
+		.offline {
+			padding: 0 8px;
+		}
+		.offline .txt {
+			display: none;
+		}
+		.pill {
+			max-width: 200px;
 		}
 	}
 </style>

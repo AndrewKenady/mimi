@@ -80,7 +80,7 @@
 			dragRotate: false,
 			pitchWithRotate: false
 		});
-		map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+		map.addControl(new maplibregl.NavigationControl({ showCompass: false }), innerWidth <= 760 ? 'top-right' : 'bottom-right'); // phones: clear of the bottom sheet
 		map.on('click', (e: maplibregl.MapMouseEvent) => {
 			if (picking) setHere(e.lngLat.lat, e.lngLat.lng);
 		});

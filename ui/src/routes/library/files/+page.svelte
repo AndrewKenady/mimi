@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { del, fmtBytes, get, timeAgo, upload } from '$lib/api';
-	import { ArrowLeft, Upload, FileText, Trash2, Loader, CircleAlert, CircleCheck, AudioLines, Search } from '@lucide/svelte';
+	import { ArrowLeft, Upload, FileText, Trash2, Loader, CircleAlert, CircleCheck, AudioLines, Search, NotebookPen } from '@lucide/svelte';
 
 	let files = $state<any[]>([]);
 	let loading = $state(true);
@@ -85,7 +85,7 @@
 			<div class="list">
 				{#each files as f (f.id)}
 					<div class="row card">
-						<span class="fi">{#if f.kind === 'note'}<AudioLines size={18} />{:else}<FileText size={18} />{/if}</span>
+						<span class="fi">{#if f.kind === 'note'}<NotebookPen size={18} />{:else}<FileText size={18} />{/if}</span>
 						<span class="info">
 							<b>{f.title}</b>
 							<small>{f.source === 'scribe' ? 'Scribe note' : f.kind.toUpperCase()} · {fmtBytes(f.size)} · {timeAgo(f.created_at)}{#if f.chunks} · {f.chunks} passages{/if}</small>

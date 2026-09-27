@@ -4,20 +4,22 @@
 	import { app } from '$lib/app.svelte';
 	import { post } from '$lib/api';
 	import { hostPost, inShell, toggleFullscreen } from '$lib/host';
-	import { Mic, ScanText, AudioLines, Map, MessageSquarePlus, QrCode, Moon, Sun, Maximize, LogOut, MonitorDown, Search, UserCog } from '@lucide/svelte';
+	import { Mic, ScanText, AudioLines, Map, MessageSquarePlus, QrCode, Moon, Sun, Maximize, LogOut, MonitorDown, Search, UserCog, NotebookPen, Brain, Settings } from '@lucide/svelte';
 
 	const light = $derived(app.settings.user?.appearance?.theme === 'light');
 	const tiles = $derived(
 		[
-			{ label: 'Talk', icon: Mic, run: () => (app.voice = true), primary: true },
+			{ label: 'Talk', icon: AudioLines, run: () => (app.voice = true), primary: true },
 			{ label: 'New chat', icon: MessageSquarePlus, run: () => goto('/chat') },
 			{ label: 'Lens', icon: ScanText, run: () => goto('/lens') },
-			{ label: 'Scribe', icon: AudioLines, run: () => goto('/scribe'), hide: app.isGuest },
+			{ label: 'Scribe', icon: NotebookPen, run: () => goto('/scribe'), hide: app.isGuest },
 			{ label: 'Map', icon: Map, run: () => goto('/map') },
 			{ label: 'Search', icon: Search, run: () => (app.palette = true) },
+			{ label: 'Memory', icon: Brain, run: () => goto('/memory'), hide: app.isGuest || app.features.memory === false },
+			{ label: 'Settings', icon: Settings, run: () => goto('/settings') },
 			{ label: 'Share', icon: QrCode, run: () => goto('/settings/sharing'), hide: !app.isOwner },
 			{ label: light ? 'Dark mode' : 'Light mode', icon: light ? Moon : Sun, run: () => app.setSetting('user', 'appearance', { theme: light ? 'dark' : 'light' }) },
-			{ label: 'Full screen', icon: Maximize, run: () => toggleFullscreen() },
+			{ label: 'Full screen', icon: Maximize, run: () => toggleFullscreen(), hide: !inShell && innerWidth <= 760 },
 			{ label: 'Exit to desktop', icon: MonitorDown, run: () => hostPost({ type: 'exit-to-desktop' }), hide: !inShell },
 			{
 				label: 'Sign out',
@@ -55,7 +57,7 @@
 			<span class="av" style="--c:{app.me?.color}">{app.me?.name?.charAt(0).toUpperCase()}</span>
 			<div>
 				<b>{app.me?.name}</b>
-				<small>{app.me?.role === 'owner' ? 'Device owner' : app.me?.role === 'guest' ? 'Guest' : 'User'} · {app.hardware?.device || 'MIMI'}</small>
+				<small>{app.me?.role === 'owner' ? 'Owner' : app.me?.role === 'guest' ? 'Guest' : 'Member'}{app.boot?.local ? '' : ' · connected over the network'}</small>
 			</div>
 			{#if !app.isGuest}
 				<button class="btn btn-sm btn-ghost acct" onclick={() => run({ run: () => goto('/settings/accounts') })}><UserCog size={15} /> Account</button>
@@ -93,6 +95,19 @@
 		box-shadow: var(--shadow-2);
 		padding: 20px;
 		z-index: 71;
+		max-height: calc(100dvh - 12vh);
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+	@media (max-width: 760px) {
+		.qm {
+			bottom: calc(76px + env(safe-area-inset-bottom));
+			max-height: calc(100dvh - 96px - env(safe-area-inset-bottom));
+			padding: 16px;
+		}
+		.tile {
+			height: 84px !important;
+		}
 	}
 	.who {
 		display: flex;

@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { app } from '$lib/app.svelte';
-	import { House, MessagesSquare, Library, Map, AudioLines, ScanText, Brain, Settings, Menu, Mic } from '@lucide/svelte';
+	import { House, MessagesSquare, Library, Map, AudioLines, ScanText, Brain, Settings, Menu, Mic, NotebookPen } from '@lucide/svelte';
 
 	const items = [
 		{ href: '/', label: 'Home', icon: House, feature: null },
 		{ href: '/chat', label: 'Chat', icon: MessagesSquare, feature: 'chat' },
 		{ href: '/library', label: 'Library', icon: Library, feature: 'library' },
 		{ href: '/map', label: 'Map', icon: Map, feature: 'map' },
-		{ href: '/scribe', label: 'Scribe', icon: AudioLines, feature: 'scribe' },
+		{ href: '/scribe', label: 'Scribe', icon: NotebookPen, feature: 'scribe' },
 		{ href: '/lens', label: 'Lens', icon: ScanText, feature: 'lens' },
 		{ href: '/memory', label: 'Memory', icon: Brain, feature: 'memory' }
 	];
@@ -38,7 +38,7 @@
 	</div>
 	<div class="bottom">
 		<button class="item talk" onclick={() => (app.voice = true)} title="Talk to MIMI · hold Space, or X on a controller">
-			<span class="ico"><Mic size={20} strokeWidth={2} /></span>
+			<span class="ico"><AudioLines size={20} strokeWidth={2.2} /></span>
 			<span class="lbl">Talk</span>
 		</button>
 		<span class="sep" aria-hidden="true"></span>

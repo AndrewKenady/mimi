@@ -5,7 +5,7 @@
 	import { get, timeAgo } from '$lib/api';
 	import Well from '$components/Well.svelte';
 	import Composer from '$components/Composer.svelte';
-	import { Mic, ScanText, AudioLines, Compass, MapPin, ArrowRight, BookOpen, MessagesSquare, Shuffle, Library as LibIcon, Navigation } from '@lucide/svelte';
+	import { Mic, ScanText, AudioLines, Compass, MapPin, ArrowRight, BookOpen, MessagesSquare, Shuffle, Library as LibIcon, Navigation, NotebookPen } from '@lucide/svelte';
 
 	let mode = $state(app.settings.user?.assistant?.default_mode || 'everyday');
 	let nearby = $state<any[] | null>(null);
@@ -65,9 +65,9 @@
 				<Composer onsend={send} bind:mode big placeholder="Ask MIMI anything…" autofocus />
 			</div>
 			<div class="quick">
-				<button class="qa" onclick={() => (app.voice = true)}><Mic size={18} /> Talk</button>
+				<button class="qa" onclick={() => (app.voice = true)}><AudioLines size={18} /> Talk</button>
 				<a class="qa" href="/lens"><ScanText size={18} /> Read a photo</a>
-				{#if !app.isGuest}<a class="qa" href="/scribe"><AudioLines size={18} /> Record a note</a>{/if}
+				{#if !app.isGuest}<a class="qa" href="/scribe"><NotebookPen size={18} /> Record a note</a>{/if}
 				<a class="qa" href="/map"><Compass size={18} /> What's nearby</a>
 			</div>
 		</section>
@@ -145,7 +145,7 @@
 					{#if notes === null}
 						<div class="shimmer" style="height:110px"></div>
 					{:else if !notes.length}
-						<div class="empty"><AudioLines size={20} /><p>Record a meeting or a thought, and MIMI writes the summary.</p><a class="btn btn-sm" href="/scribe">Start recording</a></div>
+						<div class="empty"><NotebookPen size={20} /><p>Record a meeting or a thought, and MIMI writes the summary.</p><a class="btn btn-sm" href="/scribe">Start recording</a></div>
 					{:else}
 						<ul class="rows">
 							{#each notes as n (n.id)}

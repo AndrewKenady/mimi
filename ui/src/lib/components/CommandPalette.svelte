@@ -4,7 +4,7 @@
 	import { app } from '$lib/app.svelte';
 	import { get } from '$lib/api';
 	import { toggleFullscreen } from '$lib/host';
-	import { Search, House, MessageSquarePlus, Library, Map, AudioLines, ScanText, Brain, Settings, Mic, Moon, Maximize, QrCode, MessagesSquare, CornerDownLeft } from '@lucide/svelte';
+	import { Search, House, MessageSquarePlus, Library, Map, AudioLines, ScanText, Brain, Settings, Mic, Moon, Maximize, QrCode, MessagesSquare, CornerDownLeft, NotebookPen } from '@lucide/svelte';
 
 	type Item = { id: string; label: string; hint?: string; icon: any; run: () => void; group: string };
 	let q = $state('');
@@ -15,11 +15,11 @@
 
 	const base: Item[] = [
 		{ id: 'new', label: 'New chat', icon: MessageSquarePlus, run: () => goto('/chat'), group: 'Go' },
-		{ id: 'talk', label: 'Talk to MIMI', hint: 'Voice', icon: Mic, run: () => (app.voice = true), group: 'Go' },
+		{ id: 'talk', label: 'Talk to MIMI', hint: 'Voice', icon: AudioLines, run: () => (app.voice = true), group: 'Go' },
 		{ id: 'home', label: 'Home', icon: House, run: () => goto('/'), group: 'Go' },
 		{ id: 'lib', label: 'Library', icon: Library, run: () => goto('/library'), group: 'Go' },
 		{ id: 'map', label: 'Map', icon: Map, run: () => goto('/map'), group: 'Go' },
-		{ id: 'scribe', label: 'Scribe — record a note', icon: AudioLines, run: () => goto('/scribe'), group: 'Go' },
+		{ id: 'scribe', label: 'Scribe — record a note', icon: NotebookPen, run: () => goto('/scribe'), group: 'Go' },
 		{ id: 'lens', label: 'Lens — read a photo', icon: ScanText, run: () => goto('/lens'), group: 'Go' },
 		{ id: 'memory', label: 'Memory', icon: Brain, run: () => goto('/memory'), group: 'Go' },
 		{ id: 'settings', label: 'Settings', icon: Settings, run: () => goto('/settings'), group: 'Go' },
