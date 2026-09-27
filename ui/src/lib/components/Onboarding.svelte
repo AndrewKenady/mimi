@@ -34,9 +34,11 @@
 			app.me = b.me;
 			if (b.settings) app.settings = b.settings;
 			app.applyAppearance();
-			const v = await api('/api/voice/voices').catch(() => ({ voices: [] }));
-			voices = (v.voices || []).filter((x: any) => x.featured);
 			step = 2;
+			// Fetched in the background: by the voice step it's ready, and nobody waits on it.
+			api('/api/voice/voices')
+				.then((v) => (voices = (v.voices || []).filter((x: any) => x.featured)))
+				.catch(() => {});
 		} catch (e: any) {
 			error = e.message;
 		} finally {
@@ -61,13 +63,14 @@
 		}
 	}
 
-	async function saveLook() {
-		await app.setSetting('user', 'appearance', { theme, accent });
+	// Steps advance at once; choices save in the background (setSetting reports failures).
+	function saveLook() {
 		step = 3;
+		app.setSetting('user', 'appearance', { theme, accent });
 	}
-	async function saveVoice() {
-		await app.setSetting('user', 'voice', { voice });
+	function saveVoice() {
 		step = 4;
+		app.setSetting('user', 'voice', { voice });
 	}
 	async function finish() {
 		await app.setSetting('user', 'privacy', { memory });
