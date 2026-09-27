@@ -80,7 +80,7 @@ class Services:
         self.scribe.start()
         self.models.start_janitor()
         self.chats.purge()
-        if self.settings.device("models").preload:
+        if self.settings.device("models").preload and not os.environ.get("MIMI_NO_PRELOAD"):
             self._tasks.append(asyncio.create_task(self.models.preload()))
         if self.settings.device("sharing").enabled:
             self._tasks.append(asyncio.create_task(self.share.start(app)))
@@ -144,7 +144,9 @@ class Services:
 def is_local(request: Request) -> bool:
     server = request.scope.get("server") or ("", 0)
     client = request.client.host if request.client else ""
-    return server[1] == MAIN_PORT and client in ("127.0.0.1", "::1", "localhost", "testclient")
+    if client == "testclient":  # Starlette's TestClient: local only when talking to the default test host
+        return server[0] == "testserver"
+    return server[1] == MAIN_PORT and client in ("127.0.0.1", "::1", "localhost")
 
 
 def ctx_or_none(request: Request) -> Ctx | None:

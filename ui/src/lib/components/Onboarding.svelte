@@ -28,7 +28,12 @@
 		busy = true;
 		try {
 			await post('/api/auth/setup', { name: name.trim(), pin: usePin ? pin : null });
-			await app.load();
+			// Pick up the new owner's session and settings, but stay in onboarding until the last step.
+			const b = await api('/api/bootstrap');
+			app.boot = { ...b, needs_setup: true };
+			app.me = b.me;
+			if (b.settings) app.settings = b.settings;
+			app.applyAppearance();
 			const v = await api('/api/voice/voices').catch(() => ({ voices: [] }));
 			voices = (v.voices || []).filter((x: any) => x.featured);
 			step = 2;
@@ -66,7 +71,7 @@
 	}
 	async function finish() {
 		await app.setSetting('user', 'privacy', { memory });
-		app.boot = { ...app.boot, needs_setup: false };
+		await app.load(); // now leaves onboarding (needs_setup is false server-side) and connects live events
 		app.toast(`Welcome, ${name.trim()}. I'm ready when you are.`, 'ok');
 	}
 	function pickTheme(t: string) {

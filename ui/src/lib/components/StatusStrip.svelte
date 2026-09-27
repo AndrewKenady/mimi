@@ -34,7 +34,7 @@
 		<a href="/map" class="pill ghost" title="Location"><MapPin size={13} strokeWidth={2} />{loc}</a>
 	{/if}
 	{#if app.share?.running}
-		<a href="/settings/sharing" class="pill ghost" title="Devices connected to MIMI"><Users size={13} strokeWidth={2} />{guests}</a>
+		<a href="/settings/sharing" class="pill share" title="Other devices can open MIMI at this address"><Users size={13} strokeWidth={2} />Shared · {(app.share?.urls?.ips?.[0] || '').replace('https://', '').replace(/\/$/, '')}{guests ? ` · ${guests} connected` : ''}</a>
 	{/if}
 	{#if battery}
 		<span class="pill ghost" title="Battery">
@@ -75,6 +75,10 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
+	.pill.share {
+		color: var(--accent);
+		border-color: var(--accent-line);
+	}
 	.pill.ghost {
 		background: transparent;
 		border-color: transparent;
@@ -113,7 +117,11 @@
 			padding: 0 12px;
 			gap: 6px;
 		}
-		.pill.ghost {
+		.pill.share {
+		color: var(--accent);
+		border-color: var(--accent-line);
+	}
+	.pill.ghost {
 			display: none;
 		}
 	}

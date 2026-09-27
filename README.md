@@ -2,40 +2,56 @@
 
 *An open-source, fully offline AI field station. The name nods to **Mímir**, the Norse keeper of wisdom whose counsel Odin carried.*
 
-MIMI turns a small PC (the reference device is a handheld ONEXPLAYER F1) into an AI assistant that works with **zero internet**:
+![MIMI home screen on the ONEXPLAYER F1](docs/screenshots/home.png)
 
-- **Ask anything**, answered by a local open-weights model (Gemma 4 12B by default) with **citations** from an offline library: all of English Wikipedia (with images), WikiMed, iFixit, Wikivoyage, Stack Exchange, a dictionary, survival guides, classic books and TED talks.
-- **Remembers you**, transparently: every memory can be reviewed, edited, paused or wiped.
-- **Voice conversation**, Whisper speech-to-text plus Kokoro text-to-speech, all on-device.
-- **Scribe** records and transcribes meetings, then writes a summary, key points and action items.
-- **Lens** reads text in photos and lets you ask about what the camera sees.
-- **Maps and "what's near me"** use offline OpenStreetMap tiles, GeoNames and geotagged Wikipedia.
-- **"Connect to MIMI"**: phones nearby join over Wi-Fi and use it at `https://mimi.local`.
-- **Portable**: the same folder runs from a USB drive on any Windows PC.
+MIMI turns a small PC into an assistant that works with **zero internet**. The reference device is a handheld ONEXPLAYER F1 (Ryzen 7 7840U, 16 GB).
 
-> Status: early development (v0.1). See [docs/PLAN.md](docs/PLAN.md) for the full design.
+- **Ask anything, with sources.** Answers come from a local open-weights model (Gemma 4 12B) grounded in an offline library: all of English Wikipedia with images, WikiMed, iFixit, Wikivoyage, nine Stack Exchange sites, Wiktionary, survival guides, Project Gutenberg shelves and TED talks. That's 26 collections and 161 GB. Every factual answer cites the article it came from.
+- **Reads photos.** Lens does instant on-device OCR, and the vision model can explain, translate or identify what it sees.
+- **Talks.** Full-screen voice conversation (Whisper and Kokoro, all on the device), or push-to-talk on the controller.
+- **Takes notes.** Scribe records, transcribes, and writes the summary, key points and action items.
+- **Knows where you are.** Offline maps of the US and Canada, "what's near me" (GeoNames plus 1.2M geotagged Wikipedia articles), and **turn-by-turn driving directions** with time and distance (Valhalla).
+- **Remembers you, transparently.** Suggested memories wait for your OK. Every one can be seen, edited, pinned, paused or erased.
+- **Shares.** Phones join the MIMI Wi-Fi and open `https://mimi.local` as guests or users.
+- **Feels like a frontier app.** A native full-screen app with a living "Well" orb, gamepad navigation, a command palette, 12 settings sections and dark, light and OLED themes.
 
-## Layout
+| Chat with citations | Offline directions | Library reader |
+|---|---|---|
+| ![](docs/screenshots/chat.png) | ![](docs/screenshots/route.png) | ![](docs/screenshots/reader.png) |
 
-This folder is both the git repository and the portable install. Large content is git-ignored and fetched by scripts.
-
-```
-core/      MIMI Core: Python/FastAPI backend (models, library, memory, voice, maps, sharing)
-ui/        The MIMI app UI (SvelteKit)
-shell/     MIMI.exe, a thin native Windows window (WebView2)
-config/    Model catalog, modes
-scripts/   Setup, downloads, data builds
-docs/      Plan, architecture, decisions, benchmarks
-bin/ python/ models/ zim/ maps/ data/ logs/   (git-ignored runtime and content)
-```
-
-## Running (development)
+## Quick start (Windows 10/11 x64)
 
 ```powershell
-# backend (serves the UI too) on http://127.0.0.1:7600
-cd core; ..\python\python.exe -m mimi serve
+git clone https://github.com/AndrewKenady/mimi.git
+cd mimi
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+.\MIMI.exe
 ```
 
-## License
+`setup.ps1` installs a portable Python and Node inside the folder, downloads the engines, models, library and maps (about 190 GB, resumable, from their original publishers), builds the geodata and routing graph, the UI, and `MIMI.exe`. It needs no administrator rights. Use `-NoContent` for code and runtimes only.
 
-MIT for MIMI's own code. Bundled models and content have their own licenses (see [docs/PLAN.md](docs/PLAN.md#12-licensing-checklist-open-source-non-commercial-distribution)). MIMI is **non-commercial**: some bundled content (e.g. TED talks) forbids commercial use, so MIMI drives and images may not be sold.
+Development:
+
+```powershell
+cd core; ..\python\python.exe -m mimi serve          # Core + built UI on http://127.0.0.1:7600
+cd ui;   npm run dev                                   # hot-reloading UI on :5173 (proxies to Core)
+cd core; ..\python\python.exe -m pytest               # tests
+```
+
+## How it's built
+
+| Piece | Tech |
+|---|---|
+| `core/` MIMI Core | Python 3.12, FastAPI, SQLite, llama.cpp (Vulkan) model manager, kiwix-serve, faster-whisper, Kokoro-ONNX, RapidOCR, Valhalla, zeroconf |
+| `ui/` MIMI app | SvelteKit (Svelte 5), Tailwind 4, MapLibre + PMTiles, WebGL "Well" |
+| `shell/` MIMI.exe | WinForms + WebView2, compiled with the C# compiler that ships with Windows |
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), the original [plan](docs/PLAN.md), [design decisions](docs/DECISIONS.md) (including where we deviated from the plan) and [benchmarks](docs/BENCHMARKS.md).
+
+## Sharing with phones
+
+Settings → Sharing turns on the local HTTPS server and announces `mimi.local`. Allow it through Windows Firewall once (Windows asks for approval). Phones then join the `MIMI` Wi-Fi from a travel router or the Windows hotspot, scan the QR codes, and optionally install `MIMI-Local-CA.crt` so the microphone and camera work.
+
+## Licenses
+
+MIMI's own code is MIT. Models, engines and content keep their own licenses: Gemma 4 and Qwen3.5 (Apache-2.0), Wikipedia and Stack Exchange (CC BY-SA), OpenStreetMap (ODbL), GeoNames (CC BY), TED (CC BY-NC-ND) and others. MIMI is **non-commercial**, so MIMI drives and images may not be sold.

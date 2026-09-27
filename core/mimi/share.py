@@ -28,20 +28,41 @@ L = log.get("share")
 RULE_NAME = "MIMI Share"
 
 
-def local_ipv4s() -> list[str]:
-    ips = []
+def interfaces() -> list[dict]:
+    """IPv4 addresses other devices can reach, with a friendly network name."""
+    out = []
+    stats = psutil.net_if_stats()
     for name, addrs in psutil.net_if_addrs().items():
-        stats = psutil.net_if_stats().get(name)
-        if stats and not stats.isup:
+        st = stats.get(name)
+        if st and not st.isup:
+            continue
+        low = name.lower()
+        if any(k in low for k in ("vethernet", "wsl", "hyper-v", "virtualbox", "vmware", "loopback", "bluetooth")):
             continue
         for a in addrs:
-            if a.family == socket.AF_INET:
-                ip = ipaddress.ip_address(a.address)
-                if ip.is_loopback or ip.is_link_local:
-                    continue
-                ips.append(a.address)
-    # Mobile-hotspot / router-facing addresses first (192.168.137.x is Windows' hotspot subnet)
-    return sorted(set(ips), key=lambda s: (not s.startswith("192.168.137."), not s.startswith("192.168."), s))
+            if a.family != socket.AF_INET:
+                continue
+            ip = ipaddress.ip_address(a.address)
+            if ip.is_loopback or ip.is_link_local:
+                continue
+            kind = "hotspot" if a.address.startswith("192.168.137.") else ("wifi" if ("wi-fi" in low or "wlan" in low or "wireless" in low) else ("ethernet" if "ethernet" in low else "network"))
+            label = {"hotspot": "MIMI hotspot", "wifi": "Wi-Fi", "ethernet": "Ethernet"}.get(kind, name)
+            out.append({"ip": a.address, "interface": name, "kind": kind, "label": label})
+    order = {"wifi": 0, "ethernet": 1, "hotspot": 2, "network": 3}
+    return sorted(out, key=lambda i: (order[i["kind"]], i["ip"]))
+
+
+def local_ipv4s() -> list[str]:
+    return [i["ip"] for i in interfaces()]
+
+
+def _port_free(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(("0.0.0.0", port))
+            return True
+        except OSError:
+            return False
 
 
 class ShareService:
@@ -53,6 +74,10 @@ class ShareService:
         self.zc_info = None
         self.error: str | None = None
         self.hotspot_state: dict | None = None
+        self.port: int | None = None
+        self.redirect = None
+        self.redirect_task: asyncio.Task | None = None
+        self.redirect_port: int | None = None
 
     # --- certificates ------------------------------------------------------------------
     @property
@@ -131,6 +156,7 @@ class ShareService:
         return self.task is not None and not self.task.done()
 
     async def start(self, app) -> None:
+        """Serve MIMI to the local network over HTTPS (+ an HTTP → HTTPS redirect)."""
         if self.running:
             return
         import uvicorn
@@ -143,36 +169,74 @@ class ShareService:
             def capture_signals(self):  # the main server owns signal handling
                 yield
 
-        config = uvicorn.Config(app, host="0.0.0.0", port=cfg.https_port, ssl_certfile=str(cert), ssl_keyfile=str(key),
-                                log_config=None, access_log=False, lifespan="off", ws_ping_interval=20)
-        self.server = _Server(config)
         self.error = None
-
-        async def serve():
-            try:
-                await self.server.serve()
-            except SystemExit:
-                self.error = f"Port {cfg.https_port} is busy or blocked."
-            except Exception as e:
-                self.error = str(e)
-                L.exception("share server failed")
-
-        self.task = asyncio.create_task(serve())
-        await asyncio.sleep(0.6)
-        if self.task.done():
-            self.error = self.error or f"Couldn't listen on port {cfg.https_port}."
+        # Try the configured port, then a common alternative if it's taken or blocked.
+        for port in dict.fromkeys([cfg.https_port, 8443, 9443]):
+            if not _port_free(port):
+                continue
+            config = uvicorn.Config(app, host="0.0.0.0", port=port, ssl_certfile=str(cert), ssl_keyfile=str(key),
+                                    log_config=None, access_log=False, lifespan="off", ws_ping_interval=20)
+            server = _Server(config)
+            task = asyncio.create_task(self._serve(server, port))
+            await asyncio.sleep(0.6)
+            if not task.done():
+                self.server, self.task, self.port = server, task, port
+                break
         else:
-            await asyncio.to_thread(self._mdns_start, cfg.https_port)
+            self.error = f"Couldn't listen on port {cfg.https_port} or 8443. Another program may be using them."
+        if self.running:
+            await self._start_redirect(app)
+            await asyncio.to_thread(self._mdns_start, self.port)
+            L.info("sharing on https://%s", ", ".join(f"{i['ip']}:{self.port}" for i in interfaces()))
         self.svc.events.publish("share", self.status(owner=False), sticky=True)
 
+    async def _serve(self, server, port: int) -> None:
+        try:
+            await server.serve()
+        except SystemExit:
+            self.error = f"Port {port} is busy or blocked."
+        except Exception as e:
+            self.error = str(e)
+            L.exception("share server failed")
+
+    async def _start_redirect(self, app) -> None:
+        """Plain http://<ip>/ → the HTTPS address (so typing the bare IP just works)."""
+        import uvicorn
+
+        target_port = self.port
+
+        async def redirect(scope, receive, send):
+            if scope["type"] != "http":
+                return
+            host = dict(scope.get("headers") or []).get(b"host", b"").decode().split(":")[0] or "mimi.local"
+            suffix = "" if target_port == 443 else f":{target_port}"
+            location = f"https://{host}{suffix}{scope.get('path', '/')}"
+            await send({"type": "http.response.start", "status": 307, "headers": [(b"location", location.encode()), (b"content-length", b"0")]})
+            await send({"type": "http.response.body", "body": b""})
+
+        class _Server(uvicorn.Server):
+            @contextlib.contextmanager
+            def capture_signals(self):
+                yield
+
+        for port in (80, 8080):
+            if _port_free(port):
+                srv = _Server(uvicorn.Config(redirect, host="0.0.0.0", port=port, log_config=None, access_log=False, lifespan="off"))
+                task = asyncio.create_task(self._serve(srv, port))
+                await asyncio.sleep(0.3)
+                if not task.done():
+                    self.redirect, self.redirect_task, self.redirect_port = srv, task, port
+                    return
+
     async def stop(self) -> None:
-        if self.server:
-            self.server.should_exit = True
-        if self.task:
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(self.task, timeout=5)
-        self.server = None
-        self.task = None
+        for srv, task in ((self.server, self.task), (self.redirect, self.redirect_task)):
+            if srv:
+                srv.should_exit = True
+            if task:
+                with contextlib.suppress(Exception):
+                    await asyncio.wait_for(task, timeout=5)
+        self.server = self.task = self.redirect = self.redirect_task = None
+        self.port = self.redirect_port = None
         await asyncio.to_thread(self._mdns_stop)
         self.svc.events.publish("share", self.status(owner=False), sticky=True)
 
@@ -180,7 +244,7 @@ class ShareService:
         try:
             from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
-            ips = local_ipv4s()
+            ips = [i["ip"] for i in interfaces()]
             if not ips:
                 return
             self.zc = Zeroconf(ip_version=IPVersion.V4Only)
@@ -205,19 +269,23 @@ class ShareService:
 
     # --- status & QR ---------------------------------------------------------------------------
     def urls(self) -> dict:
-        port = self.svc.settings.device("sharing").https_port
+        port = self.port or self.svc.settings.device("sharing").https_port
         suffix = "" if port == 443 else f":{port}"
-        ips = local_ipv4s()
-        return {"name": f"https://mimi.local{suffix}/", "ips": [f"https://{ip}{suffix}/" for ip in ips]}
+        addrs = [{**i, "url": f"https://{i['ip']}{suffix}/"} for i in interfaces()]
+        return {"name": f"https://mimi.local{suffix}/", "ips": [a["url"] for a in addrs], "addresses": addrs}
 
     def status(self, owner: bool = True) -> dict:
         cfg = self.svc.settings.device("sharing")
         out = {
             "enabled": cfg.enabled, "running": self.running, "error": self.error, "ssid": cfg.ssid, "network_mode": cfg.network_mode,
-            "port": cfg.https_port, "urls": self.urls(), "mdns": self.zc is not None, "ips": local_ipv4s(),
+            "port": self.port or cfg.https_port, "redirect_port": self.redirect_port, "urls": self.urls(), "mdns": self.zc is not None,
+            "ips": [i["ip"] for i in interfaces()],
         }
         if owner:
-            out.update(wifi_password=cfg.wifi_password, firewall=self.firewall_ok(), clients=self.svc.auth.active_remote_sessions(), hotspot=self.hotspot_state)
+            o = self.svc.auth.owner()
+            out.update(wifi_password=cfg.wifi_password, firewall=self.firewall_ok(), clients=self.svc.auth.active_remote_sessions(),
+                       hotspot=self.hotspot_state, owner_can_sign_in=bool(o and (o.get("pin_hash") or o.get("password_hash"))),
+                       owner_name=o["name"] if o else None)
         return out
 
     def qr_svg(self, kind: str) -> str:
@@ -230,7 +298,8 @@ class ShareService:
             data = f"WIFI:T:WPA;S:{esc(cfg.ssid)};P:{esc(cfg.wifi_password)};;"
         else:
             u = self.urls()
-            data = u["ips"][0] if kind == "ip" and u["ips"] else u["name"]
+            # The IP address works everywhere; some Android phones can't resolve mimi.local.
+            data = u["name"] if kind == "name" or not u["ips"] else u["ips"][0]
         img = qrcode.make(data, image_factory=qrcode.image.svg.SvgPathImage, box_size=10, border=2)
         buf = io.BytesIO()
         img.save(buf)
@@ -251,9 +320,9 @@ class ShareService:
         """Ask Windows (UAC prompt) to allow inbound HTTPS + mDNS for MIMI on local networks."""
         if sys.platform != "win32":
             return False
-        port = self.svc.settings.device("sharing").https_port
+        ports = ",".join(str(p) for p in dict.fromkeys([self.port or self.svc.settings.device("sharing").https_port, 8443, 80, 8080]))
         ps = (
-            f"New-NetFirewallRule -DisplayName '{RULE_NAME} (HTTPS)' -Name 'MIMI-HTTPS' -Direction Inbound -Protocol TCP -LocalPort {port} "
+            f"New-NetFirewallRule -DisplayName '{RULE_NAME} (HTTPS)' -Name 'MIMI-HTTPS' -Direction Inbound -Protocol TCP -LocalPort {ports} "
             f"-Action Allow -Profile Private,Public -ErrorAction SilentlyContinue; "
             f"New-NetFirewallRule -DisplayName '{RULE_NAME} (mDNS)' -Name 'MIMI-mDNS' -Direction Inbound -Protocol UDP -LocalPort 5353 "
             f"-Action Allow -Profile Private,Public -ErrorAction SilentlyContinue"

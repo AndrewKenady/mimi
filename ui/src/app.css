@@ -468,6 +468,17 @@ button.chip:hover {
 	margin: 0 0 0.9em;
 	padding-left: 1.35em;
 }
+/* Tailwind's preflight removes list markers; content lists need them back. */
+.prose ul,
+.kiwix ul,
+ul.bullets {
+	list-style: disc;
+}
+.prose ol,
+.kiwix ol,
+ol.steps-list {
+	list-style: decimal;
+}
 .prose li {
 	margin: 0.3em 0;
 }

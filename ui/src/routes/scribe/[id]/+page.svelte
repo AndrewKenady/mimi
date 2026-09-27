@@ -93,7 +93,7 @@
 					{#if note.summary.summary}<p class="lead">{note.summary.summary}</p>{/if}
 					{#if note.summary.key_points?.length}
 						<h3><Lightbulb size={16} /> Key points</h3>
-						<ul>{#each note.summary.key_points as p}<li>{p}</li>{/each}</ul>
+						<ul class="bullets">{#each note.summary.key_points as p}<li>{p}</li>{/each}</ul>
 					{/if}
 					{#if note.summary.action_items?.length}
 						<h3><ListChecks size={16} /> Action items</h3>

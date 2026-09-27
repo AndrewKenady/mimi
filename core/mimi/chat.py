@@ -41,7 +41,8 @@ def est_tokens(obj: Any) -> int:
 
 def heuristic_title(text: str) -> str:
     t = re.sub(r"\s+", " ", text).strip()
-    t = re.sub(r"^(hey|hi|hello|ok|okay|so|please|mimi)[,!.\s]+", "", t, flags=re.I)
+    for _ in range(3):  # "hey mimi, …" → "…"
+        t = re.sub(r"^(hey|hi|hello|ok|okay|so|please|mimi)\b[,!.\s]+", "", t, flags=re.I)
     if len(t) <= 48:
         return t[:1].upper() + t[1:] if t else "New chat"
     cut = t[:48].rsplit(" ", 1)[0]

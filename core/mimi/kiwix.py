@@ -288,12 +288,46 @@ class KiwixClient:
         by_lang: dict[str, list[Book]] = {}
         for b in chosen:
             by_lang.setdefault(b.language or "eng", []).append(b)
-        results = await asyncio.gather(*(self._search_group(query, grp, limit) for grp in by_lang.values()), return_exceptions=True)
-        hits: list[Hit] = []
+        titled, *results = await asyncio.gather(self._title_hits(query, chosen), *(self._search_group(query, grp, limit) for grp in by_lang.values()),
+                                                return_exceptions=True)
+        hits: list[Hit] = list(titled) if isinstance(titled, list) else []
+        seen = {(h.book, h.path) for h in hits}
         for res in results:
             if isinstance(res, list):
-                hits.extend(res)
+                for h in res:
+                    if (h.book, h.path) not in seen:
+                        seen.add((h.book, h.path))
+                        hits.append(h)
         return hits[: limit * 2]
+
+    async def _title_hits(self, query: str, books: list[Book]) -> list[Hit]:
+        """An article whose title *is* the topic ("Bee sting") beats full-text relevance.
+
+        Try the query's leading words as a title prefix (4 → 2 words) in the
+        largest few books; keep suggestions whose title is contained in the query.
+        """
+        words = [w for w in re.findall(r"[A-Za-z0-9'’-]+", query) if w.lower() not in STOPWORDS]
+        if len(words) < 1:
+            return []
+        qnorm = " " + " ".join(w.lower() for w in words) + " "
+        top = sorted(books, key=lambda b: -b.articles)[:4]
+        out: list[Hit] = []
+        for n in range(min(4, len(words)), 0, -1):
+            prefix = " ".join(words[:n])
+            if n == 1 and len(prefix) < 5:
+                break
+            sugg = await asyncio.gather(*(self.suggest(prefix, b.name, 5) for b in top), return_exceptions=True)
+            for b, res in zip(top, sugg):
+                if not isinstance(res, list):
+                    continue
+                for s in res:
+                    t = (s.get("title") or "").strip()
+                    tn = " " + " ".join(re.findall(r"[a-z0-9'’-]+", t.lower())) + " "
+                    if t and s.get("path") and tn.strip() and tn in qnorm and len(tn.strip()) >= 4:
+                        out.append(Hit(title=t, path=s["path"], book=b.name, book_title=b.title, collection=b.collection, snippet="", score=2.0))
+            if out:
+                break
+        return out[:2]
 
     async def _search_group(self, query: str, group: list[Book], limit: int) -> list[Hit]:
         params = [("pattern", query), ("format", "xml"), ("pageLength", str(limit)), ("start", "0")] + [("books.name", b.name) for b in group]

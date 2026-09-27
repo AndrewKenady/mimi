@@ -702,7 +702,11 @@ async def kiwix_proxy(path: str, request: Request):
     svc = S(request)
     if ctx_or_none(request) is None:
         raise HTTPException(401)
-    url = f"{svc.kiwix_service.base}/{path}"
+    # Forward the path exactly as the browser encoded it: some ZIM asset names
+    # contain literal "%2C", which must reach kiwix-serve still escaped.
+    raw = request.scope.get("raw_path") or b""
+    raw_path = raw.decode("latin-1")[len("/kiwix/"):] if raw.startswith(b"/kiwix/") else path
+    url = f"{svc.kiwix_service.base}/{raw_path}"
     if request.url.query:
         url += "?" + request.url.query
     headers = {k: v for k, v in request.headers.items() if k.lower() in ("range",)}

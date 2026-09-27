@@ -21,7 +21,7 @@
 		{ id: 'voice', label: 'Voice', icon: AudioLines, owner: false, keys: 'voice speech speed read aloud whisper transcription' },
 		{ id: 'library', label: 'Library', icon: Library, owner: true, keys: 'collections wikipedia zim sources passages' },
 		{ id: 'location', label: 'Maps & Location', icon: MapPin, owner: true, keys: 'gps location map history' },
-		{ id: 'sharing', label: 'Sharing', icon: Share2, owner: true, keys: 'wifi hotspot share phones qr guests network certificate' },
+		{ id: 'sharing', label: 'Sharing & access', icon: Share2, owner: true, keys: 'wifi hotspot share phones qr guests network certificate browser url remote access lan other devices' },
 		{ id: 'accounts', label: 'Accounts & Privacy', icon: Users, owner: false, keys: 'users pin password guests privacy history delete memory' },
 		{ id: 'controls', label: 'Controls', icon: Gamepad2, owner: true, keys: 'gamepad controller buttons mapping keyboard shortcuts' },
 		{ id: 'power', label: 'Power', icon: BatteryCharging, owner: true, keys: 'battery saver power' },
@@ -78,7 +78,8 @@
 	}
 	$effect(() => {
 		app.share;
-		if (section === 'sharing') get('/api/share').then((r) => (share = r)).catch(() => {});
+		D.sharing?.enabled;
+		if (section === 'sharing') setTimeout(loadShare, 900);
 	});
 
 	async function preview(id: string) {
@@ -370,33 +371,56 @@
 				</div>
 			{:else if section === 'sharing' && D.sharing}
 				<div class="group card">
-					<Row label="Share MIMI with nearby devices" hint="Phones on the same Wi-Fi can open MIMI at https://mimi.local.">
-						<Toggle checked={D.sharing.enabled} onchange={(v) => dev('sharing', { enabled: v })} label="Share" />
+					<Row label="Access from other devices" hint="Open MIMI in the web browser of any phone, tablet or laptop on the same network (your home Wi-Fi, a router, or MIMI's own hotspot).">
+						<Toggle checked={D.sharing.enabled} onchange={(v) => dev('sharing', { enabled: v })} label="Access from other devices" />
 					</Row>
-					{#if share}
-						<Row label="Status" hint={share.error || (share.running ? `mimi.local ${share.mdns ? 'is being announced' : 'announcement unavailable'} · ${share.ips?.join(', ') || 'no network'}` : 'Not sharing')}>
-							<span class="tag" class:live={share.running}>{share.running ? 'On' : 'Off'}</span>
-						</Row>
+					{#if D.sharing.enabled && share}
+						{#if share.error}
+							<Row label="Couldn't start" hint={share.error}><span class="tag">Error</span></Row>
+						{:else if share.running}
+							<div class="access">
+								<div class="urls">
+									<span class="label">Open this address on the other device</span>
+									{#each share.urls?.addresses || [] as a (a.ip)}
+										<div class="url">
+											<code class="selectable">{a.url}</code>
+											<span class="net">{a.label}</span>
+											<button class="icon-btn sm" onclick={() => { navigator.clipboard?.writeText(a.url); app.toast('Address copied', 'ok'); }} aria-label="Copy address"><Copy size={14} /></button>
+										</div>
+									{:else}
+										<p class="faint">This device isn't connected to a network yet.</p>
+									{/each}
+									{#if share.mdns}
+										<div class="url alt"><code class="selectable">{share.urls?.name}</code><span class="net">works on most phones and Macs</span></div>
+									{/if}
+									<ol class="how steps-list">
+										<li>On the other device, open the address above (or scan the code).</li>
+										<li>If the browser warns about the connection, choose <b>Advanced → Continue</b>. It's MIMI's own local certificate. To remove the warning and enable the microphone and camera, install the <a href="/cert" download>MIMI certificate</a> on that device once.</li>
+										<li>Sign in as <b>{share.owner_name || 'you'}</b> with your PIN for full access, or join as a guest.</li>
+									</ol>
+									{#if !share.owner_can_sign_in}
+										<p class="warn-line"><Info size={14} style="vertical-align:-2px" /> Set a PIN in <a href="/settings/accounts">Accounts</a> so you can sign in from other devices with full access.</p>
+									{/if}
+								</div>
+								{#if qrUrl}
+									<div class="qrbox">
+										<div class="code">{@html qrUrl}</div>
+										<small class="faint">Scan to open</small>
+									</div>
+								{/if}
+							</div>
+							<Row label="Allow through Windows Firewall" hint={share.firewall ? 'Other devices can reach MIMI.' : 'Needed once, or other devices can’t connect. Windows asks you to approve.'}>
+								{#if share.firewall}<span class="tag live"><ShieldCheck size={13} /> Allowed</span>{:else if app.boot?.local}<button class="btn btn-sm btn-primary" onclick={requestFirewall}><ShieldCheck size={14} /> Allow</button>{:else}<span class="tag">Blocked</span>{/if}
+							</Row>
+						{:else}
+							<Row label="Starting…"><span class="tag">…</span></Row>
+						{/if}
 					{/if}
 				</div>
-				{#if share?.running}
-					<div class="qrs">
-						<div class="qr card">
-							<span class="label">1 · Join Wi-Fi</span>
-							{#if qrWifi}<div class="code">{@html qrWifi}</div>{/if}
-							<b>{D.sharing.ssid}</b>
-							<small class="pass">{showPass ? D.sharing.wifi_password : '••••••••••'} <button class="icon-btn sm" onclick={() => (showPass = !showPass)} aria-label="Show password">{#if showPass}<EyeOff size={13} />{:else}<Eye size={13} />{/if}</button></small>
-						</div>
-						<div class="qr card">
-							<span class="label">2 · Open MIMI</span>
-							{#if qrUrl}<div class="code">{@html qrUrl}</div>{/if}
-							<b>{share.urls?.name}</b>
-							<small>{share.urls?.ips?.[0] || ''}</small>
-						</div>
-					</div>
-				{/if}
+
+				<h3 class="label sub">MIMI's own Wi-Fi (for places without a network)</h3>
 				<div class="group card">
-					<Row label="Network" hint={D.sharing.network_mode === 'router' ? 'Use a travel router named MIMI (recommended in the field).' : 'Use Windows Mobile Hotspot (needs a network connection to share).'}>
+					<Row label="Network" hint={D.sharing.network_mode === 'router' ? 'Plug in a travel router set to this name and password. Most reliable in the field.' : 'Windows Mobile Hotspot broadcasts this network (the Wi-Fi hardware must support it).'}>
 						<Segmented value={D.sharing.network_mode} options={[['router', 'Travel router'], ['hotspot', 'Windows hotspot']]} onchange={(v) => dev('sharing', { network_mode: v })} />
 					</Row>
 					{#if D.sharing.network_mode === 'hotspot' && app.boot?.local}
@@ -406,15 +430,20 @@
 						</Row>
 					{/if}
 					<Row label="Wi-Fi name"><input class="input sel" value={D.sharing.ssid} onchange={(e) => dev('sharing', { ssid: e.currentTarget.value })} maxlength="32" /></Row>
-					<Row label="Wi-Fi password"><input class="input sel" type={showPass ? 'text' : 'password'} value={D.sharing.wifi_password} onchange={(e) => dev('sharing', { wifi_password: e.currentTarget.value })} minlength="8" /></Row>
-					<Row label="Allow through Windows Firewall" hint={share?.firewall ? 'Phones can reach MIMI.' : 'Needed once so phones can connect. Windows will ask for approval.'}>
-						{#if share?.firewall}<span class="tag live"><ShieldCheck size={13} /> Allowed</span>{:else if app.boot?.local}<button class="btn btn-sm" onclick={requestFirewall}><ShieldCheck size={14} /> Allow</button>{/if}
+					<Row label="Wi-Fi password">
+						<input class="input sel" type={showPass ? 'text' : 'password'} value={D.sharing.wifi_password} onchange={(e) => dev('sharing', { wifi_password: e.currentTarget.value })} minlength="8" />
+						<button class="icon-btn sm" onclick={() => (showPass = !showPass)} aria-label="Show password">{#if showPass}<EyeOff size={14} />{:else}<Eye size={14} />{/if}</button>
 					</Row>
-					<Row label="Certificate for phones" hint="Install once on each phone so the microphone and camera work."><a class="btn btn-sm" href="/cert" download><Download size={14} /> MIMI-Local-CA.crt</a></Row>
+					{#if qrWifi}
+						<Row label="Join code" hint="Phones scan this to join the MIMI Wi-Fi, then open the address above.">
+							<div class="code small">{@html qrWifi}</div>
+						</Row>
+					{/if}
 				</div>
+
 				<h3 class="label sub">Guests</h3>
 				<div class="group card">
-					<Row label="Allow guests" hint="People can join without an account. Guest chats aren't saved."><Toggle checked={D.sharing.guest_access} onchange={(v) => dev('sharing', { guest_access: v })} label="Guests" /></Row>
+					<Row label="Allow guests" hint="People can join without an account. Guest chats aren't saved and MIMI won't remember them."><Toggle checked={D.sharing.guest_access} onchange={(v) => dev('sharing', { guest_access: v })} label="Guests" /></Row>
 					<Row label="What guests can use" stack>
 						<div class="chips">
 							{#each FEATURES as [id, label]}
@@ -779,6 +808,77 @@
 		background: #fff;
 		border-radius: 14px;
 		padding: 8px;
+	}
+	.code.small {
+		width: 120px;
+		height: 120px;
+	}
+	.access {
+		display: flex;
+		gap: 20px;
+		padding: 14px 0;
+		border-bottom: 1px solid var(--line);
+		align-items: flex-start;
+	}
+	.urls {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.url {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 12px;
+		border-radius: 12px;
+		background: var(--accent-soft);
+		border: 1px solid var(--accent-line);
+	}
+	.url code {
+		font-family: var(--font-mono);
+		font-size: 1.05rem;
+		color: var(--accent);
+		font-weight: 600;
+		flex: 1;
+		overflow-wrap: anywhere;
+	}
+	.url.alt {
+		background: var(--surface-2);
+		border-color: var(--line);
+	}
+	.url.alt code {
+		color: var(--text);
+		font-size: 0.92rem;
+	}
+	.net {
+		font-size: 0.75rem;
+		color: var(--text-3);
+		white-space: nowrap;
+	}
+	.how {
+		margin: 6px 0 0;
+		padding-left: 1.2em;
+		color: var(--text-2);
+		font-size: 0.86rem;
+		line-height: 1.55;
+	}
+	.how a,
+	.warn-line a {
+		color: var(--accent);
+	}
+	.warn-line {
+		display: block;
+		color: var(--warn);
+		font-size: 0.85rem;
+		margin: 4px 0 0;
+	}
+	.qrbox {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
 	}
 	.code :global(svg) {
 		width: 100%;

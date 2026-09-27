@@ -1,0 +1,43 @@
+{
+  "$comment": "MIMI Standard edition (reference device: 16 GB RAM, Radeon 780M). Everything MIMI downloads, where it goes, and roughly how big it is. Paths are relative to the MIMI root. scripts/fetch.py reads this file.",
+  "edition": "standard",
+  "runtimes": [
+    { "id": "llama-vulkan", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-win-vulkan-x64.zip", "unzip_to": "bin/win-x64/llama-vulkan", "size_mb": 32 },
+    { "id": "llama-cpu", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-win-cpu-x64.zip", "unzip_to": "bin/win-x64/llama-cpu", "size_mb": 18 },
+    { "id": "kiwix-tools", "url": "https://download.kiwix.org/release/kiwix-tools/kiwix-tools_win-x86_64-3.8.1.zip", "unzip_to": "bin/win-x64/kiwix", "strip_root": true, "size_mb": 18 },
+    { "id": "aria2", "url": "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip", "extract": { "aria2c.exe": "bin/win-x64/aria2c.exe" }, "size_mb": 3 },
+    { "id": "pmtiles", "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Windows_x86_64.zip", "extract": { "pmtiles.exe": "bin/win-x64/pmtiles.exe" }, "size_mb": 18 }
+  ],
+  "models": [
+    { "id": "gemma-4-12b", "url": "https://huggingface.co/google/gemma-4-12B-it-qat-q4_0-gguf/resolve/main/gemma-4-12b-it-qat-q4_0.gguf", "path": "models/llm/gemma-4-12b/gemma-4-12b-it-qat-q4_0.gguf", "size_mb": 6653 },
+    { "id": "gemma-4-12b-mmproj", "url": "https://huggingface.co/google/gemma-4-12B-it-qat-q4_0-gguf/resolve/main/mmproj-gemma-4-12b-it-qat-q4_0.gguf", "path": "models/llm/gemma-4-12b/mmproj-gemma-4-12b-it-qat-q4_0.gguf", "size_mb": 167 },
+    { "id": "qwen3.5-9b", "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf", "path": "models/llm/qwen3.5-9b/Qwen3.5-9B-Q4_K_M.gguf", "size_mb": 5417 },
+    { "id": "qwen3.5-9b-mmproj", "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/mmproj-F16.gguf", "path": "models/llm/qwen3.5-9b/mmproj-F16.gguf", "size_mb": 876 },
+    { "id": "qwen3.5-4b", "url": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf", "path": "models/llm/qwen3.5-4b/Qwen3.5-4B-Q4_K_M.gguf", "size_mb": 2614 },
+    { "id": "qwen3.5-4b-mmproj", "url": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/mmproj-F16.gguf", "path": "models/llm/qwen3.5-4b/mmproj-F16.gguf", "size_mb": 641 },
+    { "id": "bge-m3", "url": "https://huggingface.co/gpustack/bge-m3-GGUF/resolve/main/bge-m3-Q8_0.gguf", "path": "models/llm/bge-m3/bge-m3-Q8_0.gguf", "size_mb": 605 },
+    { "id": "whisper-small", "hf_repo": "Systran/faster-whisper-small", "files": ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"], "path": "models/whisper/small", "size_mb": 465 },
+    { "id": "whisper-turbo", "hf_repo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo", "files": ["config.json", "model.bin", "preprocessor_config.json", "tokenizer.json", "vocabulary.json"], "path": "models/whisper/turbo", "size_mb": 1545 },
+    { "id": "kokoro", "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx", "path": "models/tts/kokoro-v1.0.onnx", "size_mb": 310 },
+    { "id": "kokoro-voices", "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin", "path": "models/tts/voices-v1.0.bin", "size_mb": 27 }
+  ],
+  "zim": {
+    "$comment": "Resolved to the newest file of each name from the Kiwix catalog at fetch time (metalinks, multi-mirror). Sizes as of 2026-09.",
+    "dir": "zim",
+    "names": [
+      ["wikipedia_en_all_maxi", 127400], ["wikivoyage_en_all_maxi", 1070], ["mdwiki_en_all_maxi", 2300], ["ifixit_en_all", 3570],
+      ["wiktionary_en_all_nopic", 9160], ["zimgit-post-disaster_en", 640], ["zimgit-medicine_en", 70], ["zimgit-water_en", 20],
+      ["zimgit-food-preparation_en", 100], ["zimgit-knots_en", 30], ["diy.stackexchange.com_en_all", 2060], ["mechanics.stackexchange.com_en_all", 340],
+      ["outdoors.stackexchange.com_en_all", 140], ["cooking.stackexchange.com_en_all", 240], ["gardening.stackexchange.com_en_all", 930],
+      ["ham.stackexchange.com_en_all", 80], ["electronics.stackexchange.com_en_all", 4210], ["physics.stackexchange.com_en_all", 1830],
+      ["superuser.com_en_all", 4000], ["ted_mul_space", 2090], ["ted_mul_physics", 1780], ["ted_mul_ocean", 1920], ["ted_mul_energy", 1920],
+      ["ted_mul_medicine", 3610], ["gutenberg_en_lcc-pn", 3250], ["gutenberg_en_lcc-pa", 520]
+    ]
+  },
+  "maps": {
+    "tiles": { "source": "https://build.protomaps.com/{latest}.pmtiles", "bbox": [-141.1, 24.3, -52.5, 72.0], "maxzoom": 14, "path": "maps/tiles.pmtiles", "size_mb": 15600 },
+    "assets": { "url": "https://github.com/protomaps/basemaps-assets/archive/refs/heads/main.zip", "path": "maps/assets", "size_mb": 19 },
+    "geodata": { "script": "scripts/build_geodata.py", "size_mb": 750 },
+    "routing": { "script": "scripts/build_routing.py", "regions": ["us", "canada"], "size_mb": 18000 }
+  }
+}

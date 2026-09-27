@@ -75,7 +75,10 @@ class Paths:
     # --- personal / runtime ----------------------------------------------
     @property
     def data(self) -> Path:
-        return Path(self.data_override) if self.data_override else self.root / "data"
+        if self.data_override:
+            return Path(self.data_override)
+        env = os.environ.get("MIMI_DATA")  # alternate profile, e.g. for demos and tests
+        return Path(env) if env else self.root / "data"
 
     @property
     def db_file(self) -> Path:
