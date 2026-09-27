@@ -94,6 +94,46 @@ def roads_only(src: Path) -> Path:
     return dst
 
 
+# Ways nobody routes along, dropped by default ("lean"): they are ~20% of US/Canada road
+# nodes, and Valhalla's scratch space grows ~13x the input (US + Canada full: ~50 GB).
+SKIP_SERVICE = {"driveway", "parking_aisle", "drive-through", "emergency_access"}
+GOOD_TRACKS = {"grade1", "grade2"}
+
+
+def keep_lean(tags) -> bool:
+    h = tags.get("highway")
+    if h == "service" and tags.get("service") in SKIP_SERVICE:
+        return False
+    if h == "track":
+        # named or numbered tracks (forest roads) and well-graded ones stay; farm/field tracks go
+        return bool(tags.get("name") or tags.get("ref") or tags.get("tracktype") in GOOD_TRACKS)
+    return True
+
+
+def lean_roads(src: Path) -> Path:
+    """Drop driveways, parking aisles, drive-throughs and unnamed rough tracks (plus nodes only they used)."""
+    import osmium
+
+    dst = src.with_name(src.name.replace(".osm.pbf", ".lean.osm.pbf"))
+    if dst.exists():
+        print(f"✓ {dst.name} already made")
+        return dst
+    t0 = time.time()
+    kept = dropped = 0
+    tmp = dst.with_suffix(".tmp.pbf")
+    with osmium.BackReferenceWriter(str(tmp), ref_src=str(src), overwrite=True) as writer:
+        for obj in osmium.FileProcessor(str(src), osmium.osm.WAY | osmium.osm.RELATION):
+            if obj.is_relation() or keep_lean(obj.tags):
+                writer.add(obj)
+                kept += 1
+            else:
+                dropped += 1
+    tmp.replace(dst)
+    print(f"✓ {dst.name}: kept {kept:,}, dropped {dropped:,} ways in {int(time.time() - t0)} s "
+          f"({dst.stat().st_size / 1e9:.1f} GB, was {src.stat().st_size / 1e9:.1f} GB)")
+    return dst
+
+
 def merge_pbfs(files: list[Path]) -> Path:
     """Stream-merge sorted extracts into one file, dropping the duplicates they share.
 
@@ -157,10 +197,12 @@ def main() -> None:
     ap.add_argument("--keep", action="store_true", help="keep the downloaded .osm.pbf files")
     ap.add_argument("--pbf", nargs="*", help="use these local .osm.pbf files instead of downloading")
     ap.add_argument("--no-filter", action="store_true", help="build from the raw extracts (needs ~5x their size in temp space)")
+    ap.add_argument("--full-roads", action="store_true", help="keep driveways, parking aisles and unnamed tracks (much more scratch space)")
+    ap.add_argument("--work", help="folder for the build's scratch files (default: next to --out); e.g. a roomier drive")
     args = ap.parse_args()
 
     out = Path(args.out)
-    work = out.with_name(out.name + ".building")
+    work = (Path(args.work) / (out.name + ".building")) if args.work else out.with_name(out.name + ".building")
     dl = ROOT / ".tools" / "dl" / "osm"
     pkg, libs = valhalla_dirs()
     env = dict(os.environ, PATH=f"{libs}{os.pathsep}{os.environ.get('PATH', '')}")
@@ -185,8 +227,22 @@ def main() -> None:
                 if p not in raw or not args.pbf:  # never delete a file the user pointed at directly
                     p.unlink(missing_ok=True)
         pbfs = [merged]
+    if not args.full_roads:
+        lean = [lean_roads(p) for p in pbfs]
+        if not args.keep:
+            for p in pbfs:
+                if p not in raw or not args.pbf:
+                    p.unlink(missing_ok=True)
+        pbfs = lean
 
+    # Valhalla's scratch files peak at ~13x the input (ways.bin + way_nodes.bin + a sorted copy).
     shutil.rmtree(work, ignore_errors=True)
+    need = 13 * sum(p.stat().st_size for p in pbfs)
+    work.parent.mkdir(parents=True, exist_ok=True)
+    free = shutil.disk_usage(work.parent).free
+    if free < need:
+        sys.exit(f"not enough disk space for the tile build: need ~{need / 1e9:.0f} GB free at {work.parent}, have {free / 1e9:.0f} GB. "
+                 f"Free some space, or pass --work <folder on a roomier drive>.")
     (work / "tiles").mkdir(parents=True)
     cfg_json = subprocess.run([sys.executable, str(pkg / "valhalla_build_config.py"), "--mjolnir-tile-dir", str(work / "tiles"),
                                "--mjolnir-tile-extract", str(work / "tiles.tar"), "--mjolnir-concurrency", str(args.concurrency)],
@@ -206,7 +262,7 @@ def main() -> None:
             "build_seconds": int(time.time() - t0)}
     (work / "meta.json").write_text(json.dumps(meta, indent=1), "utf-8")
     shutil.rmtree(out, ignore_errors=True)
-    work.rename(out)
+    shutil.move(str(work), str(out))  # works across drives when --work is elsewhere
     print(f"✓ routing ready in {out} ({size / 1e9:.1f} GB, {meta['build_seconds'] // 60} min)")
     if not args.keep:
         for p in pbfs + raw:
