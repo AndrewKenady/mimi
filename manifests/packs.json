@@ -194,7 +194,7 @@
     "routing": {
       "title": "Offline driving directions", "group": "routing", "regional": true,
       "description": "Valhalla routing graph built from OpenStreetMap (Geofabrik) for your region. A US state takes minutes; US + Canada takes hours and ~50 GB of scratch space.",
-      "items": [ { "type": "build", "script": "scripts/build_routing.py", "outputs": ["maps/routing/config.json"], "size_mb": "routing_mb",
+      "items": [ { "type": "build", "script": "scripts/build_routing.py", "outputs": ["maps/routing/config.json"], "remove": ["maps/routing"], "size_mb": "routing_mb",
                    "args": ["--regions", "{geofabrik}", "--out", "{maps}/routing", "--download-dir", "{cache}/osm"] } ]
     },
     "addresses": {

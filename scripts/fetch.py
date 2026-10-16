@@ -749,6 +749,27 @@ class Item:
         os.replace(part, out)
         meta_file.write_text(json.dumps({**meta, "source": f"Protomaps {src.rsplit('/', 1)[-1].split('.')[0]}"}), "utf-8")
 
+    def map_args(self) -> list[str]:
+        if self.kind == "world":
+            return [f"--maxzoom={self.spec['maxzoom']}"]
+        return [f"--bbox={','.join(str(x) for x in self.region['bbox'])}", f"--maxzoom={self.spec['maxzoom']}"]
+
+    def measure(self) -> int | None:
+        """Ask pmtiles how big this map extract will be (a few seconds, no download)."""
+        exe = tool("pmtiles")
+        if not exe or self.kind not in ("world", "tiles"):
+            return None
+        try:
+            r = subprocess.run([str(exe), "extract", protomaps_source(), os.devnull, *self.map_args(), "--dry-run"],
+                               capture_output=True, text=True, timeout=300)
+        except (OSError, subprocess.SubprocessError, urllib.error.URLError):
+            return None
+        m = re.search(r"archive size of ([\d.]+)\s*(B|kB|KB|MB|GB|TB)", r.stdout + r.stderr)
+        if not m:
+            return None
+        self.size = int(float(m.group(1)) * {"B": 1, "kB": 1e3, "KB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12}[m.group(2)])
+        return self.size
+
     def _fetch_world(self, dry: bool) -> None:
         z = self.spec["maxzoom"]
         if self.installed():
@@ -756,27 +777,26 @@ class Item:
             return
         say(f"  ↓ maps/world.pmtiles: the whole planet, zoom 0-{z} (~{fmt_size(self.size)})")
         c = content_root() / "maps"
-        self._extract_map(c / "world.pmtiles", [f"--maxzoom={z}"], c / "world.json", {"maxzoom": z}, dry)
+        self._extract_map(c / "world.pmtiles", self.map_args(), c / "world.json", {"maxzoom": z}, dry)
 
     def _fetch_tiles(self, dry: bool) -> None:
         z, reg = self.spec["maxzoom"], self.region
         if self.installed():
             say(f"  ✓ maps/tiles.pmtiles ({reg['title']}, zoom 0-{z}+)")
             return
-        bbox = ",".join(str(x) for x in reg["bbox"])
         say(f"  ↓ maps/tiles.pmtiles: {reg['title']}, zoom 0-{z} (~{fmt_size(self.size)})")
         c = content_root() / "maps"
-        self._extract_map(c / "tiles.pmtiles", [f"--bbox={bbox}", f"--maxzoom={z}"], c / "tiles.json",
+        self._extract_map(c / "tiles.pmtiles", self.map_args(), c / "tiles.json",
                           {"bounds": reg["bbox"], "maxzoom": z, "region": reg["name"], "title": reg["title"]}, dry)
 
-    def build_args(self, pack_items: list["Item"]) -> list[str]:
+    def build_args(self) -> list[str]:
         reg, c = self.region, content_root()
         out: list[str] = []
         for a in self.spec["args"]:
             if a == "{geofabrik}":
                 out += reg.get("geofabrik") or []
-            elif a == "{inputs}":
-                for it in pack_items:
+            elif a == "{inputs}":  # the pack's downloaded inputs, as --flag path pairs
+                for it in pack_items(self.pack, reg):
                     if it.kind == "file" and it.spec.get("arg"):
                         out += [it.spec["arg"], str(it.path(it.spec["path"]))]
             else:
@@ -784,12 +804,12 @@ class Item:
                            .replace("{cache}", str(cache_dir())).replace("{content}", str(c)))
         return out
 
-    def _fetch_build(self, dry: bool, pack_items: list["Item"] | None = None) -> None:
+    def _fetch_build(self, dry: bool) -> None:
         s = self.spec
         if self.installed():
             say(f"  ✓ {', '.join(s['outputs'])}")
             return
-        cmd = [mimi_python(), str(ROOT / s["script"]), *self.build_args(pack_items or [])]
+        cmd = [mimi_python(), str(ROOT / s["script"]), *self.build_args()]
         say(f"  ⚙ {' '.join(s['outputs'])}: {Path(s['script']).name} {' '.join(cmd[2:])}")
         if dry:
             return
@@ -895,7 +915,7 @@ def run(items: list[Item], dry: bool = False) -> list[str]:
             say(f"[{it.pack}] {all_packs()[it.pack]['title']}")
         try:
             if it.kind == "build":
-                it._fetch_build(dry, by_pack[it.pack])
+                it.fetch(dry)
                 if not dry:
                     for t in by_pack[it.pack]:  # the build's inputs aren't needed any more
                         if t.temporary:
@@ -913,6 +933,21 @@ def run(items: list[Item], dry: bool = False) -> list[str]:
 
 
 # --------------------------------------------------------------------------- CLI
+def bbox_argv(argv: list[str] | None) -> list[str]:
+    """Let `--bbox -111.1,40.9,-104.0,45.1` through argparse (a leading minus looks like an option)."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    out: list[str] = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--bbox" and i + 1 < len(argv):
+            out.append(f"--bbox={argv[i + 1]}")
+            i += 2
+            continue
+        out.append(argv[i])
+        i += 1
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     for s in (sys.stdout, sys.stderr):
         try:
@@ -929,7 +964,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--force", action="store_true", help="re-install engines even if present")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--hash", nargs="+", metavar="URL", help="print size and sha256 of these URLs (for manifest maintainers)")
-    args = ap.parse_args(argv)
+    args = ap.parse_args(bbox_argv(argv))
 
     if args.hash:
         for url in args.hash:

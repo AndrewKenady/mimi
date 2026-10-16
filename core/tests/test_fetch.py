@@ -272,12 +272,12 @@ def test_regional_items_follow_the_region():
     us = fetch.plan(["addresses"], fetch.resolve_region("us"))
     assert [i.spec.get("arg") for i in us if i.kind == "file"] == ["--tiger", "--zips"]
     build = next(i for i in us if i.kind == "build")
-    args = build.build_args(us)
+    args = build.build_args()
     assert args[0] == "--tiger" and "--nar" not in args
     assert fetch.pack_problem("addresses", fetch.resolve_region("uk"))
     assert fetch.pack_problem("addresses", fetch.resolve_region("canada")) is None
     routing = fetch.plan(["routing"], fetch.resolve_region("uk"))[0]
-    assert routing.build_args([])[:3] == ["--regions", "europe/united-kingdom", "europe/ireland-and-northern-ireland"]
+    assert routing.build_args()[:3] == ["--regions", "europe/united-kingdom", "europe/ireland-and-northern-ireland"]
 
 
 def test_custom_bbox_region():
