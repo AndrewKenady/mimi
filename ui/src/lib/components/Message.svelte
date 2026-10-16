@@ -3,24 +3,28 @@
 	import { goto } from '$app/navigation';
 	import { app } from '$lib/app.svelte';
 	import { del, post } from '$lib/api';
-	import { render } from '$lib/markdown';
+	import { renderBlocks } from '$lib/markdown';
 	import { Speaker } from '$lib/audio';
+	import SourceCards from './SourceCards.svelte';
+	import SourcePreview from './SourcePreview.svelte';
+	import TurnProgress, { type Progress } from './TurnProgress.svelte';
 	import {
 		Search, BookOpen, Image, FileText, Brain, MapPin, Compass, Calculator, Check, Copy, Volume2, VolumeX, RotateCcw,
-		ChevronLeft, ChevronRight, Pencil, Loader, CircleAlert, X, BookMarked, Route, Map as MapIcon
+		ChevronLeft, ChevronRight, Pencil, Loader, CircleAlert, X, BookMarked, Route, Map as MapIcon, CircleStop
 	} from '@lucide/svelte';
 
 	let {
 		m,
 		live = false,
-		status = '',
+		progress = null,
 		onregenerate,
 		onswitch,
 		onedit
 	}: {
 		m: any;
 		live?: boolean;
-		status?: string;
+		/** The live turn's narrative (status events), while this message is streaming. */
+		progress?: Progress | null;
 		onregenerate?: () => void;
 		onswitch?: (id: string) => void;
 		onedit?: (text: string) => void;
@@ -33,9 +37,13 @@
 
 	const meta = $derived(m.meta || {});
 	const sources = $derived<any[]>(meta.sources || []);
-	const tools = $derived<any[]>(meta.tools || []);
-	const html = $derived(render(m.content || '', sources.length));
+	// While streaming, the narrative line says what is running; the trail keeps what is done.
+	const tools = $derived<any[]>((meta.tools || []).filter((t: any) => !(live && t.state === 'start')));
+	const hasText = $derived(!!(m.content || '').trim());
+	// Finished blocks are rendered once; only the trailing block re-renders while streaming.
+	const blocks = $derived(renderBlocks(m.content || '', sources.length, live));
 	const versions = $derived(m.versions);
+	const fallback = $derived<Progress>({ state: 'thinking', label: 'Thinking…', at: Date.now(), started: Date.now(), stages: [] });
 	let copied = $state(false);
 	let speaking = $state(false);
 	let editing = $state(false);
@@ -102,9 +110,6 @@
 		suggestions = suggestions.filter((x) => x.id !== mem.id);
 	}
 
-	function sourceLabel(s: any) {
-		return s.book_title || (s.type === 'note' ? 'Scribe note' : s.type === 'file' ? 'Your file' : 'Library');
-	}
 </script>
 
 {#if m.role === 'user'}
@@ -160,32 +165,42 @@
 				</div>
 			{/if}
 
-			{#if !m.content && live}
-				<div class="status"><span class="shimmer-text">{status || 'Thinking…'}</span></div>
+			{#if live && !hasText}
+				<TurnProgress progress={progress || fallback} />
 			{/if}
 
-			{#if m.content}
-				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-				<div class="prose answer" class:streaming={live} onclick={onProseClick}>{@html html}</div>
+			{#if sources.length}
+				<SourceCards {sources} reading={live && !hasText} onopen={openSource} />
+			{/if}
+
+			{#if meta.preview && live && !hasText}
+				<SourcePreview preview={meta.preview} onopen={openSource} />
+			{/if}
+
+			{#if hasText}
+				<!-- Delegated clicks for citation pills and links: both are real buttons/anchors, so keyboard users reach them directly. -->
+				<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+				<div class="prose answer" class:streaming={live} onclick={onProseClick}>
+					{#each blocks as b (b.key)}{@html b.html}{/each}
+				</div>
+				{#if live && progress}<TurnProgress {progress} compact />{/if}
+			{/if}
+
+			{#if meta.preview && hasText}
+				<SourcePreview preview={meta.preview} collapsed onopen={openSource} />
 			{/if}
 
 			{#if meta.error}
-				<div class="error"><CircleAlert size={16} /> {meta.error}</div>
-			{/if}
-			{#if meta.cancelled && !live}<div class="faint small">Stopped.</div>{/if}
-
-			{#if sources.length}
-				<div class="sources">
-					{#each sources as s (s.n)}
-						<button class="src" onclick={() => openSource(s)} title={s.snippet}>
-							{#if s.image}<img src={s.image} alt="" loading="lazy" />{:else}<span class="sn">{s.n}</span>{/if}
-							<span class="st">
-								<b>{s.title}</b>
-								<small>{sourceLabel(s)}</small>
-							</span>
-						</button>
-					{/each}
+				<div class="error" role="alert">
+					<CircleAlert size={16} />
+					<span class="etxt">{meta.error}{#if hasText} The answer above is incomplete.{/if}</span>
+					{#if onregenerate && !live}
+						<button class="btn btn-sm retry" onclick={onregenerate}><RotateCcw size={14} /> Try again</button>
+					{/if}
 				</div>
+			{/if}
+			{#if meta.cancelled && !live}
+				<div class="stopped"><CircleStop size={13} /> Stopped{hasText ? ' — the answer above is unfinished' : ' before Mimi answered'}.</div>
 			{/if}
 
 			{#each suggestions as mem (mem.id)}
@@ -197,13 +212,15 @@
 				</div>
 			{/each}
 
-			{#if !live && m.content}
+			{#if !live && (hasText || meta.error || meta.cancelled)}
 				<div class="actions">
-					<button class="icon-btn sm" onclick={copy} title="Copy" aria-label="Copy">{#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}</button>
-					{#if app.features.voice !== false}
-						<button class="icon-btn sm" onclick={speak} title="Read aloud" aria-label="Read aloud">{#if speaking}<VolumeX size={15} />{:else}<Volume2 size={15} />{/if}</button>
+					{#if hasText}
+						<button class="icon-btn sm" onclick={copy} title="Copy" aria-label="Copy">{#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}</button>
+						{#if app.features.voice !== false}
+							<button class="icon-btn sm" onclick={speak} title="Read aloud" aria-label={speaking ? 'Stop reading aloud' : 'Read aloud'}>{#if speaking}<VolumeX size={15} />{:else}<Volume2 size={15} />{/if}</button>
+						{/if}
 					{/if}
-					{#if onregenerate}<button class="icon-btn sm" onclick={onregenerate} title="Regenerate" aria-label="Regenerate"><RotateCcw size={15} /></button>{/if}
+					{#if onregenerate && !meta.error}<button class="icon-btn sm" onclick={onregenerate} title="Regenerate" aria-label="Regenerate"><RotateCcw size={15} /></button>{/if}
 					{#if versions?.count > 1}
 						<span class="ver">
 							<button class="icon-btn sm" disabled={versions.index === 0} onclick={() => onswitch?.(versions.ids[versions.index - 1])} aria-label="Previous answer"><ChevronLeft size={15} /></button>
@@ -217,7 +234,7 @@
 					<span class="grow"></span>
 					{#if meta.model_name}
 						<span class="meta-info" title="Generated on this device">
-							{meta.model_name}{#if meta.timings?.predicted_per_second} · {meta.timings.predicted_per_second.toFixed(1)} tok/s{/if}
+							{meta.model_name}{#if meta.timings?.predicted_per_second}{` · ${meta.timings.predicted_per_second.toFixed(1)} tok/s`}{/if}
 						</span>
 					{/if}
 				</div>
@@ -287,8 +304,15 @@
 		font-size: 0.78rem;
 	}
 	.user-row:hover .uactions,
-	.uactions:focus-within {
+	.user-row:focus-within .uactions,
+	:global([data-input='touch']) .uactions {
 		opacity: 1;
+	}
+	/* No hover on touch screens: keep the actions visible rather than unreachable. */
+	@media (hover: none), (pointer: coarse) {
+		.uactions {
+			opacity: 1;
+		}
 	}
 	.edit {
 		width: min(78%, 640px);
@@ -379,27 +403,12 @@
 		background: var(--accent-soft);
 		border: 1px solid var(--accent-line);
 	}
-	.status {
-		padding: 4px 0;
-	}
-	.shimmer-text {
-		background: linear-gradient(90deg, var(--text-3) 0%, var(--text) 40%, var(--text-3) 80%);
-		background-size: 200% 100%;
-		-webkit-background-clip: text;
-		background-clip: text;
-		color: transparent;
-		animation: sweep 1.8s linear infinite;
-		font-size: 0.95rem;
-	}
-	@keyframes sweep {
-		to {
-			background-position: -200% 0;
-		}
-	}
 	.answer {
 		font-size: 1.02rem;
 	}
-	.answer.streaming :global(> :last-child::after) {
+	/* The caret follows the text: inside the last list item rather than below the list. */
+	.answer.streaming :global(> :last-child:not(ol, ul)::after),
+	.answer.streaming :global(> :is(ol, ul):last-child > li:last-child::after) {
 		content: '';
 		display: inline-block;
 		width: 0.5em;
@@ -418,82 +427,42 @@
 	.error {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		flex-wrap: wrap;
+		gap: 8px 10px;
 		margin-top: 8px;
-		padding: 10px 14px;
+		padding: 8px 8px 8px 14px;
 		border-radius: 12px;
 		background: color-mix(in oklab, var(--danger) 10%, transparent);
+		border: 1px solid color-mix(in oklab, var(--danger) 22%, transparent);
 		color: var(--danger);
 		font-size: 0.9rem;
 	}
-	.small {
-		font-size: 0.82rem;
-		margin-top: 6px;
+	.error :global(svg) {
+		flex: none;
 	}
-	.sources {
-		display: flex;
-		gap: 8px;
-		overflow-x: auto;
-		margin: 14px 0 4px;
-		padding-bottom: 4px;
+	.etxt {
+		flex: 1;
+		min-width: 12ch;
+		padding: 2px 0;
 	}
-	.src {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		min-width: 200px;
-		max-width: 260px;
-		padding: 8px 12px 8px 8px;
-		border-radius: 14px;
+	.retry {
+		color: var(--text);
 		background: var(--surface);
-		border: 1px solid var(--line);
-		text-align: left;
-		transition:
-			border-color 0.15s,
-			background 0.15s;
-		flex: none;
+		border: 1px solid var(--line-2);
 	}
-	.src:hover {
-		border-color: var(--line-2);
-		background: var(--surface-2);
-	}
-	.src img {
-		width: 40px;
-		height: 40px;
-		border-radius: 9px;
-		object-fit: cover;
-		flex: none;
-		background: var(--surface-3);
-	}
-	.sn {
-		width: 40px;
-		height: 40px;
-		border-radius: 9px;
-		display: grid;
-		place-items: center;
-		flex: none;
-		background: var(--accent-soft);
-		color: var(--accent);
-		font-weight: 650;
-	}
-	.st {
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-	}
-	.st b {
-		font-size: 0.84rem;
-		font-weight: 600;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.st small {
-		font-size: 0.74rem;
+	.stopped {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 8px;
+		font-size: 0.8rem;
 		color: var(--text-3);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.answer.streaming :global(> :last-child:not(ol, ul)::after),
+		.answer.streaming :global(> :is(ol, ul):last-child > li:last-child::after) {
+			animation: none;
+		}
 	}
 	.memsug {
 		display: flex;
@@ -573,7 +542,19 @@
 		opacity: 0;
 		transition: opacity 0.2s;
 	}
-	.asst:hover .meta-info {
+	.asst:hover .meta-info,
+	.asst:focus-within .meta-info,
+	:global([data-input='touch']) .meta-info {
 		opacity: 1;
+	}
+	@media (hover: none), (pointer: coarse) {
+		.meta-info {
+			opacity: 1;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.avatar.live {
+			animation: none;
+		}
 	}
 </style>

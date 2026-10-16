@@ -7,7 +7,8 @@
 	import Composer from './Composer.svelte';
 	import Message from './Message.svelte';
 	import Well from './Well.svelte';
-	import { SquarePen, Search, Pin, PinOff, Trash2, PanelLeftClose, PanelLeft, Download, Archive, EllipsisVertical, MessagesSquare, Pencil, Folder, FolderInput, ArchiveRestore, Check } from '@lucide/svelte';
+	import type { Progress } from './TurnProgress.svelte';
+	import { SquarePen, Search, Pin, PinOff, Trash2, PanelLeftClose, PanelLeft, Download, Archive, EllipsisVertical, MessagesSquare, Pencil, Folder, FolderInput, ArchiveRestore, Check, ArrowDown } from '@lucide/svelte';
 
 	let { id = null }: { id?: string | null } = $props();
 
@@ -16,13 +17,23 @@
 	let list = $state<any[]>([]);
 	let q = $state('');
 	let busy = $state(false);
-	let status = $state('');
+	/** The live turn's narrative, from the stream's `status` events. */
+	let progress = $state<Progress | null>(null);
+	/** Polite screen-reader announcements: status changes, never individual tokens. */
+	let announce = $state('');
 	let mode = $state(app.settings.user?.assistant?.default_mode || 'everyday');
 	let draft = $state('');
 	let attachments = $state<any[]>([]);
 	let scroller: HTMLDivElement | undefined = $state();
-	let stick = true;
+	// Follow the stream only while the reader is at the bottom; scrolling up opts out.
+	let stick = $state(true);
+	let unseen = $state(false);
+	let lastTop = 0;
 	let abort: AbortController | null = null;
+	let stopWanted = false;
+	let narrow = $state(false); // the chat list overlays the thread instead of sitting beside it
+	const reduceMotion = () =>
+		matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'reduced';
 	// The chat list remembers whether it was open (phones always start with it closed).
 	let sideOpen = $state(readSide());
 	function readSide() {
@@ -127,28 +138,56 @@
 				attachments = p.attachments || [];
 			}
 		}
+		const mq = matchMedia('(max-width: 1100px)');
+		const onMq = () => (narrow = mq.matches);
+		onMq();
+		mq.addEventListener('change', onMq);
+		return () => mq.removeEventListener('change', onMq);
 	});
 
 	function onScroll() {
 		if (!scroller) return;
-		stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
+		const top = scroller.scrollTop;
+		const dist = scroller.scrollHeight - top - scroller.clientHeight;
+		if (dist < 64) {
+			stick = true;
+			unseen = false;
+		} else if (top < lastTop - 1) stick = false; // the reader moved up: stop following
+		lastTop = top;
 	}
 	function scrollBottom(force = false) {
-		if (scroller && (stick || force)) scroller.scrollTop = scroller.scrollHeight;
+		if (!scroller) return;
+		if (stick || force) {
+			scroller.scrollTop = scroller.scrollHeight;
+			lastTop = scroller.scrollTop;
+		} else unseen = true;
+	}
+	function jumpToLatest() {
+		stick = true;
+		unseen = false;
+		scroller?.scrollTo({ top: scroller.scrollHeight, behavior: reduceMotion() ? 'auto' : 'smooth' });
 	}
 
 	async function send(text: string, atts: any[], opts: { regenerate?: string; edit?: string } = {}) {
 		if (busy) return;
 		busy = true;
-		status = 'Thinking…';
+		stopWanted = false;
+		const started = Date.now();
+		progress = { state: 'thinking', label: 'Thinking…', at: started, started, stages: [] };
+		announce = '';
 		stick = true;
+		unseen = false;
 		const readAloud = app.settings.user?.voice?.read_aloud;
 		reader?.close(); // one read-aloud at a time: a new answer replaces the previous one
 		const speaker = readAloud ? (reader = new Speaker(app.settings.user?.voice?.voice, app.settings.user?.voice?.speed)) : null;
 		const live: any = { id: 'live', role: 'assistant', content: '', meta: { tools: [], sources: [], memory_suggested: [] } };
+		// Placeholders from a failed attempt make way for the new one.
+		messages = messages.filter((x) => x.id !== 'failed' && x.id !== 'pending');
 		if (opts.regenerate) {
 			const idx = messages.findIndex((x) => x.id === opts.regenerate);
-			messages = [...messages.slice(0, idx), live];
+			// an assistant id is replaced by a new version; a user id (a retry) keeps its question
+			const keep = idx < 0 ? messages.length : messages[idx].role === 'user' ? idx + 1 : idx;
+			messages = [...messages.slice(0, keep), live];
 		} else if (opts.edit) {
 			const idx = messages.findIndex((x) => x.id === opts.edit);
 			messages = [...messages.slice(0, idx), { id: 'pending', role: 'user', content: text, meta: { attachments: atts } }, live];
@@ -166,11 +205,35 @@
 			fn(m);
 			messages[i] = m;
 		};
+		// Tokens arrive faster than it is useful to paint them: batch them per animation frame.
+		let pendingText = '';
+		let raf = 0;
+		const flushText = () => {
+			if (raf) cancelAnimationFrame(raf);
+			raf = 0;
+			if (!pendingText) return;
+			const t = pendingText;
+			pendingText = '';
+			update((m) => (m.content += t));
+			tick().then(() => scrollBottom());
+		};
+		let gotMeta = false;
+		let gotDone = false;
+		let userId: string | null = null;
 		try {
 			const body = { content: text, attachments: atts.map((a) => a.id), mode, regenerate: opts.regenerate, edit: opts.edit };
 			for await (const ev of stream(`/api/chats/${chat?.id || 'new'}/messages`, body, abort.signal)) {
 				const d = ev.data;
+				if (ev.event === 'delta') {
+					pendingText += d.text;
+					speaker?.feed(d.text);
+					if (!raf) raf = requestAnimationFrame(flushText);
+					continue;
+				}
+				flushText();
 				if (ev.event === 'meta') {
+					gotMeta = true;
+					userId = d.user_message?.id ?? null;
 					if (!chat) {
 						chat = { id: d.chat_id, title: d.title };
 						loadedId = d.chat_id;
@@ -178,7 +241,19 @@
 					}
 					const pi = messages.findIndex((x) => x.id === 'pending');
 					if (pi >= 0 && d.user_message) messages[pi] = d.user_message;
-				} else if (ev.event === 'status') status = d.label;
+					if (stopWanted) stop(); // Stop was pressed before the chat existed
+				} else if (ev.event === 'status') {
+					const prev: Progress | null = progress;
+					progress = {
+						state: d.state,
+						label: d.label,
+						eta_ms: d.eta_ms,
+						at: Date.now(),
+						started,
+						stages: [...(prev?.stages || []).filter((s) => s !== d.state), d.state]
+					};
+					if (d.label && d.label !== prev?.label) announce = d.label;
+				} else if (ev.event === 'preview') update((m) => (m.meta.preview = d));
 				else if (ev.event === 'tool') {
 					update((m) => {
 						const tools = [...m.meta.tools];
@@ -194,18 +269,17 @@
 						if (d.suggested) m.meta.memory_suggested = [...(m.meta.memory_suggested || []), ...d.suggested];
 						if (d.saved) app.toast(`Remembered: ${d.saved[0]?.text}`, 'ok');
 					});
-				} else if (ev.event === 'delta') {
-					update((m) => (m.content += d.text));
-					speaker?.feed(d.text);
 				} else if (ev.event === 'error') {
 					update((m) => (m.meta.error = d.message));
 				} else if (ev.event === 'done') {
+					gotDone = true;
 					const i = liveIdx();
 					const sugg = i >= 0 ? messages[i].meta.memory_suggested : [];
 					const final = { ...d.message, meta: { ...d.message.meta, memory_suggested: sugg } };
 					if (i >= 0) messages[i] = final;
 					if (d.chat?.title) chat = { ...chat, title: d.chat.title };
 					speaker?.flush();
+					if (final.meta?.error) announce = `Mimi couldn’t finish: ${final.meta.error}`;
 				}
 				await tick();
 				scrollBottom();
@@ -213,25 +287,54 @@
 		} catch (e: any) {
 			if (e.name !== 'AbortError') update((m) => (m.meta.error = e.message || 'Connection lost'));
 		} finally {
+			flushText();
+			// A turn that ended without an answer (no model, connection lost…) leaves a retryable error.
+			const liveMsg = messages.find((x) => x.id === 'live');
+			const failure = !gotDone ? liveMsg?.meta?.error || (stopWanted ? '' : 'Mimi stopped before answering.') : '';
+			if (failure) announce = `Mimi couldn’t answer: ${failure}`;
+			const failed = (retry_of: string | null) => ({
+				...(liveMsg || {}),
+				id: 'failed',
+				role: 'assistant',
+				meta: { ...(liveMsg?.meta || {}), error: failure, retry_of, retry_text: text, retry_atts: atts }
+			});
 			busy = false;
-			status = '';
+			progress = null;
 			abort = null;
 			loadList();
 			// Pull the canonical thread (versions, ids) once streaming is done.
-			if (chat?.id) {
-				const c = await get(`/api/chats/${chat.id}`).catch(() => null);
-				if (c) {
-					const sugg = messages.find((x) => x.meta?.memory_suggested?.length)?.meta.memory_suggested;
-					messages = c.messages.map((x: any, i: number) => (i === c.messages.length - 1 && sugg ? { ...x, meta: { ...x.meta, memory_suggested: sugg } } : x));
-					chat = { ...chat, ...c };
-				}
+			const c = chat?.id && gotMeta ? await get(`/api/chats/${chat.id}`).catch(() => null) : null;
+			if (c) {
+				const sugg = messages.find((x) => x.meta?.memory_suggested?.length)?.meta.memory_suggested;
+				messages = c.messages.map((x: any, i: number) => (i === c.messages.length - 1 && sugg ? { ...x, meta: { ...x.meta, memory_suggested: sugg } } : x));
+				chat = { ...chat, ...c };
+				const last = c.messages[c.messages.length - 1];
+				if (failure && last?.role === 'user') messages = [...messages, failed(last.id)];
+			} else if (liveMsg) {
+				// Nothing was stored server-side: keep the question on screen with a way to resend it.
+				messages = messages.map((x) => (x.id === 'live' ? failed(userId) : x));
+				if (!failure) messages = messages.filter((x) => x.id !== 'failed');
 			}
 		}
 	}
 
 	async function stop() {
 		reader?.stop(); // Stop also silences an answer that is still being read aloud
-		if (chat?.id) await post(`/api/chats/${chat.id}/stop`).catch(() => {});
+		if (!busy) return;
+		stopWanted = true;
+		if (!chat?.id) return; // sent as soon as the stream says which chat this is
+		const r = await post(`/api/chats/${chat.id}/stop`).catch(() => null);
+		// The turn registers itself a moment after it starts; one late retry covers that gap.
+		if (r && !r.stopped) setTimeout(() => busy && post(`/api/chats/${chat.id}/stop`).catch(() => {}), 400);
+	}
+
+	function retryFor(m: any): (() => void) | undefined {
+		if (busy || m.role !== 'assistant' || m.id === 'live') return undefined;
+		if (m.id === 'failed') {
+			const { retry_of, retry_text, retry_atts } = m.meta || {};
+			return retry_of ? () => send('', [], { regenerate: retry_of }) : () => send(retry_text || '', retry_atts || []);
+		}
+		return m === lastAssistant ? () => send('', [], { regenerate: m.id }) : undefined;
 	}
 	let reader: Speaker | null = null;
 	onDestroy(() => reader?.close());
@@ -245,7 +348,18 @@
 		chat = null;
 		messages = [];
 		loadedId = null;
+		closeOverlay();
 		goto('/chat');
+	}
+
+	/** On narrow screens the chat list is an overlay: it closes once a chat is picked. */
+	function closeOverlay() {
+		if (narrow) sideOpen = false;
+	}
+	function onWindowKey(e: KeyboardEvent) {
+		if (e.key !== 'Escape' || e.defaultPrevented || app.palette || app.quick || app.voice) return;
+		if (menuFor) menuFor = null;
+		else if (narrow && sideOpen) sideOpen = false;
 	}
 
 	async function togglePin(c: any) {
@@ -259,13 +373,47 @@
 		if (c.id === chat?.id) newChat();
 		loadList();
 	}
-	async function remove(c: any) {
-		await del(`/api/chats/${c.id}`);
+	// Deleting is deferred for a few seconds so the toast's Undo can take it back.
+	const UNDO_MS = 6000;
+	const pendingDeletes = new Map<string, ReturnType<typeof setTimeout>>();
+	let hidden = $state<string[]>([]);
+	const shown = $derived(list.filter((c) => !hidden.includes(c.id)));
+	function remove(c: any) {
 		menuFor = null;
-		if (c.id === chat?.id) newChat();
-		loadList();
-		app.toast('Chat deleted');
+		const wasOpen = c.id === chat?.id;
+		hidden = [...hidden, c.id];
+		if (wasOpen) newChat();
+		pendingDeletes.set(c.id, setTimeout(() => commitDelete(c.id), UNDO_MS + 400));
+		// Closing the tab must not cancel a delete the user meant; only Undo does.
+		addEventListener('pagehide', () => flushDeletes(true), { once: true });
+		app.toast(`Deleted “${c.title || 'New chat'}”`, 'info', { label: 'Undo', run: () => undoDelete(c.id, wasOpen) }, UNDO_MS);
 	}
+	async function commitDelete(cid: string, unloading = false) {
+		clearTimeout(pendingDeletes.get(cid));
+		pendingDeletes.delete(cid);
+		if (unloading) {
+			fetch(`/api/chats/${cid}`, { method: 'DELETE', credentials: 'same-origin', keepalive: true }).catch(() => {});
+			return;
+		}
+		try {
+			await del(`/api/chats/${cid}`);
+		} catch {
+			app.toast('Couldn’t delete that chat', 'error');
+		}
+		hidden = hidden.filter((x) => x !== cid);
+		loadList();
+	}
+	function undoDelete(cid: string, reopen: boolean) {
+		if (!pendingDeletes.has(cid)) return;
+		clearTimeout(pendingDeletes.get(cid));
+		pendingDeletes.delete(cid);
+		hidden = hidden.filter((x) => x !== cid);
+		if (reopen) goto(`/chat/${cid}`);
+	}
+	function flushDeletes(unloading = false) {
+		for (const cid of [...pendingDeletes.keys()]) commitDelete(cid, unloading);
+	}
+	// (Pending deletes outlive this view on purpose: Undo still works after navigating away.)
 	async function saveRename(c: any) {
 		if (renameText.trim()) await patch(`/api/chats/${c.id}`, { title: renameText.trim() });
 		renaming = null;
@@ -284,8 +432,13 @@
 	];
 </script>
 
-<div class="chat" class:side={sideOpen}>
-	<aside class="list" aria-label="Chats">
+<svelte:window onkeydown={onWindowKey} />
+
+<div class="chat" class:side={sideOpen} class:narrow>
+	{#if sideOpen && narrow}
+		<div class="scrim" onclick={() => (sideOpen = false)} aria-hidden="true"></div>
+	{/if}
+	<aside class="list" aria-label="Chats" inert={!sideOpen}>
 		<div class="lhead">
 			<button class="btn btn-primary new" onclick={newChat}><SquarePen size={16} /> New chat</button>
 			<button class="icon-btn" onclick={() => (sideOpen = false)} aria-label="Hide chat list"><PanelLeftClose size={18} /></button>
@@ -302,16 +455,16 @@
 			<button role="tab" aria-selected={folder === ARCHIVE} class:on={folder === ARCHIVE} onclick={() => pickFolder(ARCHIVE)}><Archive size={12} /> Archived</button>
 		</div>
 		<div class="items" data-scroll>
-			{#each list as c (c.id)}
+			{#each shown as c (c.id)}
 				<div class="it" class:on={c.id === chat?.id}>
 					{#if renaming === c.id}
-						<input class="input rn" bind:value={renameText} onkeydown={(e) => { if (e.key === 'Enter') saveRename(c); if (e.key === 'Escape') renaming = null; }} onblur={() => saveRename(c)} />
+						<input class="input rn" bind:value={renameText} aria-label="Chat title" onkeydown={(e) => { if (e.key === 'Enter') saveRename(c); if (e.key === 'Escape') { e.preventDefault(); renaming = null; } }} onblur={() => saveRename(c)} />
 					{:else}
-						<a href="/chat/{c.id}" class="il">
-							<span class="it-title">{#if c.pinned}<Pin size={12} class="pin" />{/if}{c.title || 'New chat'}</span>
+						<a href="/chat/{c.id}" class="il" aria-current={c.id === chat?.id ? 'page' : undefined} onclick={closeOverlay}>
+							<span class="it-title">{#if c.pinned}<Pin size={12} class="pin" />{/if}<span class="tt">{c.title || 'New chat'}</span></span>
 							<span class="it-sub">{timeAgo(c.updated_at)}{c.preview ? ' · ' + c.preview : ''}</span>
 						</a>
-						<button class="icon-btn sm more" onclick={() => { menuFor = menuFor === c.id ? null : c.id; moving = null; }} aria-label="Chat options"><EllipsisVertical size={15} /></button>
+						<button class="icon-btn sm more" onclick={() => { menuFor = menuFor === c.id ? null : c.id; moving = null; }} aria-label="Options for {c.title || 'New chat'}" aria-haspopup="menu" aria-expanded={menuFor === c.id}><EllipsisVertical size={15} /></button>
 						{#if menuFor === c.id && moving === c.id}
 							<div class="cmenu glass" role="menu">
 								{#each projects as p (p)}
@@ -349,7 +502,17 @@
 			{#if !sideOpen && messages.length}<button class="icon-btn" onclick={newChat} aria-label="New chat"><SquarePen size={18} /></button>{/if}
 		</header>
 
-		<div class="scroll" bind:this={scroller} onscroll={onScroll} data-scroll>
+		<div
+			class="scroll"
+			bind:this={scroller}
+			onscroll={onScroll}
+			data-scroll
+			role="log"
+			aria-label="Conversation"
+			aria-live="polite"
+			aria-relevant="additions"
+			aria-busy={busy}
+		>
 			<div class="inner">
 				{#if !messages.length}
 					<div class="hello fade-up">
@@ -365,16 +528,22 @@
 					<Message
 						{m}
 						live={m.id === 'live'}
-						{status}
-						onregenerate={m.role === 'assistant' && m === lastAssistant && !busy && m.id !== 'live' ? () => send('', [], { regenerate: m.id }) : undefined}
+						progress={m.id === 'live' ? progress : null}
+						onregenerate={retryFor(m)}
 						onswitch={!busy ? switchVersion : undefined}
 						onedit={m.role === 'user' && !busy && m.id !== 'pending' ? (t) => send(t, [], { edit: m.id }) : undefined}
 					/>
 				{/each}
 			</div>
 		</div>
+		<div class="sr-only" role="status" aria-live="polite" aria-atomic="true">{announce}</div>
 
 		<div class="compose">
+			{#if !stick && (busy || unseen)}
+				<button class="jump glass" onclick={jumpToLatest}>
+					<ArrowDown size={15} />Jump to latest
+				</button>
+			{/if}
 			<div class="inner">
 				<Composer onsend={(t, a) => send(t, a)} onstop={stop} {busy} bind:mode bind:value={draft} bind:attachments autofocus />
 				<p class="disclaimer">Mimi runs offline on this device and can make mistakes. Check important facts in the sources.</p>
@@ -385,8 +554,71 @@
 
 <style>
 	.chat {
+		position: relative;
 		display: flex;
 		height: 100%;
+	}
+	.scrim {
+		position: absolute;
+		inset: 0;
+		z-index: 19;
+		background: rgba(3, 6, 10, 0.45);
+		animation: scrim-in 0.2s ease-out both;
+	}
+	@keyframes scrim-in {
+		from {
+			opacity: 0;
+		}
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+		border: 0;
+	}
+	.jump {
+		position: absolute;
+		left: 50%;
+		bottom: calc(100% + 6px);
+		transform: translateX(-50%);
+		z-index: 5;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 34px;
+		padding: 0 14px 0 11px;
+		border-radius: 999px;
+		border: 1px solid var(--line-2);
+		box-shadow: var(--shadow-2);
+		background: color-mix(in oklab, var(--surface) 94%, transparent);
+		color: var(--text);
+		font-size: 0.82rem;
+		font-weight: 600;
+		animation: jump-in 0.22s var(--ease-out-soft) both;
+	}
+	.jump:hover {
+		border-color: var(--accent-line);
+	}
+	@keyframes jump-in {
+		from {
+			opacity: 0;
+			transform: translate(-50%, 6px);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.scrim,
+		.jump {
+			animation: none;
+		}
+	}
+	:global([data-motion='reduced']) .scrim,
+	:global([data-motion='reduced']) .jump {
+		animation: none;
 	}
 	.list {
 		width: 0;
@@ -503,12 +735,17 @@
 	.it-title {
 		font-size: 0.88rem;
 		font-weight: 550;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 		display: flex;
 		align-items: center;
 		gap: 5px;
+		min-width: 0;
+	}
+	/* The text needs its own box: an ellipsis never applies to a flex container's text. */
+	.tt {
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.it-title :global(.pin) {
 		color: var(--accent);
@@ -526,8 +763,17 @@
 		margin-right: 4px;
 	}
 	.it:hover .more,
-	.more:focus {
+	.it.on .more,
+	.it:focus-within .more,
+	.more[aria-expanded='true'],
+	:global([data-input='touch']) .more {
 		opacity: 1;
+	}
+	/* No hover on touch screens: the options button must stay reachable. */
+	@media (hover: none), (pointer: coarse) {
+		.more {
+			opacity: 1;
+		}
 	}
 	.cmenu {
 		position: absolute;
@@ -644,6 +890,7 @@
 		font-size: 0.86rem;
 	}
 	.compose {
+		position: relative;
 		flex: none;
 		padding: 8px 0 12px;
 		background: linear-gradient(transparent, var(--bg) 30%);

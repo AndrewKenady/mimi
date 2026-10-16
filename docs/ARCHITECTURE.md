@@ -39,6 +39,33 @@ Mimi is three pieces that live in one portable folder:
 5. Tools return numbered sources. After generation, `sanitize_citations` removes any `[n]` that doesn't match a real source, and any reference list the model wrote itself.
 6. The assistant message is stored with its sources, tool trail, memories used, model and timings. The UI then refetches the canonical thread, including answer versions. A memory counts as "used" (and gets a chip) only when the answer draws on it, meaning one of its distinctive words appears in the reply.
 
+## Streaming protocol
+
+A grounded answer takes 36–68 s on the reference handheld (see [BENCHMARKS.md](BENCHMARKS.md)), and most of that is the model reading the retrieved passages and then writing. The stream is shaped so the reader has something true to look at long before the first word: the sources as soon as the library search returns (a few seconds in, once the model has chosen its search), a verbatim excerpt alongside them, and a narrative of what is happening.
+
+`POST /api/chats/{id|new}/messages` answers with Server-Sent Events, each `event: <name>` plus one JSON `data:` line. Clients must ignore events and fields they don't know; new ones are only ever added.
+
+| Event | Data | When |
+|---|---|---|
+| `meta` | `chat_id`, `user_message`, `assistant_message_id`, `model`, `model_name`, `mode`, `title` | first, once the question is stored |
+| `status` | `state`, `label`, `elapsed_ms`; optionally `tool`, `prompt_tokens`, `eta_ms`, `sources` | at each stage (below) |
+| `tool` | `id`, `name`, `state: "start"` with `args`, `label`; then `state: "end"` with `label`, `summary`, `ok`, `ms`, `data` | around each tool call |
+| `sources` | `sources`: every numbered source so far (`n`, `type`, `title`, `book_title`, `collection`, `url`, `image`, `snippet`) | as soon as a tool returns sources |
+| `preview` | `n`, `type`, `title`, `book_title`, `collection`, `url`, `image`, `section`, `text` | once per turn, right after the first sources |
+| `delta` | `text` | answer tokens |
+| `reasoning` | `text` | thinking tokens (Think harder) |
+| `memory` | `used` / `suggested` / `saved` | memory activity |
+| `error` | `message`, `message_id` | the turn failed; `done` still follows if an answer was stored |
+| `done` | `message` (the stored assistant message, with `meta`), `chat` | last |
+
+`status.state` moves through `queued` → `loading` → `thinking` → `searching` (or `tool`) → `reading` → `writing`, repeating the middle steps if the model calls tools again. Labels are specific ("Searching Wikipedia and WikiMed for “hypothermia”…", "Reading “Hypothermia” (WikiMed) and 2 more…"). The `reading` status carries `prompt_tokens`, an estimate of what the model must now process, and `eta_ms` only when this device's prompt speed has been measured (from earlier answers' llama.cpp timings, prompts of 150+ tokens). Without a measurement no estimate is sent: a made-up number is worse than none.
+
+`preview` is purely extractive: the paragraph of the top source's retrieved passage that best matches the question, cut at sentence boundaries (≤ 420 characters). The UI shows it as "From the source", marked as a quote and not Mimi's answer, and folds it away once the generated answer starts. It is also stored as `meta.preview`.
+
+`regenerate` accepts an assistant message id (a new version of that answer) or a user message id (answer that question again, used by Try again when a turn failed before an answer was stored). `POST /api/chats/{id}/stop` cancels the running turn; whatever was generated is kept and stored with `meta.cancelled`.
+
+In the browser, deltas are batched per animation frame and the markdown is rendered per top-level block (`renderBlocks` in `ui/src/lib/markdown.ts`): finished blocks are parsed and sanitised once and keep their DOM, so a long answer doesn't re-render from the top on every token and a reader's text selection survives. The thread is an ARIA log that is `aria-busy` while streaming; status changes go to a separate polite status region, so screen readers hear the stages and then the answer once, not every token.
+
 ## Tools and extensions
 
 - Built-in tools live in `core/mimi/tools.py`. Each has a JSON schema, an availability check (for example, `get_directions` only appears once routing tiles exist) and a label for the activity trail. The owner can switch any of them off in Settings → Tools.

@@ -7,7 +7,9 @@ A turn:
      location…), feed results back, and continue — at most MAX_STEPS rounds,
   4. store the assistant message with its sources, tool trail, memories used
      and timings.
-Everything streams to the client as Server-Sent Events.
+Everything streams to the client as Server-Sent Events (see "Streaming protocol" in
+docs/ARCHITECTURE.md). The stream is shaped for a slow device: the sources, a verbatim
+excerpt and an honest progress narrative arrive long before the model writes its first word.
 """
 
 from __future__ import annotations
@@ -124,12 +126,126 @@ def drop_repeated_paragraphs(text: str) -> str:
     return "\n\n".join(out)
 
 
+_PASSAGE_HEAD = re.compile(r"(?m)^\[(\d+)\] [^\n]*\n")
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9“\"(])")
+
+
+def tool_passages(text: str) -> dict[int, str]:
+    """The passage under each numbered "[n] Title — Book" header of a tool result."""
+    parts = _PASSAGE_HEAD.split(text or "")
+    out: dict[int, str] = {}
+    for i in range(1, len(parts) - 1, 2):
+        body = parts[i + 1].replace("Cite these as [n].", "").strip()
+        if body:
+            out[int(parts[i])] = body
+    return out
+
+
+def best_excerpt(passage: str, query: str, title: str = "", max_chars: int = 420) -> tuple[str, str | None]:
+    """The paragraph of a retrieved passage that best matches `query`, trimmed to whole sentences.
+
+    Returns (excerpt, section heading or None). Purely extractive: the words are the source's
+    own, so the UI can show them as a quote while the model is still reading.
+    """
+    from .kiwix import _hits, _terms
+
+    terms = _terms(query)
+    title_words = set(re.findall(r"[a-z0-9]+", title.lower()))
+    weights = {t: (0.25 if any(w.startswith(t) for w in title_words) else 1.0) for t in terms}
+    best: tuple[float, str, str | None] | None = None
+    section: str | None = None
+    for line in (passage or "").split("\n"):
+        line = line.strip()
+        if line.startswith("## "):
+            section = line[3:].strip() or None
+            continue
+        if len(line) < 40:
+            continue
+        score = (_hits(line, terms, weights) + 2 * _hits(section or "", terms, weights)) if terms else 0.0
+        if best is None or score > best[0]:  # ties keep the earlier paragraph; the lead is usually clearest
+            best = (score, line, section)
+    if not best:
+        return "", None
+    text = re.sub(r"\s*…$", "", best[1]).strip()
+    if len(text) > max_chars:
+        kept = ""
+        for sent in _SENTENCE_END.split(text):
+            if kept and len(kept) + 1 + len(sent) > max_chars:
+                break
+            kept = f"{kept} {sent}".strip()
+        text = kept if len(kept) <= max_chars else kept[:max_chars].rsplit(" ", 1)[0].rstrip(",;:") + " …"
+    return text, best[2]
+
+
+def _status(state: str, label: str, t_start: float, **extra) -> dict:
+    data = {"state": state, "label": label, "elapsed_ms": int((time.time() - t_start) * 1000)}
+    data.update({k: v for k, v in extra.items() if v is not None})
+    return {"event": "status", "data": data}
+
+
+def _join_names(names: list[str]) -> str:
+    names = list(dict.fromkeys(n for n in names if n))
+    if not names or len(names) > 3:
+        return "the library"
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def _reading_label(new_sources: list[dict]) -> str:
+    """'Reading “Hypothermia” (WikiMed) and 2 more…' — what the model is processing right now."""
+    if not new_sources:
+        return "Going over the results…"
+    s = new_sources[0]
+    where = (tools.COLLECTION_NAMES.get(s.get("collection") or "") or s.get("book_title")
+             or ("your files" if s.get("type") in ("note", "file") else ""))
+    head = f"Reading “{s.get('title') or 'the source'}”" + (f" ({where})" if where else "")
+    more = len(new_sources) - 1
+    return head + (f" and {more} more…" if more else "…")
+
+
 class ChatService:
     def __init__(self, svc):
         self.svc = svc
         self.db: dbm.Database = svc.db
         self.active: dict[str, asyncio.Event] = {}
         self.modes = persona.load_modes(svc.paths.config)
+        self._prompt_tps: dict[str, float] = {}  # measured prompt-processing speed per model, for honest ETAs
+
+    # ------------------------------------------------------------------ measured speed
+    def prompt_speed(self, model_id: str) -> float | None:
+        """Prompt tokens/s this device has actually achieved with `model_id`, or None if unknown.
+
+        Seeded from the timings stored with recent answers, then kept current by each turn.
+        Short prompts are ignored: their fixed per-request overhead makes them look slow.
+        """
+        if model_id not in self._prompt_tps:
+            speeds = []
+            for r in self.db.all("SELECT meta FROM messages WHERE role='assistant' ORDER BY created_at DESC LIMIT 40"):
+                meta = dbm.loads(r.get("meta"), {}) or {}
+                t = meta.get("timings") or {}
+                if meta.get("model") == model_id and (t.get("prompt_n") or 0) >= 150 and (t.get("prompt_per_second") or 0) > 0:
+                    speeds.append(float(t["prompt_per_second"]))
+            if speeds:
+                self._prompt_tps[model_id] = sorted(speeds)[len(speeds) // 2]
+        return self._prompt_tps.get(model_id)
+
+    def note_speed(self, model_id: str, timings: dict) -> None:
+        n, tps = timings.get("prompt_n") or 0, timings.get("prompt_per_second") or 0
+        if n >= 150 and tps > 0:
+            prev = self._prompt_tps.get(model_id)
+            self._prompt_tps[model_id] = float(tps) if prev is None else 0.6 * prev + 0.4 * float(tps)
+
+    async def _search_where(self, args: dict, mode_cfg: dict) -> str:
+        """'WikiMed and Wikipedia': the installed collections a library search is about to look in."""
+        coll = args.get("collection") or "auto"
+        if coll != "auto":
+            return tools.COLLECTION_NAMES.get(coll, "the library")
+        try:
+            books = await asyncio.wait_for(self.svc.kiwix.books(), timeout=0.5)
+        except Exception:
+            return "the library"
+        installed = {b.collection for b in books}
+        wanted = [c for c in (mode_cfg.get("collections") or []) if c in installed] or sorted(installed)
+        return _join_names([tools.COLLECTION_NAMES.get(c, "") for c in wanted])
 
     # ------------------------------------------------------------------ CRUD
     def list(self, ctx: Ctx, q: str | None = None, archived: bool = False, project: str | None = None, limit: int = 200) -> list[dict]:
@@ -150,7 +266,8 @@ class ChatService:
             rows = self.db.all(sql, tuple(params))
         for r in rows:
             last = self.db.one("SELECT content FROM messages WHERE id=?", (r["head_id"],)) if r.get("head_id") else None
-            r["preview"] = re.sub(r"\s+", " ", (last or {}).get("content") or "")[:120]
+            text = re.sub(r"\[\d+(?:\s*,\s*\d+)*\]|[*_#`>]", "", (last or {}).get("content") or "")  # plain text, no citations
+            r["preview"] = re.sub(r"\s+", " ", text).strip()[:120]
         return rows
 
     @staticmethod
@@ -310,11 +427,16 @@ class ChatService:
 
         # --- figure out the user message (new / edit / regenerate)
         if regenerate:
-            asst = self.db.one("SELECT * FROM messages WHERE id=? AND chat_id=?", (regenerate, chat_id))
-            if not asst:
+            # An assistant message id asks for a new version of that answer. A user message id
+            # answers that message again: the retry after a turn failed before storing an answer.
+            target = self.db.one("SELECT * FROM messages WHERE id=? AND chat_id=?", (regenerate, chat_id))
+            if not target:
                 yield {"event": "error", "data": {"message": "Message not found"}}
                 return
-            user_msg = self._msg(self.db.one("SELECT * FROM messages WHERE id=?", (asst["parent_id"],)))  # type: ignore[arg-type]
+            if target["role"] == "user":
+                user_msg = self._msg(target)
+            else:
+                user_msg = self._msg(self.db.one("SELECT * FROM messages WHERE id=?", (target["parent_id"],)))  # type: ignore[arg-type]
             content = user_msg["content"]
             attachments = user_msg["meta"].get("attachments_ids") or []
         else:
@@ -347,11 +469,12 @@ class ChatService:
             yield {"event": "error", "data": {"message": "No language model is installed. Open Settings → Models."}}
             return
         asst_id = dbm.new_id("msg_")
+        # Registered before the client learns the chat id, so a Stop sent right away is not lost.
+        cancel = asyncio.Event()
+        self.active[chat_id] = cancel
         yield {"event": "meta", "data": {"chat_id": chat_id, "user_message": user_msg, "assistant_message_id": asst_id,
                                           "model": spec.id, "model_name": spec.name, "mode": mode_id, "title": chat.get("title") or ""}}
 
-        cancel = asyncio.Event()
-        self.active[chat_id] = cancel
         state = tools.TurnState(ctx=ctx, chat_id=chat_id, message_id=asst_id, query=content, mode=mode_cfg,
                                 vision=spec.vision, temporary=bool(chat["temporary"]), voice=voice)
         t_start = time.time()
@@ -363,6 +486,7 @@ class ChatService:
         memories: list[dict] = []
         base_messages: list[dict] = []  # the prompt as the next turn will replay it (for the title call)
         first_tools: list[dict] | None = None
+        preview: dict | None = None  # the "From the source" excerpt, sent once per turn
         try:
             # --- context: memories, location, system prompt, history
             if not chat["temporary"]:
@@ -422,18 +546,18 @@ class ChatService:
             # --- wait for the model (single generation slot)
             if svc.models.gen_lock.locked():
                 svc.models.waiting += 1
-                yield {"event": "status", "data": {"state": "queued", "label": "Waiting for Mimi to finish another answer…"}}
+                yield _status("queued", "Waiting for Mimi to finish another answer…", t_start)
             async with svc.models.gen_lock:
                 if svc.models.waiting:
                     svc.models.waiting = max(0, svc.models.waiting - 1)
                 if not (svc.models.chat_model and svc.models.chat_model.id == spec.id and svc.models.chat_proc and svc.models.chat_proc.alive()):
-                    yield {"event": "status", "data": {"state": "loading", "label": f"Waking up {spec.name}…"}}
+                    yield _status("loading", f"Waking up {spec.name}…", t_start)
                     await svc.models.ensure(spec)
                     budget_ctx = svc.models.chat_ctx
                     # re-trim history if the model came up with a smaller context
                     while len(messages) > 2 and sum(est_tokens(m.get("content") or "") for m in messages) + max_out > budget_ctx - 256:
                         messages.pop(1)
-                yield {"event": "status", "data": {"state": "thinking", "label": "Thinking…"}}
+                yield _status("thinking", "Thinking…", t_start)
                 want_think = think if think is not None else svc.settings.device("models").think_harder
                 must_ground = (svc.kiwix_service.alive() and looks_factual(content) and not image_parts
                                and mode_id != "storyteller")
@@ -447,6 +571,8 @@ class ChatService:
                     async for ev in svc.models.chat_stream(spec, messages, tools=avail, max_tokens=max_out, think=bool(want_think),
                                                            cancel=cancel, tool_choice=choice):
                         if ev["type"] == "content":
+                            if not step_text:
+                                yield _status("writing", "Writing the answer…", t_start)
                             step_text += ev["text"]
                             yield {"event": "delta", "data": {"text": ev["text"]}}
                         elif ev["type"] == "reasoning":
@@ -456,36 +582,59 @@ class ChatService:
                             calls = ev["calls"]
                         elif ev["type"] == "done":
                             timings = ev.get("timings") or timings
+                            self.note_speed(spec.id, ev.get("timings") or {})
                     answer += step_text
                     if cancel.is_set() or not calls:
                         break
                     messages.append({"role": "assistant", "content": step_text or "",
                                      "tool_calls": [{"id": c["id"], "type": "function", "function": {"name": c["name"], "arguments": c["arguments"] or "{}"}} for c in calls]})
                     images: list[str] = []
+                    n_before = len(state.sources)
+                    new_prompt = est_tokens(step_text) + 12 * len(calls)
                     for c in calls:
                         tid = c["id"]
                         args = tools.parse_args(c["arguments"])
-                        yield {"event": "tool", "data": {"id": tid, "name": c["name"], "state": "start", "args": args,
-                                                         "label": _pending_label(c["name"], args)}}
+                        label = _pending_label(c["name"], args)
+                        where = None
+                        if c["name"] == "search_library":
+                            where = await self._search_where(args, mode_cfg)
+                            label = f"Searching {where} for “{args.get('query') or content}”…"
+                        yield {"event": "tool", "data": {"id": tid, "name": c["name"], "state": "start", "args": args, "label": label}}
+                        kind = "searching" if c["name"] in ("search_library", "search_my_files") else "tool"
+                        yield _status(kind, label, t_start, tool=c["name"])
                         t0 = time.time()
                         res = await tools.run(c["name"], c["arguments"], state, svc)
+                        if where and res.label.startswith("Searched the library "):  # keep the trail as specific as the narrative
+                            res.label = res.label.replace("the library", where, 1)
                         entry = {"id": tid, "name": c["name"], "state": "end", "label": res.label, "summary": res.summary, "ok": res.ok,
                                  "ms": int((time.time() - t0) * 1000), "data": res.data}
                         trail.append(entry)
                         yield {"event": "tool", "data": entry}
                         if res.sources:
                             yield {"event": "sources", "data": {"sources": state.sources}}
+                            if preview is None:
+                                preview = self._preview(res, state.query)
+                                if preview:
+                                    yield {"event": "preview", "data": preview}
                         for me in state.memory_events:
                             yield {"event": "memory", "data": {"suggested" if me["status"] == "suggested" else "saved": [me["memory"]]}}
                         state.memory_events.clear()
                         messages.append({"role": "tool", "tool_call_id": tid, "content": res.text})
+                        new_prompt += est_tokens(res.text) + 8
                         images.extend(res.images)
                     if images:
                         messages.append({"role": "user", "content": [{"type": "text", "text": "(Reference image(s) from the library, attached by Mimi for your analysis.)"}]
                                          + [{"type": "image_url", "image_url": {"url": u}} for u in images]})
+                        new_prompt += 300 * len(images)
                     if step_text and not step_text.endswith("\n"):
                         answer += "\n\n"
                         yield {"event": "delta", "data": {"text": "\n\n"}}
+                    # The model now has to read everything the tools returned before it can write a
+                    # word. That is the longest silent stretch on a handheld, so say what it is
+                    # reading and, when this device's speed is known, roughly how long it takes.
+                    tps = self.prompt_speed(spec.id)
+                    yield _status("reading", _reading_label(state.sources[n_before:]), t_start, prompt_tokens=new_prompt,
+                                  eta_ms=int(new_prompt / tps * 1000) if tps else None, sources=len(state.sources) - n_before)
         except ModelError as e:
             error = str(e)
             L.warning("turn failed: %s", e)
@@ -505,6 +654,8 @@ class ChatService:
             "memories_used": used, "timings": {"total_ms": int((time.time() - t_start) * 1000), **{k: timings.get(k) for k in ("predicted_per_second", "prompt_per_second", "predicted_n", "prompt_n") if k in timings}},
             "voice": voice, "cancelled": cancel.is_set(), "error": error,
         }
+        if preview:
+            meta["preview"] = preview
         if reasoning and svc.settings.device("models").think_harder:
             meta["reasoning"] = reasoning[-4000:]
         asst_parent = user_msg["id"]
@@ -523,6 +674,22 @@ class ChatService:
         if error:
             yield {"event": "error", "data": {"message": error, "message_id": asst_id}}
         yield {"event": "done", "data": {"message": final, "chat": {"id": chat_id, "title": title}}}
+
+    @staticmethod
+    def _preview(res: tools.ToolResult, query: str) -> dict | None:
+        """The best-matching excerpt of a tool's top source, verbatim, for the 'From the source' card."""
+        passages = tool_passages(res.text)
+        for src in res.sources[:1]:
+            body = passages.get(src.get("n") or 0)
+            if not body:
+                continue
+            text, section = best_excerpt(body, query, src.get("title") or "")
+            if len(text) < 40:
+                continue
+            return {"n": src["n"], "type": src.get("type"), "title": src.get("title"), "book_title": src.get("book_title"),
+                    "collection": src.get("collection"), "url": src.get("url"), "image": src.get("image"),
+                    "section": section, "text": text}
+        return None
 
     def _system_prompt(self, ctx: Ctx, mode_id: str) -> str:
         svc = self.svc

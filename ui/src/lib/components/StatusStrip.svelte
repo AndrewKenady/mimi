@@ -17,14 +17,16 @@
 	});
 </script>
 
-<div class="strip" role="status">
+<!-- Not a live region as a whole: the clock and battery change constantly. Only the model's
+     state (waking, ready, unavailable) is worth announcing. -->
+<div class="strip" role="group" aria-label="Device status">
 	<span class="pill offline" title="Mimi runs entirely on this device">
-		<WifiOff size={13} strokeWidth={2} />
+		<WifiOff size={13} strokeWidth={2} aria-hidden="true" />
 		<span class="txt">Offline · all local</span>
 	</span>
 	<a href="/settings/models" class="pill" class:loading={model?.status === 'loading'} class:bad={model?.status === 'error'} title={model?.error || 'Language model'}>
-		<Cpu size={13} strokeWidth={2} />
-		{modelLabel}
+		<Cpu size={13} strokeWidth={2} aria-hidden="true" />
+		<span aria-live="polite">{modelLabel}</span>
 	</a>
 	{#if app.system?.battery_saver}
 		<span class="pill warn" title="Battery saver: using the quick model"><Leaf size={13} strokeWidth={2} />Saver</span>
