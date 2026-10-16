@@ -35,9 +35,9 @@ jobs:
       - name: Install
         run: uv pip install -e ".[dev,build]"
       - name: Lint
-        run: uv run --no-sync ruff check . ../scripts ../tools ../eval ../ui/e2e
+        run: ruff check . ../scripts ../tools ../eval ../ui/e2e  # the venv setup-uv activated is on PATH
       - name: Test
-        run: uv run --no-sync python -m pytest -q
+        run: python -m pytest -q
 
   eval:
     name: Evaluation pipeline (fixtures)
@@ -53,7 +53,7 @@ jobs:
       - run: uv pip install -e "core[dev]"
       - name: Score the fixture runs (A/B scoreboard)
         run: |
-          uv run --no-sync python eval/score.py eval/fixtures/results-a.jsonl \
+          python eval/score.py eval/fixtures/results-a.jsonl \
             --compare eval/fixtures/results-b.jsonl --out-dir "$RUNNER_TEMP/eval" --name fixtures
           cat "$RUNNER_TEMP/eval/fixtures.md" >> "$GITHUB_STEP_SUMMARY"
 
