@@ -85,6 +85,7 @@ class ModelManager:
         order = ["llama-cpu"] if cpu_only else {
             "cuda": ["llama-cuda", "llama-vulkan", "llama-cpu"],
             "vulkan": ["llama-vulkan", "llama-cpu"],
+            "metal": ["llama-metal", "llama-cpu"],  # Apple silicon (hardware.py reports "metal")
         }.get(self.hw.get("backend", "cpu"), ["llama-cpu"])
         for b in order + ["llama-vulkan", "llama-cpu"]:
             if self.paths.exe(b, "llama-server").exists():

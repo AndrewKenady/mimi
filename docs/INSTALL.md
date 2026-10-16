@@ -30,7 +30,7 @@ else is newer.
 | Linux x64 (Debian 12, Ubuntu 24.04), CPU | **Tested**: `install.sh` from a bare Debian container (uv, Python, engines, Node, UI), the engines, Core startup with and without content, a real book download, a map extract, the places and routing builds. No GPU was available in testing. |
 | Docker (Linux x64) | **Tested**: both image targets build; compose, owner sign-in, content in the volume, clean shutdown. GPU passthrough is untested. |
 | Linux arm64 (Raspberry Pi 5, Ampere, Jetson…) | **Untested.** The engines are official upstream builds with pinned hashes. |
-| macOS on Apple silicon | **Untested.** Engines are pinned. Mimi uses llama.cpp's Metal build only once Core learns the `metal` backend; until then chat runs on the CPU (slower, but works). |
+| macOS on Apple silicon | **Untested.** Engines are pinned; chat uses llama.cpp's Metal (GPU) build, falling back to the CPU build. |
 | Steam Deck (SteamOS 3, desktop mode) | **Untested**; see [Steam Deck](#steam-deck). |
 | Intel Macs, 32-bit, Windows on ARM | Not supported. |
 

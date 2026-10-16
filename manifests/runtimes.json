@@ -38,7 +38,7 @@
     "macos-arm64": [
       { "id": "llama-metal", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-macos-arm64.tar.gz",
         "sha256": "97b06f59ad15e2b4b6044ba7338c4e3f40354c6dc2b9c5cda234e2bd6b9fd65e", "size": 11755672, "unzip_to": "bin/macos-arm64/llama-metal", "strip_root": true,
-        "$comment": "Metal (GPU) build. Core picks it once core/mimi/llm.py knows the 'metal' backend; until then llama-cpu (the same build, run with -ngl 0) is used." },
+        "$comment": "Metal (GPU) build, picked on Apple silicon; llama-cpu (the same build, run with -ngl 0) is the fallback." },
       { "id": "llama-cpu", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-macos-arm64.tar.gz",
         "sha256": "97b06f59ad15e2b4b6044ba7338c4e3f40354c6dc2b9c5cda234e2bd6b9fd65e", "size": 11755672, "unzip_to": "bin/macos-arm64/llama-cpu", "strip_root": true },
       { "id": "kiwix-tools", "url": "https://download.kiwix.org/release/kiwix-tools/kiwix-tools_macos-arm64-3.8.1.tar.gz",
