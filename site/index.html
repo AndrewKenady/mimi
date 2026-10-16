@@ -143,18 +143,24 @@ h1 .thin { font-weight: 300; color: var(--ink-2); }
 .shots-note { grid-column: 1 / -1; margin: 0; font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
 
 /* checkably right */
-.claims { list-style: none; margin: 0 0 34px; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1.5px solid var(--ink); counter-reset: claim; }
+.claims { list-style: none; margin: -16px 0 34px; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); counter-reset: claim; }
 .claims li { padding: 18px 18px 6px 0; counter-increment: claim; }
 .claims li + li { padding-left: 18px; border-left: 1px solid var(--rule-2); }
 .claims li::before { content: "0" counter(claim); display: block; font-family: var(--mono); font-size: 12px; letter-spacing: .12em; color: var(--accent); margin-bottom: 8px; }
 .claims h3 { font-size: 19px; }
 .claims p { margin: 0; color: var(--ink-2); font-size: 15.5px; }
-.proofs { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .8fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.proofs { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+.pcol { display: grid; gap: 24px; min-width: 0; }
+.ledger { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1.5px solid var(--ink); }
+.ledger div { padding: 12px 14px 12px 0; border-bottom: 1px solid var(--rule-2); }
+.ledger div:nth-child(even) { padding-left: 14px; border-left: 1px solid var(--rule-2); }
+.ledger dt { font-weight: 850; font-stretch: 66%; font-size: 34px; line-height: 1; }
+.ledger dd { margin: 4px 0 0; font-size: 14.5px; color: var(--ink-2); line-height: 1.4; }
 .proofs figure { margin: 0; }
 .proofs img { display: block; width: 100%; height: auto; border-radius: 6px; border: 1.5px solid var(--ink); background: #070b12; box-shadow: 6px 6px 0 var(--accent-soft); }
 .proofs figcaption { margin-top: 10px; font-size: 14.5px; color: var(--ink-2); }
 .proofs figcaption .mono { font-size: 11.5px; letter-spacing: .12em; color: var(--accent); margin-right: 8px; }
-.more { margin: 26px 0 0; font-family: var(--mono); font-size: 13.5px; letter-spacing: .04em; }
+.more { margin: 4px 0 0; font-family: var(--mono); font-size: 13.5px; letter-spacing: .04em; }
 
 /* ---------- sections ---------- */
 section { padding: 72px 0 24px; scroll-margin-top: 64px; }
@@ -205,7 +211,7 @@ td.n { font-family: var(--mono); font-size: 14px; white-space: nowrap; }
 .install { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 28px; align-items: start; }
 .term { background: var(--code-bg); color: var(--code-ink); border-radius: 6px; overflow: hidden; border: 1.5px solid var(--ink); }
 .term .bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: #8fa6a2; border-bottom: 1px solid rgba(255, 255, 255, .08); }
-.term pre { margin: 0; padding: 18px 18px 20px; overflow-x: auto; font-size: 14.5px; line-height: 1.75; }
+.term pre { margin: 0; padding: 16px 18px 18px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; }
 .term .p { color: #6ee7d2; user-select: none; }
 .term .c { color: #7f9491; }
 .copy { font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; background: transparent; color: #cfeee8; border: 1px solid rgba(255, 255, 255, .25); border-radius: 3px; padding: 4px 9px; cursor: pointer; }
@@ -247,8 +253,7 @@ footer a { color: var(--ink-2); }
   .claims { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .claims li, .claims li + li { padding: 18px 18px 14px 0; border-left: 0; border-bottom: 1px solid var(--rule); }
   .claims li:nth-child(even) { padding-left: 18px; border-left: 1px solid var(--rule-2); }
-  .proofs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .proofs figure:first-child { grid-column: 1 / -1; }
+  .proofs { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
   .sheet, .collar nav a.hide-sm { display: none; }
@@ -256,6 +261,8 @@ footer a { color: var(--ink-2); }
   .leg:not(:last-child)::after { right: auto; left: 32px; top: auto; bottom: -23px; width: 0; height: 22px; border-top: 0; border-left: 2px dashed var(--ink-3); }
   .planned { grid-template-columns: minmax(0, 1fr); }
   .claims, .proofs { grid-template-columns: minmax(0, 1fr); }
+  .pcol { display: contents; }
+  .proofs .f-a { order: 1; } .proofs .f-b { order: 2; } .proofs .f-c { order: 3; } .ledger { order: 4; } .proofs .more { order: 5; }
   .claims li:nth-child(even) { padding-left: 0; border-left: 0; }
 }
 @media (max-width: 600px) {
@@ -297,7 +304,7 @@ footer a { color: var(--ink-2); }
       <a href="#install" class="hide-xs">Install</a>
       <a href="case-study.html">Case study</a>
       <a href="https://github.com/AndrewKenady/mimi" class="hide-xs">Source</a>
-      <button class="theme" type="button" id="theme" aria-label="Colour theme: automatic">Auto</button>
+      <button class="theme" type="button" id="theme" aria-label="Auto colour theme. Change theme">Auto</button>
     </nav>
   </div>
 </header>
@@ -387,23 +394,33 @@ footer a { color: var(--ink-2); }
         <li><h3>Sources before the answer</h3><p>Source cards and a verbatim quote, labelled &ldquo;not Mimi&rsquo;s answer&rdquo;, appear as soon as the search returns. A full answer can take 36&ndash;68&nbsp;s on the reference handheld; you read the evidence while you wait.</p></li>
         <li><h3>Every citation is checked</h3><p>Each cited sentence is compared with the passage the model actually read: numbers and units, doses, names and negations. A claim the source doesn&rsquo;t support is marked with the reason. The answer is never rewritten.</p></li>
         <li><h3>Quality is measured</h3><p>A 166-question golden set (medicine, repair, travel, survival, and traps like dangerous dosing and false premises) scores retrieval, key facts, forbidden claims and citation faithfulness. Model changes need an A/B run.</p></li>
-        <li><h3>The library is honest</h3><p>Every book is surveyed and labelled Ready, Indexing&hellip;, Browse only, Search only or Can&rsquo;t open, with a real item count. PDF collections that used to open blank are now listed and searchable page by page.</p></li>
+        <li><h3>The library is honest</h3><p>Every book is surveyed and labelled Ready, Indexing&hellip;, Browse only, Search only or Can&rsquo;t open, with a real item count. PDF collections that used to open blank are now listed and searchable page by page, and a book whose download stopped partway is held back, with a note saying how much arrived.</p></li>
       </ol>
       <div class="proofs">
-        <figure>
-          <img src="img/chat-sources-first.webp" width="1600" height="1075" loading="lazy" alt="Mimi answering 'How do you treat hypothermia?'. A progress line reads Search, done; Read, in progress; Write, waiting. Three source cards from WikiMed and Wikipedia sit above a 'From the source' box quoting the WikiMed Hypothermia article, marked 'Quoted while Mimi reads — not Mimi's answer'.">
+        <div class="pcol">
+        <figure class="f-a">
+          <img src="img/chat-sources-first.webp" width="1152" height="712" loading="lazy" alt="Mimi answering 'How do you treat hypothermia?'. A progress line reads Search, done; Read, in progress; Write, waiting. Three source cards from WikiMed and Wikipedia sit above a 'From the source' box quoting the WikiMed Hypothermia article, marked 'Quoted while Mimi reads — not Mimi's answer'.">
           <figcaption><span class="mono">FIG. 3</span> Sources and a quoted passage, while the model is still reading</figcaption>
         </figure>
-        <figure>
-          <img src="img/chat-flagged-dark.webp" width="720" height="584" loading="lazy" alt="A finished answer about hypothermia with numbered citation chips. One chip is amber and dashed. Below the answer: '1 cited claim couldn't be matched to its source. Check before relying on it.' It quotes 'Warm bath: put them in water at 45 °C for 3 hours' and gives the reason: number not in source: 45 °C, 3 hours.">
+        <dl class="ledger" aria-label="Checked in CI on every push">
+          <div><dt>166</dt><dd>golden questions, with traps</dd></div>
+          <div><dt>42</dt><dd>tests for the citation checker</dd></div>
+          <div><dt>30</dt><dd>end-to-end browser tests</dd></div>
+          <div><dt>0</dt><dd>serious axe violations on the app&rsquo;s main screens, dark and light</dd></div>
+        </dl>
+        <p class="more"><a href="case-study.html#decisions">How these were designed, and the evidence behind them</a> &rarr;</p>
+        </div>
+        <div class="pcol">
+        <figure class="f-b">
+          <img src="img/chat-flagged-dark.webp" width="716" height="272" loading="lazy" alt="Part of an answer about hypothermia with numbered citation chips. The chip after 'Warm bath: put them in water at 45 °C for 3 hours' is amber. Below: '1 cited claim couldn't be matched to its source. Check before relying on it.', the quoted claim, a link to the WikiMed article, and the reason: number not in source: 45 °C, 3 hours.">
           <figcaption><span class="mono">FIG. 4</span> A claim its source doesn&rsquo;t support, flagged with the reason (test fixture)</figcaption>
         </figure>
-        <figure>
+        <figure class="f-c">
           <img src="img/library-documents.webp" width="1280" height="860" loading="lazy" alt="The Medical Library collection listing its PDF books: Emergency War Surgery, A Book for Midwives, First Aid and the HHS Pandemic Influenza Plan, each with page count, size and 'Searchable'. The header reads 12 documents, 67 MB, 3,138 pages searchable.">
           <figcaption><span class="mono">FIG. 5</span> A collection that once opened blank, now 12 searchable books</figcaption>
         </figure>
+        </div>
       </div>
-      <p class="more"><a href="case-study.html#decisions">How these were designed, and the evidence behind them</a> &rarr;</p>
     </div>
   </section>
 
@@ -418,18 +435,18 @@ footer a { color: var(--ink-2); }
         <article class="item">
           <div class="id"><span>2.1</span><span>ASK</span></div>
           <h3>Ask anything, with sources</h3>
-          <p>A local open-weights model answers from the offline library. Factual questions trigger a search first, answers cite the article they came from, and citations the model invents are stripped out.</p>
+          <p>A local open-weights model answers from the offline library. Factual questions trigger a search first, answers cite the article or PDF page they came from, citations that point nowhere are stripped out, and the rest are checked against their sources.</p>
           <ul><li>Modes: Everyday, Road Trip, Field Medic, Fix-It, Study, Storyteller</li></ul>
         </article>
         <article class="item">
           <div class="id"><span>2.2</span><span>LIBRARY</span></div>
           <h3>A library for the long way round</h3>
-          <p>All of English Wikipedia with images, WikiMed, Wikivoyage, iFixit repair guides, Wiktionary, nine Stack Exchange sites (DIY, mechanics, outdoors, ham radio and more), survival, water, food and knot guides, Project Gutenberg shelves and TED talks. There's a built-in reader too.</p>
+          <p>All of English Wikipedia with images, WikiMed, Wikivoyage, iFixit repair guides, Wiktionary, nine Stack Exchange sites (DIY, mechanics, outdoors, ham radio and more), survival, water, food and knot guides, Project Gutenberg shelves and TED talks. There's a built-in reader, and PDF guides open as real document lists. That's 26 collections in the standard tier.</p>
         </article>
         <article class="item">
           <div class="id"><span>2.3</span><span>MAPS</span></div>
           <h3>Maps that need no signal</h3>
-          <p>Street-level vector maps of the US and Canada, a world overview for everywhere else, and a globe view. It also gives turn-by-turn driving directions with time and distance.</p>
+          <p>A world map plus your own region down to street level: the US, Canada, the UK, Germany, France, Australia, New Zealand, Japan, or any box you draw. Turn-by-turn driving directions are worked out on the device for the named regions.</p>
           <ul><li>Street-address search (US and Canada)</li><li>"What's near me" from GeoNames and 1.2M geotagged Wikipedia articles</li></ul>
         </article>
         <article class="item">
@@ -460,22 +477,22 @@ footer a { color: var(--ink-2); }
         <article class="item">
           <div class="id"><span>2.9</span><span>SHARE</span></div>
           <h3>Bring the whole group</h3>
-          <p>Phones and laptops open Mimi over local Wi-Fi at <span class="mono">mimi.local</span>. You approve each new device on Mimi's own screen by matching a code, and guests get temporary chats.</p>
+          <p>Phones and laptops open Mimi over local Wi-Fi at <span class="mono">mimi.local</span>. Approve each new device on Mimi's own screen or sign in with a 6-digit PIN; guests get temporary chats.</p>
         </article>
         <article class="item">
           <div class="id"><span>2.10</span><span>EXTEND</span></div>
           <h3>Teach it new tricks</h3>
-          <p>Slash commands in the chat box (<span class="mono">/eli5</span>, <span class="mono">/translate</span>, <span class="mono">/steps</span>…). Drop a Python file into <span class="mono">tools/</span> to add an ability; sunrise and sunset times and a unit converter come included.</p>
+          <p>Slash commands in the chat box (<span class="mono">/eli5</span>, <span class="mono">/translate</span>, <span class="mono">/steps</span>…). Drop a Python file into <span class="mono">tools/</span> to add an ability. Mimi is also an MCP server, so other AI apps on the device can use its offline library, places and directions.</p>
         </article>
         <article class="item">
           <div class="id"><span>2.11</span><span>HANDHELD</span></div>
           <h3>Made for a handheld</h3>
-          <p>Gamepad navigation, a command palette, and dark, light and OLED themes. Battery saver switches to a smaller model when you're low and unplugged.</p>
+          <p>Gamepad navigation, a command palette, and dark, light and OLED themes that all pass WCAG AA contrast, checked on every build. Battery saver switches to a smaller model when you're low and unplugged.</p>
         </article>
         <article class="item">
           <div class="id"><span>2.12</span><span>PORTABLE</span></div>
           <h3>Carry it on a drive</h3>
-          <p>One script copies Mimi to a USB drive that runs on any Windows 10 or 11 PC with nothing installed. A lite edition fits on 64 GB, and your accounts and chats stay behind unless you ask.</p>
+          <p>One script copies Mimi to a USB drive. Drives made on Windows run on any Windows 10 or 11 PC with nothing installed. A lite edition fits on 64 GB. Your accounts and chats stay behind unless you ask, and the sharing certificate&rsquo;s key never travels.</p>
         </article>
       </div>
     </div>
@@ -491,17 +508,17 @@ footer a { color: var(--ink-2); }
       <div class="route">
         <div class="leg">
           <h3>Stock up once</h3>
-          <p>Setup downloads the engines, models, library and maps from their original publishers (Hugging Face, Kiwix, Protomaps, OpenStreetMap and others) and builds the routing graph and address index on your machine.</p>
-          <span class="when">Needs internet · about 200 GB</span>
+          <p>Setup downloads the engines, models, library and maps from their original publishers (Hugging Face, Kiwix, Protomaps, OpenStreetMap and others), verifies every file before it&rsquo;s used, and builds the routing graph on your machine.</p>
+          <span class="when">Needs internet · 16–24 GB (Lite) or ≈ 210–245 GB (Standard)</span>
         </div>
         <div class="leg">
           <h3>Unplug</h3>
-          <p>Chat, library, maps, directions, voice, Lens and Scribe all run on the PC's own processor and graphics. There's no online account and no cloud service behind any of it.</p>
+          <p>Chat, library, maps, directions, voice, Lens and Scribe all run on the computer's own processor and graphics. There's no online account and no cloud service behind any of it.</p>
           <span class="when">No internet from here on</span>
         </div>
         <div class="leg">
           <h3>Share locally</h3>
-          <p>Turn on sharing and phones nearby join over Wi-Fi, from a travel router or the Windows hotspot, with the same app in their browser. Your chats and memories stay in one folder on the device.</p>
+          <p>Turn on sharing and phones nearby join over Wi-Fi, from a travel router or the computer's own hotspot, with the same app in their browser. Your chats and memories stay in one folder on the device.</p>
           <span class="when">Local network only</span>
         </div>
       </div>
@@ -513,7 +530,7 @@ footer a { color: var(--ink-2); }
       <div class="head">
         <span class="num">§<b>04</b></span>
         <h2 id="hw-h">Hardware</h2>
-        <p>Mimi runs on Windows 10 and 11 PCs (x64), and it's built and measured on a handheld. When it starts, it checks the memory and graphics and picks a model profile to match.</p>
+        <p>Mimi is built and measured on one Windows handheld, and also runs on Linux, macOS and Docker. When it starts, it checks the memory and graphics and picks a model profile to match.</p>
       </div>
       <div class="hw">
         <div class="stack">
@@ -524,7 +541,7 @@ footer a { color: var(--ink-2); }
               <dt>Processor</dt><dd>AMD Ryzen 7 7840U, 8 cores</dd>
               <dt>Graphics</dt><dd>Radeon 780M (Vulkan)</dd>
               <dt>Memory</dt><dd>16 GB LPDDR5X</dd>
-              <dt>Storage</dt><dd>About 200 GB for everything; a lite drive fits 64 GB</dd>
+              <dt>Storage</dt><dd>16–24 GB for Lite; about 210–245 GB for Standard</dd>
               <dt>Runs on</dt><dd>The graphics chip through Vulkan, or the processor alone</dd>
             </dl>
             <p class="note">Battery life hasn't been measured yet and will vary by device and workload. Mimi keeps the PC from sleeping while it runs, and its battery saver switches to a smaller model below a threshold you set.</p>
@@ -535,7 +552,8 @@ footer a { color: var(--ink-2); }
               <thead><tr><th scope="col">Task</th><th scope="col">Result</th></tr></thead>
               <tbody>
                 <tr><td>Gemma 4 12B writing speed</td><td class="n">6.8–9.2 tokens/s</td></tr>
-                <tr><td>Answer from the library, cold start</td><td class="n">39–68 s</td></tr>
+                <tr><td>Library search + 3 passages</td><td class="n">0.2–2.3 s</td></tr>
+                <tr><td>Full answer from the library, cold start</td><td class="n">39–68 s</td></tr>
                 <tr><td>Voice chat, first word</td><td class="n">1.7–1.9 s</td></tr>
                 <tr><td>Reading text in a photo</td><td class="n">0.5 s</td></tr>
                 <tr><td>98-mile driving route</td><td class="n">0.1 s</td></tr>
@@ -559,7 +577,7 @@ footer a { color: var(--ink-2); }
           <p class="note">Mimi can already detect Plus and Max hardware, but setup only downloads the Standard models for now. Plus and Max model downloads are planned.</p>
           <div class="tbl">
             <table>
-              <caption>What setup downloads (approximate)</caption>
+              <caption>Standard tier, US + Canada maps (approximate)</caption>
               <thead><tr><th scope="col">Part</th><th scope="col">Size</th></tr></thead>
               <tbody>
                 <tr><td>Offline library (26 collections, including Wikipedia at 127 GB)</td><td class="n">161 GB</td></tr>
@@ -580,22 +598,56 @@ footer a { color: var(--ink-2); }
       <div class="head">
         <span class="num">§<b>05</b></span>
         <h2 id="in-h">Install</h2>
-        <p>On a Windows 10 or 11 PC (x64), in PowerShell. No administrator rights needed, and a download that stops can pick up where it left off.</p>
+        <p>One line on Linux and macOS, a script on Windows, or Docker. No administrator rights, downloads resume if interrupted, and every file is verified before it&rsquo;s used. Then open <span class="mono">http://localhost:7600</span>.</p>
       </div>
       <div class="install">
-        <div class="term">
-          <div class="bar"><span>PowerShell</span><button class="copy" type="button" data-copy="install-cmds">Copy</button></div>
-<pre id="install-cmds"><span class="p">&gt; </span>git clone https://github.com/AndrewKenady/mimi.git
-<span class="p">&gt; </span>cd mimi
-<span class="p">&gt; </span>powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
-<span class="p">&gt; </span>.\MIMI.exe</pre>
+        <div class="stack">
+          <div class="term">
+            <div class="bar"><span>Linux · macOS</span><button class="copy" type="button" data-copy="cmd-unix" aria-label="Copy the Linux and macOS command">Copy</button></div>
+<pre id="cmd-unix"><span class="p">$ </span>curl -fsSL https://raw.githubusercontent.com/AndrewKenady/mimi/main/scripts/install.sh | sh</pre>
+          </div>
+          <div class="term">
+            <div class="bar"><span>Windows 10/11 · PowerShell</span><button class="copy" type="button" data-copy="cmd-win" aria-label="Copy the Windows commands">Copy</button></div>
+<pre id="cmd-win"><span class="p">&gt; </span>git clone https://github.com/AndrewKenady/mimi
+<span class="p">&gt; </span>powershell -ExecutionPolicy Bypass -File mimi\scripts\setup.ps1 -Tier lite</pre>
+          </div>
+          <div class="term">
+            <div class="bar"><span>Docker</span><button class="copy" type="button" data-copy="cmd-docker" aria-label="Copy the Docker commands">Copy</button></div>
+<pre id="cmd-docker"><span class="p">$ </span>docker compose up -d
+<span class="p">$ </span>docker compose run --rm mimi content add lite</pre>
+          </div>
+          <div class="tbl">
+            <table>
+              <caption>Tiers</caption>
+              <thead><tr><th scope="col">Tier</th><th scope="col">Download</th><th scope="col">Includes</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Lite <span class="mono" style="font-size:11px;color:var(--ink-3)">default</span></th><td class="n">≈ 16–24 GB</td><td>Qwen3.5 4B, voice, WikiMed, iFixit, survival guides, Wikivoyage, the most-read Wikipedia articles, a world map plus your region in street detail</td></tr>
+                <tr><th scope="row">Standard</th><td class="n">≈ 210–245 GB</td><td>Gemma 4 12B and Qwen3.5 9B, all of Wikipedia with pictures (26 collections, about 161 GB), Stack Exchange, TED, Gutenberg, driving directions and address search</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <ul class="checklist">
-          <li><b>Plan for the download.</b> Setup fetches about 200 GB once, then builds the routing graph (a few hours) and the address index (about 45 minutes).</li>
-          <li><b>Just want to look around?</b> Add <span class="mono">-NoContent</span> for code and runtimes only, or <span class="mono">-NoRouting</span> or <span class="mono">-NoAddresses</span> to skip those builds.</li>
-          <li><b>Need WebView2.</b> It comes with Windows 11. The <span class="mono">MIMI.exe</span> window uses it.</li>
-          <li><b>Full instructions</b> are in the <a href="https://github.com/AndrewKenady/mimi#quick-start-windows-1011-x64">README</a>, with <a href="https://github.com/AndrewKenady/mimi#sharing-with-phones">sharing with phones</a> and <a href="https://github.com/AndrewKenady/mimi#portable-drive">making a portable drive</a>.</li>
-        </ul>
+        <div class="stack">
+          <div class="tbl">
+            <table>
+              <caption>What&rsquo;s been tested, honestly</caption>
+              <thead><tr><th scope="col">Platform</th><th scope="col">Status</th></tr></thead>
+              <tbody>
+                <tr><td>Windows 11 x64 (the reference handheld)</td><td><b>Daily use</b></td></tr>
+                <tr><td>Linux x64 (Debian 12, Ubuntu 24.04), CPU</td><td><b>Tested</b> from a bare system; no GPU yet</td></tr>
+                <tr><td>Docker (Linux x64)</td><td><b>Tested</b> on CPU; GPU passthrough untested</td></tr>
+                <tr><td>macOS on Apple silicon</td><td>Untested; chat uses the Metal (GPU) build, with a CPU fallback</td></tr>
+                <tr><td>Linux arm64, Steam Deck</td><td>Untested</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <ul class="checklist">
+            <li><b>Pick a region.</b> Add <span class="mono">--region uk</span> (or <span class="mono">-Region</span> on Windows) for one of nine named map regions, or <span class="mono">--bbox</span> for any area.</li>
+            <li><b>Add more later.</b> <span class="mono">mimi content add standard</span>, or one pack at a time; it checks free space first.</li>
+            <li><b>Tried it somewhere new?</b> <a href="https://github.com/AndrewKenady/mimi/issues">Open an issue</a> with what worked and what didn&rsquo;t.</li>
+            <li><b>Full instructions</b>, including Steam Deck, portable drives and Docker&rsquo;s sign-in notes, are in <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/INSTALL.md">INSTALL.md</a>.</li>
+          </ul>
+        </div>
       </div>
     </div>
   </section>
@@ -608,12 +660,12 @@ footer a { color: var(--ink-2); }
         <p>These are planned, not built. They're listed so you know where Mimi is headed, not as promises about dates.</p>
       </div>
       <ul class="planned">
-        <li><span class="sign plan">Planned</span><span><b>Detailed maps beyond North America.</b> The world overview is there today; downloadable street-level region packs are next.</span></li>
-        <li><span class="sign plan">Planned</span><span><b>Plus and Max model downloads</b> for PCs with bigger graphics cards or more memory.</span></li>
-        <li><span class="sign plan">Planned</span><span><b>Linux, macOS and a bootable Mimi USB.</b> Today Mimi runs on Windows 10 and 11.</span></li>
-        <li><span class="sign plan">Planned</span><span><b>Signed releases and ready-made drive images</b>, so you don't have to run setup yourself.</span></li>
-        <li><span class="sign plan">Planned</span><span><b>Fuel stations and hospitals</b> from OpenStreetMap in "near me".</span></li>
-        <li><span class="sign plan">Planned</span><span><b>A long offline field test</b> on the reference device, with measured battery life.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>A real answer-quality scoreboard</b> from the full 166-question eval on the reference handheld, comparing Gemma and Qwen head to head.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>Testing on more hardware:</b> Apple silicon, Linux and Docker with a GPU, arm64 boards and the Steam Deck, which all should work but haven&rsquo;t been tried yet.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>A bootable Mimi USB and ready-made drive images</b>, so you don&rsquo;t have to run setup yourself.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>More languages,</b> for the interface, the library and the eval set. Today it&rsquo;s English only.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>Street-address search beyond the US and Canada,</b> and fuel stations and hospitals from OpenStreetMap in &ldquo;near me&rdquo;.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>Plus and Max model downloads</b> for bigger graphics cards, and a long offline field test with measured battery life.</span></li>
       </ul>
     </div>
   </section>
@@ -666,7 +718,7 @@ footer a { color: var(--ink-2); }
   function apply(t) {
     if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
     btn.textContent = names[t];
-    btn.setAttribute('aria-label', 'Colour theme: ' + (t === 'auto' ? 'automatic' : t) + '. Change theme');
+    btn.setAttribute('aria-label', names[t] + ' colour theme. Change theme');
   }
   apply(get());
   btn.addEventListener('click', function () {

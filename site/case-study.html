@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Designing Mimi — an AI you can check, for places with no signal</title>
+<meta name="description" content="A product design and engineering case study by Andrew Kenady: making an offline AI field station checkable, with an honest library, sources-first answers, citation checks and measured quality.">
+<meta name="author" content="Andrew Kenady">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#070b12" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="Designing Mimi: an AI you can check, for places with no signal">
+<meta property="og:description" content="Case study: an offline AI on a 16 GB handheld, redesigned around evidence. Honest library, sources first, checked citations, a 166-question eval.">
+<meta property="og:type" content="article">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,300..900;1,62..125,300..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #eef0ea; --paper-2: #e3e7df; --paper-3: #d8ddd3; --card: #f6f7f2;
+  --ink: #0d1a22; --ink-2: #33434d; --ink-3: #5c6b73;
+  --rule: rgba(13, 26, 34, .16); --rule-2: rgba(13, 26, 34, .32);
+  --contour: rgba(150, 100, 60, .42); --contour-ix: rgba(128, 80, 42, .75);
+  --grid: rgba(13, 26, 34, .06);
+  --accent: #0a6e66; --accent-soft: rgba(10, 110, 102, .1);
+  --blaze: #f2c230; --blaze-ink: #1d1600;
+  --orb-a: #e7fffb; --orb-b: #6ee7d2; --orb-c: #1e7f8f; --orb-d: #0b2432;
+  --glow: rgba(30, 127, 143, .28);
+  --code-bg: #0d1a22; --code-ink: #dff7f2;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #070b12; --paper-2: #0b111b; --paper-3: #111a27; --card: #0c131e;
+    --ink: #e8eef7; --ink-2: #b3bfd0; --ink-3: #7e8ca2;
+    --rule: rgba(150, 180, 220, .15); --rule-2: rgba(150, 180, 220, .3);
+    --contour: rgba(110, 231, 210, .2); --contour-ix: rgba(110, 231, 210, .46);
+    --grid: rgba(150, 180, 220, .05);
+    --accent: #6ee7d2; --accent-soft: rgba(110, 231, 210, .1);
+    --blaze: #f5c86a; --blaze-ink: #1d1600;
+    --glow: rgba(110, 231, 210, .3);
+    --code-bg: #03060a; --code-ink: #cfeee8;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #070b12; --paper-2: #0b111b; --paper-3: #111a27; --card: #0c131e;
+  --ink: #e8eef7; --ink-2: #b3bfd0; --ink-3: #7e8ca2;
+  --rule: rgba(150, 180, 220, .15); --rule-2: rgba(150, 180, 220, .3);
+  --contour: rgba(110, 231, 210, .2); --contour-ix: rgba(110, 231, 210, .46);
+  --grid: rgba(150, 180, 220, .05);
+  --accent: #6ee7d2; --accent-soft: rgba(110, 231, 210, .1);
+  --blaze: #f5c86a; --blaze-ink: #1d1600;
+  --glow: rgba(110, 231, 210, .3);
+  --code-bg: #03060a; --code-ink: #cfeee8;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 400 18px/1.65 var(--display); font-stretch: 100%;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  overflow-x: hidden;
+}
+a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.skip { position: absolute; left: 12px; top: -60px; background: var(--ink); color: var(--paper); padding: 10px 14px; z-index: 10; font-family: var(--mono); font-size: 14px; }
+.skip:focus { top: 12px; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+.mono, code { font-family: var(--mono); }
+code { font-size: .86em; background: var(--accent-soft); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+
+/* ---------- map collar ---------- */
+.collar { border-bottom: 1px solid var(--rule-2); background: color-mix(in oklab, var(--paper) 88%, transparent); backdrop-filter: blur(6px); position: sticky; top: 0; z-index: 5; }
+.collar .wrap { display: flex; align-items: center; gap: 20px; min-height: 56px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-weight: 800; font-stretch: 80%; font-size: 22px; letter-spacing: .01em; }
+.brand svg { width: 28px; height: 28px; flex: none; }
+.sheet { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: var(--ink-3); text-transform: uppercase; border-left: 1px solid var(--rule-2); padding-left: 14px; }
+.collar nav { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.collar nav a { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; padding: 8px 10px; border-radius: 4px; }
+.collar nav a:hover { color: var(--ink); background: var(--accent-soft); }
+.theme { font-family: var(--mono); font-size: 12px; background: none; color: var(--ink-2); border: 1px solid var(--rule-2); border-radius: 999px; padding: 6px 12px; cursor: pointer; margin-left: 6px; min-height: 32px; }
+.theme:hover { color: var(--ink); border-color: var(--ink-3); }
+
+/* ---------- title block ---------- */
+.title { padding: 64px 0 8px; }
+.kicker { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+.kicker .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+h1 { font-weight: 850; font-stretch: 68%; font-size: clamp(46px, 7.4vw, 96px); line-height: .92; letter-spacing: -.005em; margin: 18px 0 24px; text-transform: uppercase; max-width: 13ch; }
+h1 .thin { font-weight: 300; color: var(--ink-2); }
+.dek { font-size: clamp(19px, 1.8vw, 23px); line-height: 1.5; color: var(--ink-2); max-width: 40em; margin: 0; }
+.dek b { color: var(--ink); font-weight: 650; }
+
+.facts { margin: 40px 0 0; border: 1.5px solid var(--ink); border-radius: 6px; background: var(--card); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.facts div { padding: 14px 16px; border-left: 1px solid var(--rule-2); min-width: 0; }
+.facts div:first-child { border-left: 0; }
+.facts dt { font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.facts dd { margin: 4px 0 0; font-weight: 700; font-stretch: 88%; font-size: 17px; line-height: 1.3; }
+.facts dd small { display: block; font-weight: 400; font-size: 14px; color: var(--ink-2); font-stretch: 100%; margin-top: 2px; }
+
+/* ---------- layout: contents rail + article ---------- */
+.layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 56px; align-items: start; padding-top: 24px; }
+.toc { position: sticky; top: 84px; padding-top: 64px; }
+.toc p { margin: 0 0 10px; font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.toc ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--rule-2); }
+.toc a { display: flex; gap: 10px; padding: 6px 0 6px 14px; font-size: 14.5px; line-height: 1.35; color: var(--ink-2); text-decoration: none; margin-left: -1px; border-left: 2px solid transparent; }
+.toc a span { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); padding-top: 2px; }
+.toc a:hover { color: var(--ink); border-left-color: var(--ink-3); }
+.toc a[aria-current="true"] { color: var(--ink); border-left-color: var(--accent); }
+
+article { min-width: 0; }
+article > section { padding: 64px 0 8px; scroll-margin-top: 64px; }
+.prose { max-width: 42em; }
+.prose p, .prose li { color: var(--ink-2); }
+.prose p { margin: 0 0 1.05em; }
+.prose b, .prose strong { color: var(--ink); font-weight: 650; }
+.prose ul, .prose ol { padding-left: 1.2em; margin: 0 0 1.1em; }
+.prose li { margin: .35em 0; }
+.prose li::marker { color: var(--ink-3); }
+
+.head { display: grid; grid-template-columns: auto 1fr; gap: 4px 20px; align-items: end; margin-bottom: 30px; border-bottom: 1.5px solid var(--ink); padding-bottom: 14px; }
+.num { font-family: var(--mono); font-size: 13px; color: var(--ink-3); align-self: end; }
+.num b { display: block; font-family: var(--display); font-weight: 850; font-stretch: 62%; font-size: 58px; line-height: .85; color: var(--ink); }
+h2 { margin: 0; font-weight: 850; font-stretch: 70%; font-size: clamp(32px, 4.2vw, 48px); line-height: 1; text-transform: uppercase; letter-spacing: .005em; }
+h3 { margin: 42px 0 10px; font-weight: 780; font-stretch: 82%; font-size: 26px; line-height: 1.15; }
+h4 { margin: 0 0 6px; font-weight: 700; font-stretch: 88%; font-size: 19px; line-height: 1.25; }
+.lead { font-size: 20.5px; line-height: 1.55; color: var(--ink) !important; }
+
+.sign { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; background: var(--blaze); color: var(--blaze-ink); padding: 2px 8px; border-radius: 3px; vertical-align: middle; white-space: nowrap; line-height: 1.6; }
+.sign.plain { background: transparent; color: var(--ink-2); border: 1.5px solid var(--ink-3); }
+.sign.dash { background: transparent; color: var(--ink-2); border: 1.5px dashed var(--ink-3); }
+.sign.ok { background: var(--accent); color: var(--paper); }
+
+/* outcomes */
+.outcomes { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--rule-2); border-left: 1px solid var(--rule-2); }
+.outcomes li { padding: 20px 20px 22px; border-right: 1px solid var(--rule-2); border-bottom: 1px solid var(--rule-2); background: color-mix(in oklab, var(--card) 70%, transparent); }
+.outcomes .k { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+.outcomes .v { display: block; font-weight: 850; font-stretch: 66%; font-size: 40px; line-height: 1; color: var(--ink); letter-spacing: -.005em; }
+.outcomes .v i { font-style: normal; font-weight: 300; color: var(--ink-3); padding: 0 .12em; }
+.outcomes p { margin: 10px 0 0; font-size: 15.5px; line-height: 1.5; color: var(--ink-2); }
+
+/* constraint plate */
+.plate { border: 1.5px solid var(--ink); border-radius: 6px; background: var(--card); padding: 6px 22px; margin: 26px 0; }
+.spec { margin: 0; display: grid; grid-template-columns: 170px minmax(0, 1fr); }
+.spec dt, .spec dd { padding: 13px 0; border-top: 1px solid var(--rule); }
+.spec dt:first-of-type, .spec dt:first-of-type + dd { border-top: 0; }
+.spec dt { font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); padding-top: 16px; padding-right: 14px; }
+.spec dd { margin: 0; color: var(--ink-2); font-size: 16.5px; line-height: 1.5; }
+.spec dd b { color: var(--ink); }
+
+/* pull quote */
+.pull { margin: 34px 0; padding: 4px 0 4px 22px; border-left: 4px solid var(--blaze); max-width: 40em; }
+.pull p { margin: 0; font-weight: 650; font-stretch: 85%; font-size: clamp(23px, 2.5vw, 29px); line-height: 1.25; color: var(--ink); }
+.pull cite { display: block; margin-top: 10px; font-style: normal; font-family: var(--mono); font-size: 12px; letter-spacing: .06em; color: var(--ink-3); }
+
+/* tables */
+.tbl { overflow-x: auto; border: 1px solid var(--rule-2); border-radius: 6px; background: var(--card); margin: 26px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 15.5px; line-height: 1.45; }
+caption { text-align: left; font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); padding: 14px 16px 6px; }
+th, td { text-align: left; padding: 11px 16px; border-top: 1px solid var(--rule); vertical-align: top; color: var(--ink-2); }
+thead th { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); border-top: 0; }
+tbody th { font-weight: 700; font-stretch: 88%; font-size: 16px; color: var(--ink); }
+tr.us th, tr.us td { background: var(--accent-soft); }
+tr.us th { color: var(--accent); }
+
+/* audit */
+.audit { list-style: none; margin: 26px 0; padding: 0; counter-reset: a; border-top: 1.5px solid var(--ink); }
+.audit li { counter-increment: a; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 4px 16px; padding: 18px 0; border-bottom: 1px solid var(--rule-2); }
+.audit li::before { content: counter(a, decimal-leading-zero); font-family: var(--mono); font-size: 13px; color: var(--ink-3); padding-top: 3px; }
+.audit h3 { margin: 0; font-size: 19px; line-height: 1.25; font-weight: 700; font-stretch: 88%; }
+.audit p { margin: 4px 0 0; font-size: 16px; line-height: 1.55; color: var(--ink-2); grid-column: 2 / 4; }
+.audit .sign { justify-self: end; align-self: start; margin-top: 2px; }
+
+/* principles */
+.principles { list-style: none; margin: 26px 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.principles li { border: 1.5px solid var(--ink); border-radius: 6px; background: var(--card); padding: 18px 20px 20px; }
+.principles li p { margin: 0; font-size: 16px; line-height: 1.55; color: var(--ink-2); }
+.principles li.lead-card { grid-column: 1 / -1; background: var(--ink); color: var(--paper); }
+.principles h3 { margin: 0 0 6px; font-size: 19px; line-height: 1.25; font-weight: 700; font-stretch: 88%; }
+.principles li.lead-card h3 { color: var(--paper); font-size: 24px; }
+.principles li.lead-card p { color: color-mix(in oklab, var(--paper) 82%, var(--ink)); font-size: 17px; }
+
+/* decisions */
+.decision { margin: 52px 0 0; padding-top: 30px; border-top: 1.5px dashed var(--rule-2); }
+.decision:first-of-type { margin-top: 24px; }
+.decision header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
+.decision header .tag { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; color: var(--accent); white-space: nowrap; }
+.decision header h3 { margin: 0; }
+.pod { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 0 18px; max-width: 46em; }
+.pod > dt { font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); padding: 15px 0 0; border-top: 1px solid var(--rule); }
+.pod > dd { margin: 0; padding: 12px 0 14px; border-top: 1px solid var(--rule); color: var(--ink-2); }
+.pod > dt:first-of-type, .pod > dt:first-of-type + dd { border-top: 0; }
+.pod p { margin: 0 0 .7em; }
+.pod p:last-child { margin-bottom: 0; }
+.pod b { color: var(--ink); font-weight: 650; }
+.opts { list-style: none; margin: 0; padding: 0; }
+.opts li { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; padding: 5px 0; }
+.opts .sign { justify-self: start; align-self: start; margin-top: 3px; }
+
+/* figures */
+figure { margin: 30px 0; }
+figure img { display: block; width: 100%; height: auto; border-radius: 6px; border: 1.5px solid var(--ink); background: #070b12; box-shadow: 6px 6px 0 var(--accent-soft); }
+figcaption { margin-top: 12px; font-size: 15px; line-height: 1.5; color: var(--ink-2); max-width: 46em; }
+figcaption .mono { font-size: 11.5px; letter-spacing: .12em; color: var(--accent); margin-right: 8px; white-space: nowrap; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; align-items: start; }
+.pair.wide-left { grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); }
+.pair figure { margin: 0; }
+.stackf { display: grid; gap: 22px; }
+.stackf figure { margin: 0; }
+.stackf figure { max-width: 780px; }
+.stackf.narrow figure { max-width: 716px; }
+.figs { margin: 30px 0; }
+.figs > figcaption { margin-top: 14px; }
+.label { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; }
+
+/* diagram */
+.diagram { margin: 30px 0; border: 1.5px solid var(--ink); border-radius: 6px; background: var(--card); padding: 22px 22px 18px; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 0 16px; }
+.diagram figcaption { grid-column: 1 / -1; }
+.pyr-axis { writing-mode: vertical-rl; transform: rotate(180deg); display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); border-right: 1px solid var(--rule-2); padding-right: 6px; }
+.pyr { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pyr li { --i: 0; margin-inline: calc(var(--i) * 6%); border: 1.5px solid var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 9px 14px 10px; text-align: center; }
+.pyr li:nth-child(1) { --i: 5; } .pyr li:nth-child(2) { --i: 4; } .pyr li:nth-child(3) { --i: 3; }
+.pyr li:nth-child(4) { --i: 2; } .pyr li:nth-child(5) { --i: 1; }
+.pyr li.eval { border-style: dashed; border-color: var(--ink-3); background: transparent; }
+.pyr b { display: block; font-weight: 700; font-stretch: 88%; font-size: 16.5px; color: var(--ink); }
+.pyr span { display: block; font-family: var(--mono); font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+
+/* notes */
+.note { font-size: 15.5px; color: var(--ink-2); margin: 22px 0; padding: 2px 0 2px 14px; border-left: 3px solid var(--blaze); max-width: 46em; }
+.note b { color: var(--ink); }
+.ev { list-style: none; padding: 0; margin: 20px 0 0; display: flex; flex-wrap: wrap; gap: 8px 10px; }
+.ev a { display: inline-block; font-family: var(--mono); font-size: 12.5px; text-decoration: none; border: 1px solid var(--rule-2); border-radius: 999px; padding: 5px 12px; color: var(--ink-2); }
+.ev a:hover { border-color: var(--accent); color: var(--ink); }
+
+.end { margin-top: 64px; border: 1.5px dashed var(--rule-2); border-radius: 6px; padding: 22px 24px; display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; justify-content: space-between; }
+.end p { margin: 0; color: var(--ink-2); max-width: 36em; }
+.end p b { color: var(--ink); }
+.btn { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 13.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; text-decoration: none; padding: 12px 16px; border-radius: 4px; border: 1.5px solid var(--ink); color: var(--ink); background: transparent; }
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn:hover { box-shadow: 3px 3px 0 var(--accent); }
+
+footer { margin-top: 72px; border-top: 1.5px solid var(--ink); padding: 22px 0 40px; font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: .04em; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 28px; justify-content: space-between; }
+footer a { color: var(--ink-2); }
+
+/* ---------- small screens ---------- */
+@media (max-width: 1040px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .toc { position: static; padding-top: 40px; }
+  .toc ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; border-left: 0; }
+  .toc a { padding-left: 0; border-left: 0; }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .facts div:nth-child(3) { border-left: 0; }
+  .facts div:nth-child(n+3) { border-top: 1px solid var(--rule-2); }
+}
+@media (max-width: 760px) {
+  .sheet, .collar nav a.hide-sm { display: none; }
+  .outcomes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pair, .pair.wide-left, .principles { grid-template-columns: minmax(0, 1fr); }
+  .principles li.lead-card { grid-column: auto; }
+  .pod { grid-template-columns: minmax(0, 1fr); }
+  .pod > dt { border-top: 1px solid var(--rule); padding-top: 14px; }
+  .pod > dd { border-top: 0; padding-top: 4px; }
+  .spec { grid-template-columns: minmax(0, 1fr); }
+  .spec dd { border-top: 0; padding-top: 2px; }
+  .spec dt { padding-top: 14px; }
+}
+@media (max-width: 600px) {
+  body { font-size: 17px; }
+  .wrap { padding: 0 16px; }
+  .collar .wrap { gap: 10px; }
+  .collar nav a { padding: 8px 6px; font-size: 11.5px; }
+  .title { padding-top: 36px; }
+  .facts { grid-template-columns: minmax(0, 1fr); }
+  .facts div { border-left: 0 !important; border-top: 1px solid var(--rule-2); }
+  .facts div:first-child { border-top: 0; }
+  .outcomes { grid-template-columns: minmax(0, 1fr); }
+  .outcomes .v { font-size: 36px; }
+  .head { grid-template-columns: minmax(0, 1fr); }
+  .num { display: flex; gap: 10px; align-items: baseline; }
+  .num b { font-size: 42px; }
+  .lead { font-size: 19px; }
+  .audit li { grid-template-columns: 34px minmax(0, 1fr); }
+  .audit .sign { grid-column: 2; justify-self: start; grid-row: 2; }
+  .audit p { grid-column: 2; }
+  .opts li { grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 7px 0; }
+  .toc ol { grid-template-columns: minmax(0, 1fr); }
+  th, td { padding: 9px 12px; }
+  .cards table, .cards tbody, .cards tr, .cards th, .cards td { display: block; }
+  .cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .cards caption { display: block; }
+  .cards tr { border-top: 1px solid var(--rule-2); padding: 6px 0 10px; }
+  .cards th, .cards td { border-top: 0; padding: 4px 14px; }
+  .cards th { padding-top: 10px; font-size: 18px; }
+  .cards td::before { content: attr(data-label); display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-top: 6px; }
+  .decision header { flex-direction: column; gap: 4px; }
+  .diagram { grid-template-columns: minmax(0, 1fr); padding: 16px 14px; }
+  .pyr-axis { display: none; }
+  .pyr li { margin-inline: calc(var(--i) * 2.5%); padding: 8px 10px; }
+}
+@media (max-width: 430px) {
+  .collar nav a.hide-xs { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="collar">
+  <div class="wrap">
+    <a class="brand" href="index.html" aria-label="Mimi home">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><radialGradient id="bg" cx=".38" cy=".34" r=".7"><stop offset="0" stop-color="#e7fffb"/><stop offset=".28" stop-color="#6ee7d2"/><stop offset=".6" stop-color="#1e7f8f"/><stop offset="1" stop-color="#0b2432"/></radialGradient></defs><rect width="64" height="64" rx="16" fill="#070b12"/><circle cx="32" cy="32" r="20" fill="url(#bg)"/></svg>
+      Mimi
+    </a>
+    <span class="sheet">Field notes · Case study</span>
+    <nav aria-label="Site">
+      <a href="index.html" class="hide-xs">Overview</a>
+      <a href="#decisions" class="hide-sm">Decisions</a>
+      <a href="https://github.com/AndrewKenady/mimi">Source</a>
+      <button class="theme" type="button" id="theme" aria-label="Auto colour theme. Change theme">Auto</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <div class="title">
+    <div class="wrap">
+      <span class="kicker"><span class="dot" aria-hidden="true"></span>Case study · Product design &amp; engineering</span>
+      <h1>An AI you can check, <span class="thin">for places with no signal</span></h1>
+      <p class="dek">Mimi is an open-source assistant that runs entirely offline on a handheld PC. Its first version worked. This is how I made it <b>trustworthy</b>: an honest library, evidence on screen before the answer, a checker for every citation, and a way to measure quality instead of asserting it.</p>
+      <dl class="facts">
+        <div><dt>Role</dt><dd>Andrew Kenady<small>Designer and engineer, solo: research, UX, UI, front end, back end</small></dd></div>
+        <div><dt>Timeline</dt><dd>Sept 26 – Oct 16, 2026<small>0.1.0 in two days; 0.2.0, the work below, in the weeks after</small></dd></div>
+        <div><dt>Platform</dt><dd>7-inch handheld PC<small>Controller-first, full screen; phones and laptops join over local Wi-Fi</small></dd></div>
+        <div><dt>Shipped</dt><dd>Mimi 0.2.0, MIT<small>SvelteKit app, Python core, eval harness, docs and CI</small></dd></div>
+      </dl>
+    </div>
+  </div>
+
+  <div class="wrap layout">
+    <nav class="toc" aria-label="Contents">
+      <p>Contents</p>
+      <ol>
+        <li><a href="#summary"><span>00</span>Summary</a></li>
+        <li><a href="#problem"><span>01</span>Problem &amp; constraints</a></li>
+        <li><a href="#research"><span>02</span>Research</a></li>
+        <li><a href="#audit"><span>03</span>The audit</a></li>
+        <li><a href="#principles"><span>04</span>Principles</a></li>
+        <li><a href="#decisions"><span>05</span>Key decisions</a></li>
+        <li><a href="#quality"><span>06</span>Quality system</a></li>
+        <li><a href="#next"><span>07</span>Next &amp; learned</a></li>
+      </ol>
+    </nav>
+
+    <article>
+      <section id="summary" aria-labelledby="s0">
+        <div class="head"><span class="num">§<b>00</b></span><h2 id="s0">Summary</h2></div>
+        <div class="prose">
+          <p class="lead">Small local models make things up. On a device someone might consult about a snakebite, with no internet to double-check against, &ldquo;usually right&rdquo; isn&rsquo;t a feature. So I stopped optimising for impressive answers and designed for <b>checkable</b> ones.</p>
+          <p>Mimi&nbsp;0.1.0 ran a 12-billion-parameter model, a 161&nbsp;GB library and offline maps on a 16&nbsp;GB handheld. A critical self-audit found that it couldn&rsquo;t show its work: some of its most important books opened blank, users waited up to a minute with nothing to read, and nobody, including me, could say how often it was right. Release 0.2.0 rebuilt the experience around evidence.</p>
+        </div>
+        <ul class="outcomes" aria-label="Headline outcomes">
+          <li><span class="k">Library</span><span class="v">1<i>→</i>12</span><p>The Medical Library went from &ldquo;1 article&rdquo; and a blank page to 12 listed books, 3,138 pages searchable and citable by page.</p></li>
+          <li><span class="k">Time to evidence</span><span class="v">Sources first</span><p>Source cards and a verbatim quote arrive when the search returns, instead of after a 36–68&nbsp;s wait for the whole answer.</p></li>
+          <li><span class="k">Contrast</span><span class="v">1.6<i>→</i>4.9:1</span><p>Light-theme status colours went from 1.6–2.2:1 to at least 4.9:1. About 1,600 colour pairs are now checked on every build.</p></li>
+          <li><span class="k">Accessibility</span><span class="v">0 serious</span><p>Axe finds no serious or critical WCAG 2.2 A/AA violations on any main screen, in dark or light, in CI.</p></li>
+          <li><span class="k">Tests</span><span class="v">182<i>→</i>357</span><p>Core tests nearly doubled, plus 30 end-to-end browser tests against the real API (there were none).</p></li>
+          <li><span class="k">Reach</span><span class="v">~200<i>→</i>16&nbsp;GB</span><p>From one Windows-only, ~200&nbsp;GB install to a 16–24&nbsp;GB Lite tier with a one-line installer for Linux and macOS, plus Docker.</p></li>
+        </ul>
+      </section>
+
+      <section id="problem" aria-labelledby="s1">
+        <div class="head"><span class="num">§<b>01</b></span><h2 id="s1">The problem &amp; constraints</h2></div>
+        <div class="prose">
+          <p>Mimi is for people beyond reliable signal: on a back road, at a campsite, in a cabin, or in an outage. The reference device is a ONEXPLAYER F1 handheld with a Ryzen 7840U and 16&nbsp;GB of shared memory. Every design decision ran into the same five walls.</p>
+        </div>
+        <div class="plate">
+          <dl class="spec">
+            <dt>No network</dt><dd><b>Zero internet after setup.</b> No cloud model to fall back on, no web search to verify against. The library on the disk is the only source of truth.</dd>
+            <dt>Slow model</dt><dd><b>6.8–9.2 tokens a second</b> for Gemma 4 12B with everyday apps open. A grounded answer takes <b>36–68&nbsp;s</b>, mostly the model reading passages before it writes.</dd>
+            <dt>Input</dt><dd><b>A game controller first</b>, on a 7-inch screen at arm&rsquo;s length, often outdoors or at night. Touch, keyboard and screen readers must get the same paths.</dd>
+            <dt>Stakes</dt><dd><b>Medical questions are expected:</b> hypothermia, burns, bleeding, snakebite. A confident wrong answer can hurt someone.</dd>
+            <dt>Model honesty</dt><dd><b>Small models hallucinate.</b> In side-by-side tests on the device, Qwen3.5-9B invented a 1975 first ascent of a mountain, cited sources that didn&rsquo;t say it, and leaked raw tool-call text. Gemma was slower but accurate, so it became the default (<a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DECISIONS.md#d6--default-model-on-the-16-gb-reference-device-gemma-4-12b-qat-q4_0">D6</a>).</dd>
+          </dl>
+        </div>
+        <div class="prose">
+          <p>The 0.1.0 answer to hallucination was mechanical: factual questions had to call the search tool first, and a sanitizer deleted any citation that pointed at no source (<a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DECISIONS.md#d7--forced-grounding-and-a-citation-sanitizer">D7</a>). That stops invented sources. It can&rsquo;t tell whether a real source actually says what the sentence claims.</p>
+        </div>
+      </section>
+
+      <section id="research" aria-labelledby="s2">
+        <div class="head"><span class="num">§<b>02</b></span><h2 id="s2">Research</h2></div>
+        <div class="prose">
+          <p>Offline knowledge kits had a breakout year. Project N.O.M.A.D. launched in March 2026 and passed roughly 40,000 GitHub stars. I reviewed it and the tools people compare it with, and read the public discussion around them to find where they fall short for the people Mimi is for.</p>
+        </div>
+        <div class="tbl cards">
+          <table>
+            <caption>The landscape, by approach</caption>
+            <thead><tr><th scope="col">Approach</th><th scope="col">Examples</th><th scope="col">Strong at</th><th scope="col">Gap for this audience</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Offline library servers</th><td data-label="Examples">Internet-in-a-Box, Kiwix Hotspot, PrepperDisk</td><td data-label="Strong at">Huge offline libraries and maps, shared over Wi-Fi</td><td data-label="Gap for this audience">Mostly search and read; little or no assistant grounded in the books</td></tr>
+              <tr><th scope="row">Local model apps</th><td data-label="Examples">Ollama + Open WebUI, Jan, LM Studio, GPT4All, AnythingLLM</td><td data-label="Strong at">Running open models well on a desktop</td><td data-label="Gap for this audience">Answers from the model&rsquo;s memory, or from documents you add; no reference library, maps or field use</td></tr>
+              <tr><th scope="row">All-in-one bundles</th><td data-label="Examples">Project N.O.M.A.D.</td><td data-label="Strong at">Library, maps and local AI in one Docker stack</td><td data-label="Gap for this audience">Linux and Docker only; AI retrieval covers uploaded documents, not the library; no routing or voice</td></tr>
+              <tr class="us"><th scope="row">Mimi</th><td data-label="Examples">This project</td><td data-label="Strong at">Answers grounded in the library itself, with page-level, checked citations; voice, offline directions and photo reading in a controller-first app</td><td data-label="Gap for this audience">Slow answers on modest hardware; quality not yet measured on the real device</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="prose">
+          <p>Five complaints came up again and again:</p>
+          <ul>
+            <li><b>Hallucination.</b> People don&rsquo;t trust a small offline model on its own.</li>
+            <li><b>Hardware.</b> GPU requirements nobody&rsquo;s laptop meets.</li>
+            <li><b>Storage bloat.</b> ~200&nbsp;GB downloads before you can try anything.</li>
+            <li><b>Setup friction.</b> Docker for non-developers, and no sign-in on the local network.</li>
+            <li><b>Tone.</b> &ldquo;Doomsday cosplay&rdquo; framing that puts off ordinary travellers.</li>
+          </ul>
+        </div>
+        <blockquote class="pull">
+          <p>&ldquo;The durable asset is the knowledge base itself.&rdquo;</p>
+          <cite>A comment from those discussions, and the brief I worked to</cite>
+        </blockquote>
+        <div class="prose">
+          <p>That line reframed the product. <b>The library is the product; the model is its reader.</b> Mimi&rsquo;s position follows: the only kit that grounds answers in the offline library itself, cites the page, checks the citation, and fits in a handheld with a plain, calm voice.</p>
+        </div>
+      </section>
+
+      <section id="audit" aria-labelledby="s3">
+        <div class="head"><span class="num">§<b>03</b></span><h2 id="s3">The audit</h2></div>
+        <div class="prose">
+          <p>Before designing anything new I reviewed 0.1.0 as harshly as a stranger would, ranked by harm to someone relying on it. The top item came from a tester.</p>
+        </div>
+        <ol class="audit">
+          <li><h3>The medical books opened blank</h3><span class="sign">Critical</span><p>The Medical Library was listed as available, but opened to &ldquo;Loading&hellip; No result.&rdquo; These Kiwix collections build their home page with JavaScript, which Mimi&rsquo;s reader rightly strips. The real content was 12 PDFs. The catalogue said &ldquo;1 article&rdquo;, and a full-text search for &ldquo;bleeding&rdquo; found nothing, so chat could never cite them either.</p></li>
+          <li><h3>No way to know if answers were right</h3><span class="sign">Critical</span><p>The default model was chosen from a few conversations. Nothing measured accuracy, dangerous claims or citation faithfulness.</p></li>
+          <li><h3>40–70 seconds of silence</h3><span class="sign plain">High</span><p>A grounded answer took 36–68&nbsp;s, with nothing true on screen until the model started writing.</p></li>
+          <li><h3>Broken light-theme contrast</h3><span class="sign plain">High</span><p>Status colours were 1.6–2.2:1 and tertiary text 3.1:1 on the Daylight theme, the one meant for sunlight.</p></li>
+          <li><h3>No screen-reader path through chat</h3><span class="sign plain">High</span><p>Streaming answers had no designed announcement: no stages, no single read-out of the finished answer.</p></li>
+          <li><h3>Inconsistent destructive actions</h3><span class="sign plain">Medium</span><p>Some deletes were instant and final; others used the browser&rsquo;s <code>confirm()</code>, which a controller can&rsquo;t reach in the full-screen shell.</p></li>
+          <li><h3>Windows only, ~200&nbsp;GB to start</h3><span class="sign plain">Medium</span><p>One install path, one size, and hours of map builds before a first look.</p></li>
+          <li><h3>An unconstrained local certificate authority</h3><span class="sign plain">Medium</span><p>Phones install Mimi&rsquo;s CA to use HTTPS. Unconstrained, a copied drive&rsquo;s key could sign a certificate for any website those phones would trust.</p></li>
+        </ol>
+      </section>
+
+      <section id="principles" aria-labelledby="s4">
+        <div class="head"><span class="num">§<b>04</b></span><h2 id="s4">Principles</h2></div>
+        <div class="prose">
+          <p>The audit turned into a design system with four principles (<a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DESIGN_SYSTEM.md">DESIGN_SYSTEM.md</a>), and one rule above them that settled most arguments.</p>
+        </div>
+        <ul class="principles">
+          <li class="lead-card"><h3>Honest over impressive</h3><p>Show what&rsquo;s known, what&rsquo;s waiting and what failed. Prefer a plain &ldquo;awaiting run&rdquo; to a flattering guess, and a visible doubt to a confident error.</p></li>
+          <li><h3>Calm</h3><p>One accent, quiet surfaces, motion only when something is happening. Status copy is literal, never a joke.</p></li>
+          <li><h3>Legible in the field</h3><p>Every text token meets WCAG AA on every surface in every theme, and AAA in high contrast. A script checks it; it is not a hope.</p></li>
+          <li><h3>Controller-first</h3><p>Everything is reachable with a D-pad, every dialog closes with B, and no reflexive A press can destroy anything.</p></li>
+          <li><h3>Offline-honest</h3><p>Say what is local and what failed. The orb only moves when Mimi is actually doing something.</p></li>
+        </ul>
+      </section>
+
+      <section id="decisions" aria-labelledby="s5">
+        <div class="head"><span class="num">§<b>05</b></span><h2 id="s5">Key decisions</h2></div>
+        <div class="prose"><p>Seven decisions carried most of the work. Each is written up with its alternatives in <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DECISIONS.md">DECISIONS.md</a>.</p></div>
+
+        <div class="decision" id="d-library">
+          <header><span class="tag">5.A · LIBRARY</span><h3>An honest library</h3></header>
+          <dl class="pod">
+            <dt>Problem</dt><dd><p>Collections that look available but aren&rsquo;t. The worst case was the medical one.</p></dd>
+            <dt>Options</dt><dd><ul class="opts">
+              <li><span class="sign dash">Rejected</span><span>Run the books&rsquo; JavaScript in the reader. It&rsquo;s untrusted content running with Mimi&rsquo;s cookies.</span></li>
+              <li><span class="sign dash">Rejected</span><span>Hide the collections that don&rsquo;t render. That hides real medical content.</span></li>
+              <li><span class="sign">Chosen</span><span>Survey every book. Parse its data files as plain data, never run them, list the items natively, and index PDF text page by page.</span></li>
+            </ul></dd>
+            <dt>Decision</dt><dd><p>Every book gets one of five statuses: <b>Ready, Indexing&hellip;, Browse only, Search only</b> or <b>Can&rsquo;t open</b>, with a plain-English reason and a real item count (&ldquo;12 documents&rdquo;, not &ldquo;1 article&rdquo;). PDFs are cited by their <i>printed</i> page number, the one a reader would look for: physical page 312 of <i>Where There Is No Doctor</i> is printed page 265. A book whose download stopped partway is held back, with a note saying which file and how much arrived.</p></dd>
+            <dt>Evidence</dt><dd><p>The two sample collections (19 PDFs, 3,444 pages) index once in about 75&nbsp;s, into 12.5&nbsp;MB. A page query takes 1–10&nbsp;ms. The blank-collection bug is now an end-to-end regression test.</p></dd>
+          </dl>
+          <div class="figs">
+            <div class="pair wide-left">
+              <figure><span class="label">Before · 0.1.0</span><img src="img/library-before.webp" width="740" height="552" loading="lazy" alt="Mimi 0.1.0's library in dark theme. The Medical Library card reads '1 article · 67 MB'. The Wikipedia card reads '21,673,012 articles· 118.7 GB' with a missing space."></figure>
+              <figure><span class="label">After · 0.2.0</span><img src="img/library-documents.webp" width="1280" height="860" loading="lazy" alt="The Medical Library in 0.2.0, headed '12 documents · 67 MB · 3,138 pages searchable', listing Emergency War Surgery (484 pages), A Book for Midwives (544 pages), First Aid (224 pages) and the HHS Pandemic Influenza Plan (380 pages), each marked Searchable."></figure>
+            </div>
+            <figcaption><span class="mono">FIG. 1</span> The same collection before and after. The &ldquo;1 article&rdquo; was the empty JavaScript-built home page.</figcaption>
+          </div>
+          <figure>
+            <img src="img/library-status-light.webp" width="1084" height="712" loading="lazy" alt="The library in the light theme. An amber notice reads '1 book didn't finish downloading, so it isn't on the shelf yet', names the file wiktionary_en_all_nopic_2026-07.zim, '4.0 GB of 8.9 GB', and says to run the install command again to resume. Below, cards for WikiMed, the Medical Library and Wikipedia each show a green 'Ready' status and a real item count.">
+            <figcaption><span class="mono">FIG. 2</span> A half-downloaded book is held back and named, with how much arrived, instead of appearing on the shelf and failing when opened. (Fixture library from the visual-regression suite.)</figcaption>
+          </figure>
+        </div>
+
+        <div class="decision" id="d-sources">
+          <header><span class="tag">5.B · WAITING</span><h3>Sources first, and an honest progress narrative</h3></header>
+          <dl class="pod">
+            <dt>Problem</dt><dd><p>A 36–68&nbsp;s wait. Most of it is the model <i>reading</i> passages, which a spinner can&rsquo;t explain.</p></dd>
+            <dt>Options</dt><dd><ul class="opts">
+              <li><span class="sign dash">Rejected</span><span>A spinner or skeleton. It says nothing true.</span></li>
+              <li><span class="sign dash">Rejected</span><span>A progress bar with an estimate on every answer. On an unmeasured device, that&rsquo;s a guess dressed as a fact.</span></li>
+              <li><span class="sign">Chosen</span><span>Show the evidence itself, the moment it exists, and narrate the real stages.</span></li>
+            </ul></dd>
+            <dt>Decision</dt><dd><p>When the search returns, source cards stream in, with a verbatim <b>&ldquo;From the source&rdquo;</b> excerpt: the passage that best matches the question, at most 420 characters, cut at sentence boundaries, and labelled &ldquo;not Mimi&rsquo;s answer.&rdquo; It folds away when the answer starts. Above it, <b>Search → Read → Write</b> names what&rsquo;s happening (&ldquo;Reading &lsquo;Hypothermia&rsquo; (WikiMed) and 2 more&hellip;&rdquo;). An estimate appears only once this device&rsquo;s speed has been measured. A made-up number is worse than none.</p>
+              <p>For screen readers, the thread is an ARIA log that is busy while streaming. Stages go to a separate polite status region, so people hear the stages, then the answer once, not every token.</p></dd>
+            <dt>Evidence</dt><dd><p>On the device, a library search with three passages takes 0.2–2.3&nbsp;s; the rest of the wait now has something to read. Tests cover it at two levels: the turn loop with a scripted model checks event order, and a browser test checks that sources and a quote arrive before the answer.</p></dd>
+          </dl>
+          <div class="figs">
+            <div class="stackf">
+              <figure><span class="label">While reading</span><img src="img/chat-sources-first.webp" width="1152" height="712" loading="lazy" alt="Chat while Mimi reads. A stepper shows Search done, Read in progress, Write waiting, with 'Reading Hypothermia (WikiMed) and 2 more…', elapsed time and an estimate. Three source cards sit above a dashed 'From the source' box quoting WikiMed's Hypothermia article, marked 'Quoted while Mimi reads — not Mimi's answer'."></figure>
+              <figure><span class="label">Answered</span><img src="img/chat-answered.webp" width="1152" height="905" loading="lazy" alt="The finished answer: four numbered steps for treating hypothermia, each ending with a numbered citation chip, under the three source cards. The quote box has collapsed to one line, 'From the source: Hypothermia · WikiMed'."></figure>
+            </div>
+            <figcaption><span class="mono">FIG. 3</span> The same turn, reading and answered. The quote is extractive, so it can&rsquo;t be wrong in the way a model can, and it never pretends to be the answer.</figcaption>
+          </div>
+        </div>
+
+        <div class="decision" id="d-checks">
+          <header><span class="tag">5.C · TRUST</span><h3>Citation checks: advisory, never a rewrite</h3></header>
+          <dl class="pod">
+            <dt>Problem</dt><dd><p>A real source can still be cited for something it doesn&rsquo;t say. That&rsquo;s the hallucination that matters on a medical device.</p></dd>
+            <dt>Options</dt><dd><ul class="opts">
+              <li><span class="sign dash">Rejected</span><span>Rewrite or block answers. The checker is a proxy, so it would silently remove correct advice.</span></li>
+              <li><span class="sign dash">Rejected</span><span>A confidence score on every sentence. That&rsquo;s noise people learn to ignore.</span></li>
+              <li><span class="sign">Chosen</span><span>Check every citation, but show only the ones that fail, with the reason.</span></li>
+            </ul></dd>
+            <dt>Decision</dt><dd><p>After each answer, every cited sentence is compared with the passage the model actually read. <b>Numbers must match with compatible units</b> (4&nbsp;g is 4,000&nbsp;mg; 5&nbsp;mg is not 5&nbsp;ml). <b>Names</b> must appear. A <b>negation</b> in the source (&ldquo;do not use butter&rdquo;) defeats the claim. The check takes a few milliseconds. A failing claim gets a dashed amber chip and a note naming the source and the reason. The answer text is never changed.</p>
+              <p><b>Precision over recall.</b> A warning people see has to be right nearly every time, or they learn to ignore it. So only <i>unsupported</i> and <i>invalid</i> citations reach the screen. <i>Weak</i> overlap, usually an honest paraphrase, stays in the eval data.</p></dd>
+            <dt>Evidence</dt><dd><p>That policy came from a real false alarm during development. The checker kept flagging a correct line in the hypothermia test answer: &ldquo;<b>Don&rsquo;t rub the skin.</b> Rough movement can trigger a dangerous heart rhythm.&rdquo; It had read <i>Rough</i>, the first word of a second sentence inside one bold list item, as a proper name missing from the source. I fixed the name extraction, added a regression test, and narrowed what the interface shows. The checker now has 42 unit tests; a browser test confirms a flagged answer stays intact.</p></dd>
+          </dl>
+          <div class="figs">
+            <div class="stackf narrow">
+              <figure><span class="label">Dark</span><img src="img/chat-flagged-dark.webp" width="716" height="272" loading="lazy" alt="Part of an answer about hypothermia, dark theme. The chip after 'Warm bath: put them in water at 45 °C for 3 hours' is amber. The next item, 'Don't rub the skin. Rough movement can trigger a dangerous heart rhythm', is not flagged. Below: '1 cited claim couldn't be matched to its source. Check before relying on it.', the quoted claim, a link to Hypothermia (WikiMed Medical Encyclopedia), and the reason 'number not in source: 45 °C, 3 hours'."></figure>
+              <figure><span class="label">Light</span><img src="img/chat-flagged-light.webp" width="716" height="272" loading="lazy" alt="The same flagged answer in the light theme, with the amber warning text and teal link at readable contrast."></figure>
+            </div>
+            <figcaption><span class="mono">FIG. 4</span> A planted error in the end-to-end fixture: the source has no 45&nbsp;°C and no 3 hours. The flag names exactly that and leaves the answer alone, including the &ldquo;Rough movement&rdquo; line that used to trip the checker. (Scripted model.)</figcaption>
+          </div>
+        </div>
+
+        <div class="decision" id="d-eval">
+          <header><span class="tag">5.D · QUALITY</span><h3>Measured, not asserted</h3></header>
+          <dl class="pod">
+            <dt>Problem</dt><dd><p>&ldquo;It seemed fine when we tried it&rdquo; was the whole quality process.</p></dd>
+            <dt>Decision</dt><dd><p>A golden set of <b>166 questions</b> across seven domains (35 medicine, 20 repair, 20 travel, 22 survival, 37 general, 8 location, 24 adversarial). Each has the expected behaviour (answer, hedge or refuse), the articles that should answer it, key facts, and <b>forbidden claims</b>. The scorer reports retrieval, key facts, forbidden claims, behaviour, citation faithfulness and latency. A/B runs flag per-question flips and use a McNemar test, so noise doesn&rsquo;t pass for progress. <b>Safety metrics are read first:</b> a faster model that adds forbidden claims in medicine doesn&rsquo;t become the default. Any change to the model, prompt, tool loop or retrieval needs a run (<a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DECISIONS.md#d12--model-and-retrieval-changes-are-backed-by-an-eval-run">D12</a>).</p></dd>
+            <dt>Evidence</dt><dd><p>A trap I found while testing: for &ldquo;snake bite treatment&rdquo;, keyword search ranks chapter 1 of <i>Where There Is No Doctor</i> (printed p.&nbsp;3), a list of <i>harmful</i> folk remedies given as warnings, above the treatment pages (p.&nbsp;105). Rather than hard-code a demotion, I made it a measured case: item <code>med-011</code> forbids recommending tobacco, bile or kerosene, while still allowing a warning against them. Any ranking or prompt change now answers to it.</p>
+              <p>CI scores two synthetic fixture runs, one slower and more careful and one faster, mirroring the real Gemma-versus-Qwen trade-off, and publishes the scoreboard. <b>No real-device scores exist yet</b>, and the benchmarks page says &ldquo;awaiting run&rdquo; rather than a guess.</p></dd>
+          </dl>
+        </div>
+
+        <div class="decision" id="d-system">
+          <header><span class="tag">5.E · SYSTEM</span><h3>A design system that enforces itself</h3></header>
+          <dl class="pod">
+            <dt>Problem</dt><dd><p>Hard-coded values, a light theme that failed in sunlight, and patterns that differed screen to screen.</p></dd>
+            <dt>Decision</dt><dd><p><b>Three tiers of tokens:</b> theme-free scales, semantic theme colours, and primitives. Components never hard-code a colour, size, radius, layer or duration. <b>The accent is solved, not picked:</b> people choose any colour, and the app keeps its hue but steps its OKLab lightness until it reaches 4.5:1 on every surface. Lagoon <code>#6EE7D2</code> stays itself on dark and becomes <code>#006959</code> on light.</p>
+              <ul>
+                <li><b>Focus</b> is one outline that follows each control&rsquo;s shape, always visible under the controller.</li>
+                <li><b>Reduced motion</b> sets every duration token to 0, including scrolls.</li>
+                <li><b>Targets</b> get a 44&nbsp;px hit area on touch, at any density.</li>
+                <li><b>Settings</b> went from 13 sections to 9, with every old link redirected.</li>
+                <li><b>Deleting</b> follows one rule. One reversible item happens at once with an <b>Undo</b> toast. Bulk or irreversible deletes ask first in Mimi&rsquo;s own dialog, with Cancel focused and Confirm armed only after 600&nbsp;ms, so a reflexive A press can&rsquo;t fire it.</li>
+              </ul></dd>
+            <dt>Evidence</dt><dd><p>A contrast script resolves all six theme and contrast combinations and checks about 1,600 pairs. It fails the build on any miss, and a living style guide renders every token from the real code.</p></dd>
+          </dl>
+          <figure>
+            <img src="img/settings-light.webp" width="1046" height="756" loading="lazy" alt="Settings in the light theme. A left list of nine sections: Device, Appearance, Assistant, Intelligence, Maps and location, Sharing and access, Accounts and privacy, Controls, System. Appearance is open with Theme, Accent colour, the Well style, Text size, Density and Reading font.">
+            <figcaption><span class="mono">FIG. 5</span> Nine settings sections, regrouped by what people are trying to do. The accent swatches are adjusted by the app until they read at AA. (Visual-regression fixture.)</figcaption>
+          </figure>
+        </div>
+
+        <div class="decision" id="d-security">
+          <header><span class="tag">5.F · SAFETY</span><h3>Security as part of the experience</h3></header>
+          <dl class="pod">
+            <dt>Problem</dt><dd><p>Phones join over local Wi-Fi, drives get lost, and the library contains text written by strangers.</p></dd>
+            <dt>Decision</dt><dd><ul>
+              <li><b>A stolen drive can&rsquo;t impersonate websites.</b> The local CA is name-constrained to <code>.local</code> names and private addresses, lasts two years, and its key is protected at rest and never copied to portable drives. Older CAs rotate automatically, and Settings explains how to update phones.</li>
+              <li><b>Network sign-in needs a PIN of at least 6 digits</b>, or approval on the device&rsquo;s own screen. A 4–5 digit PIN only unlocks the device itself, and lockouts survive restarts.</li>
+              <li><b>Library text is data, not instructions.</b> A Stack Exchange answer can&rsquo;t tell Mimi to remember something: once a turn has read outside content, <i>remember</i> becomes a suggestion the user approves, and side-effecting tools need the user&rsquo;s own request.</li>
+            </ul></dd>
+            <dt>Evidence</dt><dd><p>Tests cover the CA&rsquo;s name constraints and the injection defences, and a <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/THREAT_MODEL.md">threat model</a> names each attacker, its controls, and the risks that remain.</p></dd>
+          </dl>
+        </div>
+
+        <div class="decision" id="d-reach">
+          <header><span class="tag">5.G · REACH</span><h3>Small enough to try, open enough to build on</h3></header>
+          <dl class="pod">
+            <dt>Problem</dt><dd><p>Windows only, and ~200&nbsp;GB before a first look: the &ldquo;storage bloat&rdquo; complaint, exactly.</p></dd>
+            <dt>Decision</dt><dd><p><b>Tiers made of packs:</b> Lite is about 16–24&nbsp;GB (a 4B model, voice, WikiMed, iFixit, survival guides, Wikivoyage, and your region&rsquo;s map). Standard is about 210–245&nbsp;GB. A one-line installer runs on Linux and macOS without sudo, and Windows keeps its script. Docker binds to localhost by default, so the device&rsquo;s own sign-in can&rsquo;t leak to the network. Every download is pinned and verified before use, and resumes if interrupted. Mimi is also an <b>MCP server</b>, so other AI apps on the device can search its library, places and directions.</p></dd>
+            <dt>Evidence</dt><dd><p>An honest support table instead of a logo row: Windows in daily use; Linux and Docker tested on CPU; macOS, arm64 and the Steam Deck untested (<a href="https://github.com/AndrewKenady/mimi/blob/main/docs/INSTALL.md#whats-tested">INSTALL.md</a>).</p></dd>
+          </dl>
+        </div>
+      </section>
+
+      <section id="quality" aria-labelledby="s6">
+        <div class="head"><span class="num">§<b>06</b></span><h2 id="s6">Quality system</h2></div>
+        <div class="prose">
+          <p>Every push runs CI: the core on Linux, Windows and macOS; the interface&rsquo;s type checks and contrast audit; browser tests, accessibility scans and pixel snapshots; and the eval scoreboard. Each layer catches what the one below can&rsquo;t.</p>
+        </div>
+        <figure class="diagram">
+          <div class="pyr-axis" aria-hidden="true"><span>Faster, more numerous</span><span>Closer to real use</span></div>
+          <ol class="pyr" aria-label="Test layers, from closest to real use down to fastest">
+            <li class="eval"><b>Evaluation</b><span>166 golden questions · fixture scoreboard in CI, real runs on the device</span></li>
+            <li><b>Visual snapshots</b><span>library, collection, chat and settings, dark and light</span></li>
+            <li><b>Accessibility</b><span>axe, WCAG 2.2 A/AA · every main screen, dark and light</span></li>
+            <li><b>End-to-end</b><span>30 Playwright tests · the real core API with a fixture library</span></li>
+            <li><b>Turn loop</b><span>a scripted model streams a whole chat turn in milliseconds</span></li>
+            <li><b>Unit</b><span>357 core tests on Linux, Windows and macOS · ~1,600 contrast pairs</span></li>
+          </ol>
+          <figcaption><span class="mono">FIG. 6</span> The test layers. The top one is dashed because the real-device eval hasn&rsquo;t been run yet.</figcaption>
+        </figure>
+        <div class="prose">
+          <p>The browser suite runs the <i>real</i> core API with a scripted model and a small fake library. Product promises become tests with plain names: &ldquo;every card shows an honest status&rdquo;, &ldquo;a document collection opens to a list of its books, not a blank page&rdquo;, &ldquo;a claim its source does not support is flagged, and the answer is left intact&rdquo;. Axe found two real issues while the suite was built, an unlabelled status strip and an empty heading on new chats, and both were fixed.</p>
+        </div>
+        <ul class="ev" aria-label="Evidence in the repository">
+          <li><a href="https://github.com/AndrewKenady/mimi/tree/main/ui/e2e">ui/e2e</a></li>
+          <li><a href="https://github.com/AndrewKenady/mimi/blob/main/core/mimi/grounding.py">core/mimi/grounding.py</a></li>
+          <li><a href="https://github.com/AndrewKenady/mimi/tree/main/eval/questions">eval/questions</a></li>
+          <li><a href="https://github.com/AndrewKenady/mimi/blob/main/docs/EVALUATION.md">EVALUATION.md</a></li>
+          <li><a href="https://github.com/AndrewKenady/mimi/blob/main/.github/workflows/ci.yml">ci.yml</a></li>
+        </ul>
+      </section>
+
+      <section id="next" aria-labelledby="s7">
+        <div class="head"><span class="num">§<b>07</b></span><h2 id="s7">What&rsquo;s next &amp; what I learned</h2></div>
+        <h3 style="margin-top:0">Honest limitations</h3>
+        <div class="prose">
+          <ul>
+            <li><b>No real-device scoreboard yet.</b> The harness is ready, and the next step is a full A/B run on the handheld (1.5–3 hours per model). Until then, D6 rests on side-by-side sessions, not numbers.</li>
+            <li><b>Lexical checking is a proxy, not entailment.</b> It misses synonyms outside its stemming and can&rsquo;t follow reasoning across sentences. &ldquo;Unsupported&rdquo; means a person should look; &ldquo;supported&rdquo; means nothing obviously wrong.</li>
+            <li><b>Untested platforms.</b> macOS on Apple silicon, arm64 boards, the Steam Deck and GPUs under Linux and Docker should work, but haven&rsquo;t been tried.</li>
+            <li><b>No formal user research.</b> The evidence is one tester&rsquo;s report, my daily use on the device, and public discussion. Watching field use is the gap I&rsquo;d close first.</li>
+            <li><b>English only</b>, and not a medical device: passing the medicine set means Mimi repeats well-known first-aid facts from its library, nothing more.</li>
+          </ul>
+        </div>
+        <h3>What I learned</h3>
+        <div class="prose">
+          <p><b>The most important bug wasn&rsquo;t in the model.</b> I expected trust to be a prompt problem. The biggest failure was a library that looked full and was empty where it mattered. Auditing the content mattered more than tuning the model.</p>
+          <p><b>A warning has a budget.</b> Every false alarm spends trust that a real one will need. Choosing precision over recall in what the interface shows, while keeping everything in the data, was the most useful product call in the release.</p>
+          <p><b>Design the wait, not just the answer.</b> On slow hardware the waiting state is the main state. Filling it with real evidence did more for perceived speed than any spinner, and it teaches people to check sources.</p>
+          <p><b>&ldquo;Awaiting run&rdquo; is a design choice.</b> Publishing an empty scoreboard with its method beside it is less flattering than a number. It&rsquo;s also the only version I&rsquo;d want someone to rely on.</p>
+        </div>
+        <div class="end">
+          <p><b>Mimi is open source.</b> The code, the decisions, the eval set and the screenshots behind every claim on this page are in the repository.</p>
+          <a class="btn primary" href="https://github.com/AndrewKenady/mimi">View the repository</a>
+          <a class="btn" href="index.html">Mimi overview</a>
+        </div>
+      </section>
+    </article>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Case study · Andrew Kenady · Mimi is MIT licensed</span>
+    <span><a href="https://github.com/AndrewKenady/mimi/blob/main/README.md">README</a> · <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DECISIONS.md">Decisions</a> · <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DESIGN_SYSTEM.md">Design system</a> · <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/EVALUATION.md">Evaluation</a> · <a href="https://github.com/AndrewKenady/mimi/blob/main/CHANGELOG.md">Changelog</a></span>
+    <span>No scripts from anywhere else. The only outside request is for fonts.</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement, btn = document.getElementById('theme');
+  var order = ['auto', 'light', 'dark'], names = { auto: 'Auto', light: 'Day', dark: 'Night' };
+  function get() { try { return localStorage.getItem('mimi-theme') || 'auto'; } catch (e) { return 'auto'; } }
+  function apply(t) {
+    if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    btn.textContent = names[t];
+    btn.setAttribute('aria-label', names[t] + ' colour theme. Change theme');
+  }
+  apply(get());
+  btn.addEventListener('click', function () {
+    var t = order[(order.indexOf(get()) + 1) % order.length];
+    try { localStorage.setItem('mimi-theme', t); } catch (e) {}
+    apply(t);
+  });
+  // Mark the contents link for the section being read.
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  if ('IntersectionObserver' in window && links.length) {
+    var byId = {};
+    links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        links.forEach(function (a) { a.removeAttribute('aria-current'); });
+        var a = byId[e.target.id]; if (a) a.setAttribute('aria-current', 'true');
+      });
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    Object.keys(byId).forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
+  }
+})();
+</script>
+</body>
+</html>
