@@ -45,6 +45,16 @@ Mimi is three pieces that live in one portable folder:
 - **Community tools** are Python files in `tools/` (see [tools/README.md](../tools/README.md)). `plugins.py` imports them at startup, or on "Rescan folder". A file that fails to import is reported rather than crashing Core. A plugin reaches the model only after the owner enables it, and it runs in a worker thread with a 45-second limit and a small read-only context (user name, units, location, time, a private data folder, and an offline place lookup).
 - **Slash commands** (`ui/src/lib/commands.ts`) are prompt templates expanded in the browser, so history and the model only ever see plain text.
 
+## The library
+
+`kiwix.py` runs `kiwix-serve` over `zim/*.zim` (loopback only) and reads everything through its HTTP API: the OPDS catalog, `/content`, `/search` (Xapian) and `/suggest`.
+
+- **Survey.** In the background after each start, and whenever the ZIM set changes, every book is classified as articles, documents (nautilus PDF/media collections), videos (TED) or books (Gutenberg). The last three have JavaScript-built home pages, so Core parses their data files (`database.js`, `assets/data_<lang>.js`, `full_by_popularity.js`) and the UI lists the items natively at `/library/book/<book>`. A health check records whether each book is readable and searchable, gives an honest item count and a short note, and `GET /api/library/books` returns these. See [D12](DECISIONS.md#d12--an-honest-library-survey-every-book-list-what-javascript-would-have-listed).
+- **Document text.** `libindex.py` extracts PDF text page by page (pypdf, in a low-priority worker process) into `data/library-index.sqlite`, an FTS5 cache keyed by ZIM, path and page, with printed page labels. A document is read once per ZIM build. See D14.
+- **Search.** `KiwixClient.search()` queries Xapian per language group, tries an exact-title lookup and searches the PDF pages, all in parallel. `retrieval.py` then fuses the lists by reciprocal rank with intent priors (medical questions favour Medicine, repairs favour iFixit). When the bge-m3 embedding server is already up, it also reranks the top 20 semantically, with a 1.2 s cap. See D13.
+- **Passages and citations.** `passage()` picks paragraphs by BM25 (plus embedding similarity when available). A PDF hit is cited by page ("Where there is no Doctor, p. 265") and links to `/library/read/<book>/<file>.pdf#page=312`, which opens the browser's PDF viewer at that page.
+- **Reader.** HTML articles are cleaned server-side (`render_reader`): scripts, frames and forms are dropped, and only http(s)/mailto and relative links survive. PDFs, video and audio are served by the `/kiwix` proxy, where only PDFs and media may be framed (by Mimi itself) and ZIM HTML/SVG is CSP-sandboxed. See D15.
+
 ## Memory and models
 
 The reference device has 16 GB of RAM; about 3 GB of that is carved out for the iGPU, which the model can also use.
@@ -63,7 +73,7 @@ The reference device has 16 GB of RAM; about 3 GB of that is carved out for the 
 | `models/` | GGUF models, Whisper, Kokoro | no |
 | `zim/` | offline library (Kiwix ZIM files) | no |
 | `maps/` | `tiles.pmtiles`, fonts/sprites, `places.sqlite`, `geowiki.sqlite`, `routing/` | no |
-| `data/` | `mimi.db` (users, chats, memories, settings), uploads, library, notes, certs, WebView2 profile | no (personal) |
+| `data/` | `mimi.db` (users, chats, memories, settings), uploads, library, notes, certs, WebView2 profile; `library-index.sqlite` (PDF text from the ZIMs, a rebuildable cache) | no (personal) |
 | `logs/` | component logs | no |
 
 ## Security model
