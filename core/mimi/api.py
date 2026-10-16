@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from . import __version__, log, system, tools
 from .app import Services, ctx_or_none, get_ctx, is_local, member_ctx, owner_ctx
 from .auth import SESSION_COOKIE, AuthError, Ctx, public_user
-from .kiwix import COLLECTION_LABELS, book_dict, hit_dict
+from .kiwix import COLLECTION_LABELS, book_dict, doc_dict, hit_dict
 from .settings import DEVICE_SECTIONS, USER_SECTIONS, SettingsError
 
 L = log.get("api")
@@ -755,8 +755,28 @@ async def books(request: Request, all: bool = False, ctx: Ctx = Depends(get_ctx)
     for b in bs:
         d = book_dict(b)
         d["enabled"] = b.name not in disabled and b.alias not in disabled
+        # Can it be opened and searched? (kind, honest item count and a plain-English note)
+        d["health"] = svc.kiwix.health_of(b)
         out.append(d)
-    return {"books": out, "running": svc.kiwix_service.alive(), "collections": COLLECTION_LABELS}
+    return {"books": out, "running": svc.kiwix_service.alive(), "collections": COLLECTION_LABELS, "indexing": svc.kiwix.index_state}
+
+
+@router.get("/library/collection/{book}")
+async def library_collection(book: str, request: Request, q: str = "", offset: int = 0, limit: int = 120, ctx: Ctx = Depends(get_ctx)):
+    """The items of a collection book (nautilus documents, TED talks, Gutenberg books),
+    whose own home page only works with JavaScript."""
+    svc = S(request)
+    _library_ok(svc, ctx)
+    got = await svc.kiwix.collection(book)
+    if not got:
+        raise HTTPException(404, "That book isn't in the offline library.")
+    b, docs = got
+    if q.strip():
+        words = q.lower().split()
+        docs = [d for d in docs if all(w in f"{d.title} {d.author} {d.description}".lower() for w in words)]
+    limit = max(1, min(limit, 500))
+    return {"book": book_dict(b) | {"health": svc.kiwix.health_of(b)}, "total": len(docs),
+            "items": [doc_dict(b, d) for d in docs[max(0, offset): max(0, offset) + limit]]}
 
 
 @router.get("/library/search")
@@ -797,7 +817,8 @@ async def library_home(book: str, request: Request, ctx: Ctx = Depends(get_ctx))
     r = await svc.kiwix.http.get(f"{svc.kiwix_service.base}/content/{b.name}", follow_redirects=False)
     loc = r.headers.get("location", "")
     path = loc.split(f"/content/{b.name}/", 1)[-1] if loc else ""
-    return {"book": b.alias, "path": path}
+    # kind ≠ "articles": the UI shows the native item list instead of the JS-only home page.
+    return {"book": b.alias, "path": path, "kind": b.kind}
 
 
 # Discover is a friendly Home card, not a search result: skip topics nobody wants
@@ -869,6 +890,22 @@ async def library_random(request: Request, book: str | None = None, near: bool =
     raise HTTPException(404)
 
 
+def _kiwix_frame_headers(ctype: str) -> dict:
+    """How ZIM content may be shown, by type.
+
+    PDFs and media may be framed by Mimi's own reader (the browser's PDF viewer
+    in an <iframe>). Anything that could run script — HTML, SVG, XML, JS — is
+    served with a CSP sandbox, so a ZIM page opened directly can't act as Mimi
+    (same origin, same cookies); the reader shows sanitised HTML instead.
+    """
+    t = ctype.split(";")[0].strip().lower()
+    if t == "application/pdf" or t.startswith(("video/", "audio/")):
+        return {"X-Frame-Options": "SAMEORIGIN", "Content-Security-Policy": "frame-ancestors 'self'", "Content-Disposition": "inline"}
+    if t.startswith("image/") and t != "image/svg+xml":
+        return {}
+    return {"Content-Security-Policy": "sandbox; frame-ancestors 'none'"}
+
+
 @public_router.get("/kiwix/{path:path}", include_in_schema=False)
 async def kiwix_proxy(path: str, request: Request):
     """Media and assets from the offline library (images in articles and citations)."""
@@ -888,6 +925,7 @@ async def kiwix_proxy(path: str, request: Request):
     upstream = await client.send(req, stream=True, follow_redirects=True)
     passthrough = {k: v for k, v in upstream.headers.items() if k.lower() in ("content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified")}
     passthrough["Cache-Control"] = "private, max-age=604800"
+    passthrough.update(_kiwix_frame_headers(upstream.headers.get("content-type", "")))
 
     async def body():
         try:
