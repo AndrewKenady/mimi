@@ -6,6 +6,7 @@
 	import { inShell } from '$lib/host';
 	import { confirmDialog } from '$lib/confirm.svelte';
 	import { inkOn } from '$lib/color';
+	import { DEFAULT_ACCENT } from '$lib/accents';
 	import { scrollBehavior } from '$lib/motion';
 	import { radioGroup } from '$lib/roving';
 	import { SETTINGS_REDIRECTS, SETTINGS_SECTIONS, settingsHref, visibleSections } from '$lib/settings-sections';
@@ -656,7 +657,7 @@
 					{@render group('you', 'You')}
 					<div class="group card">
 						<Row label="Signed in as" hint={app.me?.role === 'owner' ? 'Device owner' : app.me?.role}>
-							<span class="avatar" style="--c:{app.me?.color}; --ink:{inkOn(app.me?.color || '#6ee7d2')}" aria-hidden="true">{app.me?.name?.charAt(0)}</span><b>{app.me?.name}</b>
+							<span class="avatar" style="--c:{app.me?.color}; --ink:{inkOn(app.me?.color || DEFAULT_ACCENT)}" aria-hidden="true">{app.me?.name?.charAt(0)}</span><b>{app.me?.name}</b>
 						</Row>
 						{#if !app.isGuest}
 							<Row label={app.me?.has_pin ? 'Change PIN' : 'Set a PIN'} hint="4–8 digits. Used to unlock Mimi and to sign in from phones.">

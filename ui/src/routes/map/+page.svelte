@@ -1058,7 +1058,7 @@
 	:global(.maplibregl-ctrl-group) {
 		background: var(--surface) !important;
 		border: 1px solid var(--line-2);
-		border-radius: 12px !important;
+		border-radius: var(--radius-md) !important;
 		overflow: hidden;
 	}
 	:global(.maplibregl-ctrl-group button + button) {

@@ -7,6 +7,7 @@
 	import { dialog } from '$lib/dialog';
 	import { motion } from '$lib/motion';
 	import { inkOn } from '$lib/color';
+	import { DEFAULT_ACCENT } from '$lib/accents';
 	import { ScanText, AudioLines, Map, MessageSquarePlus, QrCode, Moon, Sun, Maximize, LogOut, MonitorDown, Search, UserCog, NotebookPen, Brain, Settings } from '@lucide/svelte';
 
 	const light = $derived(document.documentElement.dataset.theme === 'light' || app.settings.user?.appearance?.theme === 'light');
@@ -47,7 +48,7 @@
 	<div class="scrim" style="z-index: var(--z-sheet)" transition:fade={motion({ duration: 'fast' })} onclick={close} role="presentation"></div>
 	<div class="qm sheet" use:dialog={{ label: 'Quick menu', onclose: close, initialFocus: '.tile' }} transition:fly={motion({ y: 30, duration: 'slow' })}>
 		<div class="who">
-			<span class="av" style="--c:{app.me?.color}; --ink:{inkOn(app.me?.color || '#6ee7d2')}" aria-hidden="true">{app.me?.name?.charAt(0).toUpperCase()}</span>
+			<span class="av" style="--c:{app.me?.color}; --ink:{inkOn(app.me?.color || DEFAULT_ACCENT)}" aria-hidden="true">{app.me?.name?.charAt(0).toUpperCase()}</span>
 			<div>
 				<b>{app.me?.name}</b>
 				<small>{app.me?.role === 'owner' ? 'Owner' : app.me?.role === 'guest' ? 'Guest' : 'Member'}{app.boot?.local ? '' : ' · connected over the network'}</small>

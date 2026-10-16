@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { app } from '$lib/app.svelte';
 	import { inkOn } from '$lib/color';
+	import { DEFAULT_ACCENT } from '$lib/accents';
 	import { House, MessagesSquare, Library, Map, AudioLines, ScanText, Brain, Settings, Menu, Mic, NotebookPen } from '@lucide/svelte';
 
 	const items = [
@@ -47,7 +48,7 @@
 			<span class="ico"><Settings size={21} strokeWidth={1.8} /></span>
 			<span class="lbl">Settings</span>
 		</a>
-		<button class="avatar" style="--c:{app.me?.color || '#6ee7d2'}; --ink:{inkOn(app.me?.color || '#6ee7d2')}" onclick={() => (app.quick = true)} aria-label="Quick menu" aria-haspopup="dialog" title="Quick menu">
+		<button class="avatar" style="--c:{app.me?.color || DEFAULT_ACCENT}; --ink:{inkOn(app.me?.color || DEFAULT_ACCENT)}" onclick={() => (app.quick = true)} aria-label="Quick menu" aria-haspopup="dialog" title="Quick menu">
 			{initial}
 		</button>
 	</div>
