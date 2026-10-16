@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { del, get, patch, post, timeAgo } from '$lib/api';
+	import { confirmDialog } from '$lib/confirm.svelte';
+	import Segmented from '$components/settings/Segmented.svelte';
 	import { Brain, Pin, PinOff, Trash2, Check, X, Plus, Search, Download, Pause, Play, Pencil, MessagesSquare } from '@lucide/svelte';
 
 	let items = $state<any[]>([]);
@@ -14,7 +16,6 @@
 	let newCat = $state('personal');
 	let editId = $state<string | null>(null);
 	let editText = $state('');
-	let confirmWipe = $state(false);
 	let filter = $state<string>('all');
 
 	const CATS: Record<string, string> = { personal: 'About you', preference: 'Preferences', project: 'Projects', other: 'Other' };
@@ -35,8 +36,10 @@
 		load();
 	});
 
-	const suggested = $derived(items.filter((m) => m.status === 'suggested'));
-	const active = $derived(items.filter((m) => m.status === 'active' && (filter === 'all' || m.category === filter)));
+	// Memories with an Undo still showing are hidden, not yet deleted.
+	const live = $derived(items.filter((m) => !app.isPending(`memory:${m.id}`)));
+	const suggested = $derived(live.filter((m) => m.status === 'suggested'));
+	const active = $derived(live.filter((m) => m.status === 'active' && (filter === 'all' || m.category === filter)));
 	const groups = $derived(Object.keys(CATS).map((c) => [c, active.filter((m) => m.category === c)] as const).filter(([, l]) => l.length));
 
 	async function setMode(m: string) {
@@ -58,10 +61,10 @@
 		await post(`/api/memories/${m.id}/accept`);
 		load();
 	}
-	async function remove(m: any) {
-		await del(`/api/memories/${m.id}`);
-		app.toast('Forgotten');
-		load();
+	// One memory at a time is reversible: it disappears with an Undo, and is only
+	// deleted once the Undo has gone.
+	function remove(m: any, text = 'Forgotten') {
+		app.deferDelete({ key: `memory:${m.id}`, text, commit: () => del(`/api/memories/${m.id}`), onDone: load });
 	}
 	async function pin(m: any) {
 		await patch(`/api/memories/${m.id}`, { pinned: !m.pinned });
@@ -72,9 +75,16 @@
 		editId = null;
 		load();
 	}
+	// Everything at once can't be undone: ask first.
 	async function wipe() {
+		const ok = await confirmDialog({
+			title: 'Erase every memory?',
+			body: `Mimi will forget all ${items.length} things it knows about you. This can’t be undone. You can export them first.`,
+			confirmLabel: 'Erase all',
+			tone: 'danger'
+		});
+		if (!ok) return;
 		await del('/api/memories');
-		confirmWipe = false;
 		app.toast('All memories erased', 'ok');
 		load();
 	}
@@ -91,86 +101,124 @@
 			</div>
 		</header>
 
-		<section class="controls card">
-			<div class="seg" role="radiogroup" aria-label="Memory mode">
-				{#each [['ask', 'Ask first'], ['auto', 'Automatic'], ['off', 'Off']] as [v, l]}
-					<button role="radio" aria-checked={mode === v} class:on={mode === v} onclick={() => setMode(v)}>{l}</button>
-				{/each}
-			</div>
-			<p class="explain">
+		<section class="controls card" aria-label="Memory settings">
+			<Segmented
+				label="Memory mode"
+				value={mode}
+				options={[
+					['ask', 'Ask first'],
+					['auto', 'Automatic'],
+					['off', 'Off']
+				]}
+				onchange={setMode}
+			/>
+			<p class="explain" aria-live="polite">
 				{#if mode === 'ask'}Mimi suggests things to remember, and you approve each one.{:else if mode === 'auto'}Mimi saves lasting facts on its own. You can review them here.{:else}Mimi won't save or use memories.{/if}
 			</p>
 			<div class="row">
-				<button class="btn btn-sm" onclick={togglePause} disabled={mode === 'off'}>{#if paused}<Play size={14} /> Resume memory{:else}<Pause size={14} /> Pause memory{/if}</button>
-				<a class="btn btn-sm btn-ghost" href="/api/memories/export?format=md" download><Download size={14} /> Export</a>
+				<button class="btn btn-sm" onclick={togglePause} disabled={mode === 'off'}>{#if paused}<Play size={14} aria-hidden="true" /> Resume memory{:else}<Pause size={14} aria-hidden="true" /> Pause memory{/if}</button>
+				<a class="btn btn-sm btn-ghost" href="/api/memories/export?format=md" download><Download size={14} aria-hidden="true" /> Export</a>
 				<span class="grow"></span>
-				{#if confirmWipe}
-					<span class="confirm">Erase everything? <button class="btn btn-sm btn-danger" onclick={wipe}>Erase</button><button class="btn btn-sm btn-ghost" onclick={() => (confirmWipe = false)}>Cancel</button></span>
-				{:else if items.length}
-					<button class="btn btn-sm btn-ghost danger" onclick={() => (confirmWipe = true)}><Trash2 size={14} /> Erase all</button>
+				{#if items.length}
+					<button class="btn btn-sm btn-ghost danger" onclick={wipe}><Trash2 size={14} aria-hidden="true" /> Erase all</button>
 				{/if}
 			</div>
-			{#if paused}<p class="paused"><Pause size={14} /> Memory is paused. Mimi isn't using or saving memories right now.</p>{/if}
+			{#if paused}<p class="paused" role="status"><Pause size={14} aria-hidden="true" /> Memory is paused. Mimi isn't using or saving memories right now.</p>{/if}
 		</section>
 
 		{#if suggested.length}
 			<h2 class="label sect">Waiting for your OK</h2>
-			<div class="list">
+			<ul class="list">
 				{#each suggested as m (m.id)}
-					<div class="mem card sug">
-						<Brain size={17} class="mi" />
+					<li class="mem card sug">
+						<Brain size={17} class="mi" aria-hidden="true" />
 						<span class="mt">{m.text}</span>
-						<button class="btn btn-sm btn-primary" onclick={() => accept(m)}><Check size={14} /> Keep</button>
-						<button class="icon-btn sm" onclick={() => remove(m)} aria-label="Discard"><X size={15} /></button>
-					</div>
+						<button class="btn btn-sm btn-primary" onclick={() => accept(m)} aria-label="Keep: {m.text}"><Check size={14} aria-hidden="true" /> Keep</button>
+						<button class="icon-btn sm" onclick={() => remove(m, 'Suggestion discarded')} aria-label="Discard: {m.text}" title="Discard"><X size={15} aria-hidden="true" /></button>
+					</li>
 				{/each}
-			</div>
+			</ul>
 		{/if}
 
 		<div class="toolbar">
-			<div class="search"><Search size={15} /><input placeholder="Search memories" bind:value={q} oninput={load} /></div>
-			<div class="filters">
-				<button class="chip" class:active={filter === 'all'} onclick={() => (filter = 'all')}>All</button>
-				{#each Object.entries(CATS) as [k, l]}<button class="chip" class:active={filter === k} onclick={() => (filter = k)}>{l}</button>{/each}
+			<label class="search">
+				<Search size={15} aria-hidden="true" />
+				<span class="sr-only">Search memories</span>
+				<input type="search" placeholder="Search memories" bind:value={q} oninput={load} />
+			</label>
+			<div class="filters" role="group" aria-label="Show">
+				<button class="chip" aria-pressed={filter === 'all'} onclick={() => (filter = 'all')}>All</button>
+				{#each Object.entries(CATS) as [k, l]}<button class="chip" aria-pressed={filter === k} onclick={() => (filter = k)}>{l}</button>{/each}
 			</div>
-			<button class="btn btn-sm btn-primary" onclick={() => (adding = !adding)}><Plus size={15} /> Add</button>
+			<button class="btn btn-sm btn-primary" onclick={() => (adding = !adding)} aria-expanded={adding}><Plus size={15} aria-hidden="true" /> Add</button>
 		</div>
 
 		{#if adding}
-			<form class="add card" onsubmit={(e) => { e.preventDefault(); add(); }}>
-				<input class="input" placeholder="e.g. I'm allergic to penicillin" bind:value={newText} />
-				<select class="input sel" bind:value={newCat}>{#each Object.entries(CATS) as [k, l]}<option value={k}>{l}</option>{/each}</select>
+			<form
+				class="add card"
+				onsubmit={(e) => {
+					e.preventDefault();
+					add();
+				}}
+			>
+				<label class="field grow">
+					<span class="field-label">Something to remember</span>
+					<input class="input" placeholder="e.g. I'm allergic to penicillin" bind:value={newText} data-autofocus />
+				</label>
+				<label class="field cat">
+					<span class="field-label">Kind</span>
+					<select class="input" bind:value={newCat}>{#each Object.entries(CATS) as [k, l]}<option value={k}>{l}</option>{/each}</select>
+				</label>
 				<button class="btn btn-primary" disabled={!newText.trim()}>Save</button>
 			</form>
 		{/if}
 
 		{#each groups as [cat, list] (cat)}
 			<h2 class="label sect">{CATS[cat]}</h2>
-			<div class="list">
+			<ul class="list">
 				{#each list as m (m.id)}
-					<div class="mem card">
+					<li class="mem card">
 						{#if editId === m.id}
-							<input class="input" bind:value={editText} onkeydown={(e) => { if (e.key === 'Enter') saveEdit(m); if (e.key === 'Escape') editId = null; }} />
+							<label class="field grow">
+								<span class="sr-only">Edit memory</span>
+								<input
+									class="input"
+									bind:value={editText}
+									onkeydown={(e) => {
+										if (e.key === 'Enter') saveEdit(m);
+										if (e.key === 'Escape') editId = null;
+									}}
+								/>
+							</label>
 							<button class="btn btn-sm btn-primary" onclick={() => saveEdit(m)}>Save</button>
+							<button class="btn btn-sm btn-ghost" onclick={() => (editId = null)}>Cancel</button>
 						{:else}
 							<span class="mt">
-								{#if m.pinned}<Pin size={13} class="pin" />{/if}{m.text}
+								<span>{#if m.pinned}<Pin size={13} class="pin" aria-label="Pinned" />{/if}{m.text}</span>
 								<small>
 									{timeAgo(m.created_at)}{#if m.use_count} · used {m.use_count}×{/if}
-									{#if m.source_chat_id} · <a href="/chat/{m.source_chat_id}"><MessagesSquare size={11} /> from a chat</a>{/if}
+									{#if m.source_chat_id} · <a href="/chat/{m.source_chat_id}"><MessagesSquare size={11} aria-hidden="true" /> from a chat</a>{/if}
 								</small>
 							</span>
-							<button class="icon-btn sm" onclick={() => pin(m)} title={m.pinned ? 'Unpin' : 'Always use'} aria-label="Pin">{#if m.pinned}<PinOff size={15} />{:else}<Pin size={15} />{/if}</button>
-							<button class="icon-btn sm" onclick={() => { editId = m.id; editText = m.text; }} aria-label="Edit"><Pencil size={15} /></button>
-							<button class="icon-btn sm" onclick={() => remove(m)} aria-label="Forget"><Trash2 size={15} /></button>
+							<button class="icon-btn sm" onclick={() => pin(m)} title={m.pinned ? 'Unpin' : 'Always use'} aria-label={m.pinned ? 'Unpin' : 'Pin: always use'} aria-pressed={!!m.pinned}>{#if m.pinned}<PinOff size={15} aria-hidden="true" />{:else}<Pin size={15} aria-hidden="true" />{/if}</button>
+							<button
+								class="icon-btn sm"
+								onclick={() => {
+									editId = m.id;
+									editText = m.text;
+								}}
+								aria-label="Edit: {m.text}"
+								title="Edit"><Pencil size={15} aria-hidden="true" /></button
+							>
+							<button class="icon-btn sm" onclick={() => remove(m)} aria-label="Forget: {m.text}" title="Forget"><Trash2 size={15} aria-hidden="true" /></button>
 						{/if}
-					</div>
+					</li>
 				{/each}
-			</div>
+			</ul>
 		{:else}
 			{#if !loading && !suggested.length}
 				<div class="empty">
-					<Brain size={28} />
+					<Brain size={28} aria-hidden="true" />
 					<p>No memories yet. Tell Mimi something like <i>“Remember that I drive a 2014 Tacoma”</i>, or add one yourself.</p>
 				</div>
 			{/if}
@@ -188,29 +236,11 @@
 	.controls {
 		padding: var(--space-4) var(--space-5);
 	}
-	.seg {
-		display: inline-flex;
-		padding: var(--space-1);
-		border-radius: var(--radius-pill);
-		background: var(--surface-2);
-		border: 1px solid var(--line);
-	}
-	.seg button {
-		height: 36px;
-		padding: 0 var(--space-4);
-		border-radius: var(--radius-pill);
-		color: var(--text-2);
-		font-weight: var(--fw-medium);
-		font-size: var(--fs-md);
-	}
-	.seg button.on {
-		background: var(--accent);
-		color: var(--accent-ink);
-	}
 	.explain {
 		color: var(--text-2);
-		margin: var(--space-3) 0 var(--space-3);
+		margin: var(--space-3) 0;
 		font-size: var(--fs-md);
+		line-height: var(--lh-md);
 	}
 	.row {
 		display: flex;
@@ -223,13 +253,6 @@
 	}
 	.danger {
 		color: var(--danger) !important;
-	}
-	.confirm {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-2);
-		font-size: var(--fs-md);
-		color: var(--text-2);
 	}
 	.paused {
 		display: flex;
@@ -253,19 +276,23 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
-		height: 38px;
+		height: var(--control-md);
 		padding: 0 var(--space-3);
 		border-radius: var(--radius-md);
 		background: var(--surface);
-		border: 1px solid var(--line);
+		border: 1px solid var(--line-2);
 		color: var(--text-3);
 		width: 220px;
+	}
+	.search:focus-within {
+		border-color: var(--accent);
 	}
 	.search input {
 		border: 0;
 		background: none;
 		flex: 1;
 		min-width: 0;
+		height: 100%;
 		color: var(--text);
 	}
 	.filters {
@@ -277,16 +304,24 @@
 	.add {
 		display: flex;
 		gap: var(--space-2);
+		align-items: flex-end;
+		flex-wrap: wrap;
 		padding: var(--space-3);
 		margin-top: var(--space-3);
 	}
-	.sel {
+	.add .grow {
+		min-width: 220px;
+	}
+	.add .cat {
 		width: 170px;
 	}
 	.list {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
+		margin: 0;
+		padding: 0;
+		list-style: none;
 	}
 	.mem {
 		display: flex;
@@ -308,7 +343,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-0-5);
-		line-height: 1.45;
+		line-height: var(--lh-md);
 	}
 	.mt :global(.pin) {
 		color: var(--accent);
@@ -324,7 +359,10 @@
 		color: var(--text-2);
 		display: inline-flex;
 		align-items: center;
-		gap: var(--space-0-5);
+		gap: var(--space-1);
+		text-decoration: underline;
+		text-decoration-color: var(--line-2);
+		text-underline-offset: 2px;
 	}
 	.mt small a:hover {
 		color: var(--accent);
@@ -333,7 +371,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: var(--space-2);
+		gap: var(--space-3);
 		text-align: center;
 		color: var(--text-3);
 		padding: var(--space-12) var(--space-5);

@@ -124,7 +124,7 @@
 		<section class="recorder card" class:live={recording}>
 			{#if recording}
 				<canvas bind:this={canvas} class="wave"></canvas>
-				<div class="timer">{mmss(elapsed)}</div>
+				<div class="timer" role="timer" aria-label="Recording time">{mmss(elapsed)}</div>
 				<button class="rec stop" onclick={stop} aria-label="Stop recording"><Square size={26} fill="currentColor" /></button>
 				<p class="faint">Recording. Tap to stop and transcribe.</p>
 			{:else}
@@ -135,9 +135,9 @@
 			{/if}
 		</section>
 
-		<h2 class="label" style="margin:30px 0 12px">Notes</h2>
+		<h2 class="label notes-h">Notes</h2>
 		<div class="list">
-			{#each notes as n (n.id)}
+			{#each notes.filter((n) => !app.isPending(`scribe:${n.id}`)) as n (n.id)}
 				<a class="note card card-hover" href="/scribe/{n.id}">
 					<span class="ni"><NotebookPen size={18} /></span>
 					<span class="info">
@@ -197,7 +197,7 @@
 	}
 	.rec.stop {
 		background: var(--danger);
-		color: #1b0605;
+		color: var(--danger-ink);
 		box-shadow: 0 0 0 8px color-mix(in oklab, var(--danger) 16%, transparent);
 		animation: recp 1.4s ease-in-out infinite;
 	}
@@ -228,6 +228,9 @@
 		font-weight: 300;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: 0.02em;
+	}
+	.notes-h {
+		margin: var(--space-8) 0 var(--space-3);
 	}
 	.list {
 		display: flex;

@@ -192,7 +192,7 @@
 		if (src) src.setData(data);
 		else {
 			map.addSource('route', { type: 'geojson', data });
-			map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#04121a', 'line-width': 10, 'line-opacity': 0.75 } });
+			map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': getComputedStyle(document.documentElement).getPropertyValue('--map-route-casing').trim() || '#04121a', 'line-width': 10, 'line-opacity': 0.75 } });
 			map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': accent, 'line-width': 5 } });
 		}
 		if (!destMarker) {
@@ -1026,14 +1026,14 @@
 		height: 30px;
 		background: var(--accent);
 		clip-path: path('M11 0C4.9 0 0 4.9 0 11c0 8.2 11 19 11 19s11-10.8 11-19C22 4.9 17.1 0 11 0z');
-		filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+		filter: drop-shadow(0 2px 6px var(--media-scrim));
 	}
 	:global(.me-dot) {
 		width: 18px;
 		height: 18px;
 		border-radius: var(--radius-round);
 		background: var(--accent);
-		border: 3px solid white;
+		border: 3px solid var(--media-fg);
 		box-shadow: 0 0 0 6px var(--accent-soft), 0 0 20px var(--accent);
 		animation: medot 2s ease-in-out infinite;
 	}
@@ -1048,7 +1048,7 @@
 		border-radius: var(--radius-round);
 		background: var(--accent-2);
 		border: 2px solid var(--bg);
-		box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+		box-shadow: 0 1px 6px var(--media-scrim);
 		cursor: pointer;
 		transition: transform var(--dur-fast);
 	}

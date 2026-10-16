@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { del, get, patch } from '$lib/api';
-	import { ArrowLeft, Sparkles, Download, Trash2, Loader, CircleCheck, ListChecks, Lightbulb, FileText } from '@lucide/svelte';
+	import { ArrowLeft, Sparkles, Download, Trash2, Loader, CircleCheck, ListChecks, Lightbulb, FileText, Pencil } from '@lucide/svelte';
 
 	let note = $state<any>(null);
 	let audio: HTMLAudioElement | undefined = $state();
@@ -39,9 +39,16 @@
 		editingTitle = false;
 		if (title.trim() && title !== note.title) note = await patch(`/api/scribe/${note.id}`, { title: title.trim() });
 	}
-	async function remove() {
-		await del(`/api/scribe/${note.id}`);
-		app.toast('Note deleted');
+	// Deleting a recording is reversible for a few seconds: back to the list with an Undo
+	// toast; the recording is only deleted once the Undo has gone.
+	function remove() {
+		const id = note.id;
+		app.deferDelete({
+			key: `scribe:${id}`,
+			text: `“${note.title}” deleted`,
+			commit: () => del(`/api/scribe/${id}`),
+			onUndo: () => goto(`/scribe/${id}`)
+		});
 		goto('/scribe');
 	}
 	function ask() {
@@ -60,9 +67,13 @@
 		{:else}
 			<header>
 				{#if editingTitle}
-					<input class="input titlein" bind:value={title} onblur={saveTitle} onkeydown={(e) => e.key === 'Enter' && saveTitle()} />
+					<!-- svelte-ignore a11y_autofocus (the user just asked to rename) -->
+					<input class="input titlein" bind:value={title} onblur={saveTitle} onkeydown={(e) => e.key === 'Enter' && saveTitle()} aria-label="Note title" autofocus />
 				{:else}
-					<button class="tt" onclick={() => (editingTitle = true)} title="Rename"><h1 class="page-title">{note.title}</h1></button>
+					<div class="title-row">
+						<h1 class="page-title">{note.title}</h1>
+						<button class="icon-btn sm" onclick={() => (editingTitle = true)} aria-label="Rename note" title="Rename"><Pencil size={15} aria-hidden="true" /></button>
+					</div>
 				{/if}
 				<p class="page-sub">{new Date(note.created_at * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}{#if note.duration} · {fmt(note.duration)}{/if}</p>
 				<div class="acts">
@@ -107,7 +118,7 @@
 				<div class="transcript selectable">
 					{#each note.transcript as s, i (i)}
 						<p class:now={current >= s.start && current < s.end}>
-							<button class="ts" onclick={() => seek(s.start)}>{fmt(s.start)}</button>
+							<button class="ts" onclick={() => seek(s.start)} aria-label="Play from {fmt(s.start)}">{fmt(s.start)}</button>
 							<span>{s.text}</span>
 						</p>
 					{/each}
@@ -134,8 +145,10 @@
 	header {
 		margin: var(--space-3) 0 var(--space-4);
 	}
-	.tt {
-		text-align: left;
+	.title-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 	}
 	.titlein {
 		font-size: var(--fs-2xl);

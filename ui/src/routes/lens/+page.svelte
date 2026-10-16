@@ -113,7 +113,7 @@
 				</div>
 			{:else if url}
 				<div class="shot">
-					<img src={url} alt="Captured" />
+					<img src={url} alt="Your capture" />
 					{#if ocr && showBoxes && polys.length}
 						<svg viewBox="0 0 {ocr.width} {ocr.height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
 							{#each polys as p}<polygon points={p.pts}><title>{p.text}</title></polygon>{/each}
@@ -145,7 +145,7 @@
 							<button class="icon-btn sm" onclick={copyText} aria-label="Copy text">{#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}</button>
 						{/if}
 					</header>
-					{#if reading}<p class="faint"><Loader size={14} class="spin" /> Reading…</p>
+					{#if reading}<p class="faint" role="status"><Loader size={14} class="spin" aria-hidden="true" /> Reading…</p>
 					{:else if ocr?.text}<pre class="ocr selectable">{ocr.text}</pre>
 					{:else}<p class="faint">No text detected. You can still ask Mimi about the picture.</p>{/if}
 					{#if ocr?.ms}<small class="faint">Read on-device in {ocr.ms} ms</small>{/if}
@@ -160,7 +160,7 @@
 						<button class="act" onclick={() => ask('Summarize this document and list anything I need to act on.')}><HelpCircle size={17} /> Summarize</button>
 					</div>
 					<form class="custom" onsubmit={(e) => { e.preventDefault(); if (prompt.trim()) ask(prompt.trim()); }}>
-						<input class="input" placeholder="Or ask your own question…" bind:value={prompt} />
+						<input class="input" placeholder="Or ask your own question…" aria-label="Your question about this photo" bind:value={prompt} />
 						<button class="btn btn-primary" disabled={!prompt.trim()}>Ask</button>
 					</form>
 					<button class="btn btn-sm btn-ghost again" onclick={reset}><RotateCcw size={14} /> New photo</button>
@@ -183,7 +183,7 @@
 		position: relative;
 	}
 	.stage.has {
-		background: #000;
+		background: var(--media-bg);
 	}
 	.feed {
 		width: 100%;
@@ -201,15 +201,15 @@
 		gap: var(--space-10);
 	}
 	.camctl .icon-btn {
-		background: rgba(0, 0, 0, 0.45);
-		color: #fff;
+		background: var(--media-scrim);
+		color: var(--media-fg);
 	}
 	.shutter {
 		width: 74px;
 		height: 74px;
 		border-radius: var(--radius-round);
-		background: #fff;
-		box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.35);
+		background: var(--media-fg);
+		box-shadow: 0 0 0 5px color-mix(in oklab, var(--media-fg) 35%, transparent);
 		transition: transform var(--dur-fast);
 	}
 	.shutter:active {
