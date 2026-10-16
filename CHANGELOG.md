@@ -9,6 +9,7 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 ### Trust: honest library, checked answers, measured quality
 - **PDF collections open and are searchable.** The medical and survival guide collections (Kiwix "nautilus" ZIMs) used to be listed as available but opened to a blank page, and chat couldn't search them. They now open as native document lists, PDFs open in the app, and their text is indexed page by page, so answers can cite *"Where There Is No Doctor, p. 105"*. TED and Gutenberg collections list their talks and books too.
 - **Every book shows an honest status:** Ready, Indexing…, Browse only, Search only or Can't open, with a plain-English reason and a real item count.
+- **A book whose download stopped partway is held back from the shelf** (its ZIM header shows it's incomplete), and the Library says which file and how much arrived, instead of listing a book that fails when opened.
 - **Citation checks in chat.** Each cited sentence is checked against the passage the model read: numbers, doses, names and negations included. Unsupported claims get a visible "check this" marker with the reason. Answers are never rewritten.
 - **Evaluation harness** (`eval/`): 166 golden questions across medicine, repair, travel, survival, general knowledge, location and adversarial traps. It scores retrieval, key facts, forbidden claims, behaviour, citation faithfulness and latency, and runs A/B model comparisons with a significance test.
 - **Better retrieval:**

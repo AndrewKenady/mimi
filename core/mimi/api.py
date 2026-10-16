@@ -764,7 +764,9 @@ async def books(request: Request, all: bool = False, ctx: Ctx = Depends(get_ctx)
         # Can it be opened and searched? (kind, honest item count and a plain-English note)
         d["health"] = svc.kiwix.health_of(b)
         out.append(d)
-    return {"books": out, "running": svc.kiwix_service.alive(), "collections": COLLECTION_LABELS, "indexing": svc.kiwix.index_state}
+    return {"books": out, "running": svc.kiwix_service.alive(), "collections": COLLECTION_LABELS, "indexing": svc.kiwix.index_state,
+            # downloads that didn't finish: held back from the library rather than listed and broken
+            "incomplete": list(getattr(svc.kiwix_service, "incomplete", [])) if ctx.is_owner else []}
 
 
 @router.get("/library/collection/{book}")

@@ -224,6 +224,8 @@ def install(svc, speed: float) -> None:
     mm.chat_stream = chat_stream
     svc.kiwix = FixtureKiwix(speed)
     svc.kiwix_service.alive = lambda: True
+    # one download that stopped halfway: held back from the shelf, and the library says so
+    svc.kiwix_service.incomplete = [{"file": "wiktionary_en_all_nopic_2026-07.zim", "size": 4_100 << 20, "expected": 9_160 << 20}]
 
 
 def main() -> None:

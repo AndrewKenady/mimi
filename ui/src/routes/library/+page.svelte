@@ -4,9 +4,11 @@
 	import { onMount } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { fmtBytes, get } from '$lib/api';
-	import { Search, BookOpen, Sparkles, FolderOpen, X, Loader, FileText } from '@lucide/svelte';
+	import { Search, BookOpen, Sparkles, FolderOpen, X, Loader, FileText, TriangleAlert } from '@lucide/svelte';
 
 	let books = $state<any[]>([]);
+	/** Downloads that didn't finish: held back from the shelf, and said so (owner only). */
+	let incomplete = $state<any[]>([]);
 	let loading = $state(true);
 	let searchEl: HTMLInputElement | undefined = $state();
 	let q = $state(page.url.searchParams.get('q') || '');
@@ -45,7 +47,9 @@
 
 	async function load() {
 		try {
-			books = (await get('/api/library/books')).books;
+			const r = await get('/api/library/books');
+			books = r.books;
+			incomplete = r.incomplete || [];
 		} finally {
 			loading = false;
 		}
@@ -126,6 +130,21 @@
 			</div>
 			{#if !app.isGuest}<a class="btn" href="/library/files"><FolderOpen size={16} /> My files</a>{/if}
 		</header>
+
+		{#if incomplete.length}
+			<div class="incomplete" role="status">
+				<TriangleAlert size={16} aria-hidden="true" />
+				<div>
+					<p><b>{incomplete.length === 1 ? "1 book didn't" : `${incomplete.length} books didn't`} finish downloading</b>, so {incomplete.length === 1 ? "it isn't" : "they aren't"} on the shelf yet.</p>
+					<ul>
+						{#each incomplete as z (z.file)}
+							<li><span class="mono">{z.file}</span> · {z.expected ? `${fmtBytes(z.size)} of ${fmtBytes(z.expected)}` : 'not a readable book file'}</li>
+						{/each}
+					</ul>
+					<p class="faint">Run your install command again, or <span class="mono">python -m mimi content add</span> for its pack: downloads pick up where they stopped.</p>
+				</div>
+			</div>
+		{/if}
 
 		<div class="searchbar">
 			<Search size={19} />
@@ -405,6 +424,34 @@
 		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
+	}
+	.incomplete {
+		display: flex;
+		gap: var(--space-3);
+		align-items: flex-start;
+		margin: 0 0 var(--space-5);
+		padding: var(--space-3) var(--space-4);
+		border-radius: var(--radius-md);
+		border: 1px solid color-mix(in oklab, var(--warn) 40%, transparent);
+		background: color-mix(in oklab, var(--warn) 8%, transparent);
+		color: var(--text-2);
+		font-size: var(--fs-sm);
+	}
+	.incomplete :global(svg) {
+		color: var(--warn);
+		flex: none;
+		margin-top: 2px;
+	}
+	.incomplete p,
+	.incomplete ul {
+		margin: 0 0 var(--space-1);
+	}
+	.incomplete ul {
+		padding-left: var(--space-4);
+	}
+	.incomplete .mono {
+		font-family: var(--font-mono);
+		color: var(--text);
 	}
 	.empty {
 		display: flex;

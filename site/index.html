@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mimi — Machine Intelligence, Minus the Internet</title>
-<meta name="description" content="Mimi is an open-source AI assistant that runs entirely on a small Windows PC, with an offline library, maps and voice. No internet needed after setup.">
+<meta name="description" content="Mimi is an open-source AI assistant that runs entirely on your own computer, with an offline library, maps and voice. Answers cite the page they came from, and every citation is checked. No internet needed after setup.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#eef0ea" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#070b12" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <meta property="og:title" content="Mimi — Machine Intelligence, Minus the Internet">
-<meta property="og:description" content="An open-source AI field companion that works with zero internet: local model, 161 GB offline library, offline maps and directions, voice.">
+<meta property="og:description" content="An open-source AI field station that works with zero internet: a local model grounded in an offline library, with checked citations, offline maps and directions, and voice. Linux, macOS, Windows and Docker.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -142,6 +142,20 @@ h1 .thin { font-weight: 300; color: var(--ink-2); }
 .shots figcaption .mono { font-size: 11.5px; letter-spacing: .12em; color: var(--accent); margin-right: 8px; }
 .shots-note { grid-column: 1 / -1; margin: 0; font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
 
+/* checkably right */
+.claims { list-style: none; margin: 0 0 34px; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1.5px solid var(--ink); counter-reset: claim; }
+.claims li { padding: 18px 18px 6px 0; counter-increment: claim; }
+.claims li + li { padding-left: 18px; border-left: 1px solid var(--rule-2); }
+.claims li::before { content: "0" counter(claim); display: block; font-family: var(--mono); font-size: 12px; letter-spacing: .12em; color: var(--accent); margin-bottom: 8px; }
+.claims h3 { font-size: 19px; }
+.claims p { margin: 0; color: var(--ink-2); font-size: 15.5px; }
+.proofs { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, .8fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.proofs figure { margin: 0; }
+.proofs img { display: block; width: 100%; height: auto; border-radius: 6px; border: 1.5px solid var(--ink); background: #070b12; box-shadow: 6px 6px 0 var(--accent-soft); }
+.proofs figcaption { margin-top: 10px; font-size: 14.5px; color: var(--ink-2); }
+.proofs figcaption .mono { font-size: 11.5px; letter-spacing: .12em; color: var(--accent); margin-right: 8px; }
+.more { margin: 26px 0 0; font-family: var(--mono); font-size: 13.5px; letter-spacing: .04em; }
+
 /* ---------- sections ---------- */
 section { padding: 72px 0 24px; scroll-margin-top: 64px; }
 .head { display: grid; grid-template-columns: auto 1fr; gap: 6px 22px; align-items: end; margin-bottom: 34px; border-bottom: 1.5px solid var(--ink); padding-bottom: 16px; }
@@ -230,12 +244,19 @@ footer a { color: var(--ink-2); }
   .readout div:nth-child(even) { border-left: 1px solid var(--rule-2); }
   .readout div:last-child { grid-column: span 2; border-left: 0; }
   .legal { grid-template-columns: minmax(0, 1fr); }
+  .claims { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .claims li, .claims li + li { padding: 18px 18px 14px 0; border-left: 0; border-bottom: 1px solid var(--rule); }
+  .claims li:nth-child(even) { padding-left: 18px; border-left: 1px solid var(--rule-2); }
+  .proofs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .proofs figure:first-child { grid-column: 1 / -1; }
 }
 @media (max-width: 760px) {
   .sheet, .collar nav a.hide-sm { display: none; }
   .route { grid-template-columns: minmax(0, 1fr); }
   .leg:not(:last-child)::after { right: auto; left: 32px; top: auto; bottom: -23px; width: 0; height: 22px; border-top: 0; border-left: 2px dashed var(--ink-3); }
   .planned { grid-template-columns: minmax(0, 1fr); }
+  .claims, .proofs { grid-template-columns: minmax(0, 1fr); }
+  .claims li:nth-child(even) { padding-left: 0; border-left: 0; }
 }
 @media (max-width: 600px) {
   body { font-size: 16px; }
@@ -271,10 +292,11 @@ footer a { color: var(--ink-2); }
     </a>
     <span class="sheet">Field manual · Sheet 01</span>
     <nav aria-label="Sections">
+      <a href="#checkable" class="hide-sm">Checkable</a>
       <a href="#kit" class="hide-sm">Kit</a>
-      <a href="#hardware" class="hide-xs">Hardware</a>
-      <a href="#install">Install</a>
-      <a href="https://github.com/AndrewKenady/mimi">Source</a>
+      <a href="#install" class="hide-xs">Install</a>
+      <a href="case-study.html">Case study</a>
+      <a href="https://github.com/AndrewKenady/mimi" class="hide-xs">Source</a>
       <button class="theme" type="button" id="theme" aria-label="Colour theme: automatic">Auto</button>
     </nav>
   </div>
@@ -286,7 +308,7 @@ footer a { color: var(--ink-2); }
       <div>
         <span class="kicker"><span class="dot" aria-hidden="true"></span>Open source · Works with zero internet</span>
         <h1>Answers where <span class="thin">the signal</span> ends.</h1>
-        <p class="lede">Mimi is an AI assistant that lives entirely on a small Windows PC. <b>A local language model, 161&nbsp;GB of reference books and offline maps with driving directions</b> all run on the device itself, so it keeps working on a back road, at a campsite, or wherever the network gives out.</p>
+        <p class="lede">Mimi is an AI assistant that lives entirely on your own computer, from a handheld PC to a Linux box. <b>A local language model, a library of reference books and offline maps with driving directions</b> all run on the device itself, so it keeps working on a back road, at a campsite, or wherever the network gives out. Its answers cite the page they came from, and every citation is checked.</p>
         <p class="acronym"><b>M</b>achine <b>I</b>ntelligence, <b>M</b>inus the <b>I</b>nternet. The name nods to Mímir, the Norse keeper of wisdom.</p>
         <div class="ctas">
           <a class="btn primary" href="https://github.com/AndrewKenady/mimi">
@@ -294,6 +316,7 @@ footer a { color: var(--ink-2); }
             Get the source
           </a>
           <a class="btn" href="#install">Install guide</a>
+          <a class="btn" href="case-study.html">Read the case study</a>
         </div>
       </div>
 
@@ -330,9 +353,9 @@ footer a { color: var(--ink-2); }
     <div class="wrap">
       <dl class="readout" aria-label="Mimi at a glance">
         <div><dt>Network</dt><dd>None needed<small>after one-time setup</small></dd></div>
-        <div><dt>Model</dt><dd>Gemma 4 12B<small>runs on the device</small></dd></div>
-        <div><dt>Library</dt><dd>26 collections<small>about 161 GB offline</small></dd></div>
-        <div><dt>Maps</dt><dd>US + Canada<small>plus a world overview</small></dd></div>
+        <div><dt>Model</dt><dd>Open weights<small>Gemma 4 12B or Qwen3.5 4B, on the device</small></dd></div>
+        <div><dt>Install</dt><dd>16–24 GB<small>Lite tier; Standard ≈ 210–245 GB</small></dd></div>
+        <div><dt>Runs on</dt><dd>Linux · macOS · Windows<small>or Docker; see what&rsquo;s tested</small></dd></div>
         <div><dt>Licence</dt><dd>MIT<small>open source code</small></dd></div>
       </dl>
     </div>
@@ -341,84 +364,116 @@ footer a { color: var(--ink-2); }
   <div class="shots">
     <div class="wrap">
       <figure>
-        <img src="screen-home.png" width="1600" height="1000" loading="lazy" alt="Mimi's home screen: the orb, a greeting, the ask box, and cards for a Wikipedia article and nearby geysers near Old Faithful. The status bar reads Offline, all local, with Gemma 4 12B.">
+        <img src="img/home.webp" width="1600" height="1000" loading="lazy" alt="Mimi's home screen: the orb, a greeting, the ask box, and cards for a Wikipedia article and nearby geysers near Old Faithful. The status bar reads Offline, all local, with Gemma 4 12B.">
         <figcaption><span class="mono">FIG. 1</span> Home, with places nearby from the offline gazetteer</figcaption>
       </figure>
       <figure>
-        <img src="screen-route.png" width="1600" height="1000" loading="lazy" alt="Mimi's map showing a 97.9 mile, 2 hour 13 minute driving route from Old Faithful to Jackson, Wyoming, with turn-by-turn steps, computed offline.">
+        <img src="img/route.webp" width="1600" height="1000" loading="lazy" alt="Mimi's map showing a 97.9 mile, 2 hour 13 minute driving route from Old Faithful to Jackson, Wyoming, with turn-by-turn steps, computed offline.">
         <figcaption><span class="mono">FIG. 2</span> Turn-by-turn directions, worked out on the device</figcaption>
       </figure>
       <p class="shots-note">Screenshots from Mimi's demo profile on the reference handheld, with the location set to Old Faithful.</p>
     </div>
   </div>
 
-  <section id="kit" aria-labelledby="kit-h">
+  <section id="checkable" aria-labelledby="ck-h">
     <div class="wrap">
       <div class="head">
         <span class="num">§<b>01</b></span>
+        <h2 id="ck-h">Checkably right</h2>
+        <p>Small local models make things up, and in a field-medicine tool that matters more than speed. So Mimi is built to be checked, not just trusted.</p>
+      </div>
+      <ol class="claims">
+        <li><h3>Answers come from the library</h3><p>Factual questions must search the offline library first, and each claim cites the article or PDF page it came from, such as <i>Where There Is No Doctor, p.&nbsp;105</i>.</p></li>
+        <li><h3>Sources before the answer</h3><p>Source cards and a verbatim quote, labelled &ldquo;not Mimi&rsquo;s answer&rdquo;, appear as soon as the search returns. A full answer can take 36&ndash;68&nbsp;s on the reference handheld; you read the evidence while you wait.</p></li>
+        <li><h3>Every citation is checked</h3><p>Each cited sentence is compared with the passage the model actually read: numbers and units, doses, names and negations. A claim the source doesn&rsquo;t support is marked with the reason. The answer is never rewritten.</p></li>
+        <li><h3>Quality is measured</h3><p>A 166-question golden set (medicine, repair, travel, survival, and traps like dangerous dosing and false premises) scores retrieval, key facts, forbidden claims and citation faithfulness. Model changes need an A/B run.</p></li>
+        <li><h3>The library is honest</h3><p>Every book is surveyed and labelled Ready, Indexing&hellip;, Browse only, Search only or Can&rsquo;t open, with a real item count. PDF collections that used to open blank are now listed and searchable page by page.</p></li>
+      </ol>
+      <div class="proofs">
+        <figure>
+          <img src="img/chat-sources-first.webp" width="1600" height="1075" loading="lazy" alt="Mimi answering 'How do you treat hypothermia?'. A progress line reads Search, done; Read, in progress; Write, waiting. Three source cards from WikiMed and Wikipedia sit above a 'From the source' box quoting the WikiMed Hypothermia article, marked 'Quoted while Mimi reads — not Mimi's answer'.">
+          <figcaption><span class="mono">FIG. 3</span> Sources and a quoted passage, while the model is still reading</figcaption>
+        </figure>
+        <figure>
+          <img src="img/chat-flagged-dark.webp" width="720" height="584" loading="lazy" alt="A finished answer about hypothermia with numbered citation chips. One chip is amber and dashed. Below the answer: '1 cited claim couldn't be matched to its source. Check before relying on it.' It quotes 'Warm bath: put them in water at 45 °C for 3 hours' and gives the reason: number not in source: 45 °C, 3 hours.">
+          <figcaption><span class="mono">FIG. 4</span> A claim its source doesn&rsquo;t support, flagged with the reason (test fixture)</figcaption>
+        </figure>
+        <figure>
+          <img src="img/library-documents.webp" width="1280" height="860" loading="lazy" alt="The Medical Library collection listing its PDF books: Emergency War Surgery, A Book for Midwives, First Aid and the HHS Pandemic Influenza Plan, each with page count, size and 'Searchable'. The header reads 12 documents, 67 MB, 3,138 pages searchable.">
+          <figcaption><span class="mono">FIG. 5</span> A collection that once opened blank, now 12 searchable books</figcaption>
+        </figure>
+      </div>
+      <p class="more"><a href="case-study.html#decisions">How these were designed, and the evidence behind them</a> &rarr;</p>
+    </div>
+  </section>
+
+  <section id="kit" aria-labelledby="kit-h">
+    <div class="wrap">
+      <div class="head">
+        <span class="num">§<b>02</b></span>
         <h2 id="kit-h">What's in the pack</h2>
         <p>Everything below exists in the repository today and runs without a connection.</p>
       </div>
       <div class="kit">
         <article class="item">
-          <div class="id"><span>1.1</span><span>ASK</span></div>
+          <div class="id"><span>2.1</span><span>ASK</span></div>
           <h3>Ask anything, with sources</h3>
           <p>A local open-weights model answers from the offline library. Factual questions trigger a search first, answers cite the article they came from, and citations the model invents are stripped out.</p>
           <ul><li>Modes: Everyday, Road Trip, Field Medic, Fix-It, Study, Storyteller</li></ul>
         </article>
         <article class="item">
-          <div class="id"><span>1.2</span><span>LIBRARY</span></div>
+          <div class="id"><span>2.2</span><span>LIBRARY</span></div>
           <h3>A library for the long way round</h3>
           <p>All of English Wikipedia with images, WikiMed, Wikivoyage, iFixit repair guides, Wiktionary, nine Stack Exchange sites (DIY, mechanics, outdoors, ham radio and more), survival, water, food and knot guides, Project Gutenberg shelves and TED talks. There's a built-in reader too.</p>
         </article>
         <article class="item">
-          <div class="id"><span>1.3</span><span>MAPS</span></div>
+          <div class="id"><span>2.3</span><span>MAPS</span></div>
           <h3>Maps that need no signal</h3>
           <p>Street-level vector maps of the US and Canada, a world overview for everywhere else, and a globe view. It also gives turn-by-turn driving directions with time and distance.</p>
           <ul><li>Street-address search (US and Canada)</li><li>"What's near me" from GeoNames and 1.2M geotagged Wikipedia articles</li></ul>
         </article>
         <article class="item">
-          <div class="id"><span>1.4</span><span>POSITION</span></div>
+          <div class="id"><span>2.4</span><span>POSITION</span></div>
           <h3>Knows where you are</h3>
           <p>Location comes from a USB GPS, a phone riding along that streams its position, or a place you set on the map. Directions and "near me" follow it.</p>
         </article>
         <article class="item">
-          <div class="id"><span>1.5</span><span>VOICE</span></div>
+          <div class="id"><span>2.5</span><span>VOICE</span></div>
           <h3>Talk, hands on the wheel</h3>
           <p>A full-screen voice conversation. Whisper listens and Kokoro speaks, both on the device, and Mimi starts talking while the answer is still being written. There's push-to-talk on a game controller.</p>
         </article>
         <article class="item">
-          <div class="id"><span>1.6</span><span>LENS</span></div>
+          <div class="id"><span>2.6</span><span>LENS</span></div>
           <h3>Read a photo</h3>
           <p>Instant on-device text recognition for signs, labels and pages. The vision model can describe, translate or identify what it sees, as a second opinion rather than an authority.</p>
         </article>
         <article class="item">
-          <div class="id"><span>1.7</span><span>SCRIBE</span></div>
+          <div class="id"><span>2.7</span><span>SCRIBE</span></div>
           <h3>Notes that write themselves</h3>
           <p>Record or upload audio and get a timestamped transcript, a summary, key points and action items, all saved as searchable notes.</p>
         </article>
         <article class="item">
-          <div class="id"><span>1.8</span><span>MEMORY</span></div>
+          <div class="id"><span>2.8</span><span>MEMORY</span></div>
           <h3>Memory you can inspect</h3>
           <p>Suggested memories wait for your OK. Every one can be viewed, edited, pinned, paused or erased. Mimi can also search your own documents.</p>
         </article>
         <article class="item">
-          <div class="id"><span>1.9</span><span>SHARE</span></div>
+          <div class="id"><span>2.9</span><span>SHARE</span></div>
           <h3>Bring the whole group</h3>
           <p>Phones and laptops open Mimi over local Wi-Fi at <span class="mono">mimi.local</span>. You approve each new device on Mimi's own screen by matching a code, and guests get temporary chats.</p>
         </article>
         <article class="item">
-          <div class="id"><span>1.10</span><span>EXTEND</span></div>
+          <div class="id"><span>2.10</span><span>EXTEND</span></div>
           <h3>Teach it new tricks</h3>
           <p>Slash commands in the chat box (<span class="mono">/eli5</span>, <span class="mono">/translate</span>, <span class="mono">/steps</span>…). Drop a Python file into <span class="mono">tools/</span> to add an ability; sunrise and sunset times and a unit converter come included.</p>
         </article>
         <article class="item">
-          <div class="id"><span>1.11</span><span>HANDHELD</span></div>
+          <div class="id"><span>2.11</span><span>HANDHELD</span></div>
           <h3>Made for a handheld</h3>
           <p>Gamepad navigation, a command palette, and dark, light and OLED themes. Battery saver switches to a smaller model when you're low and unplugged.</p>
         </article>
         <article class="item">
-          <div class="id"><span>1.12</span><span>PORTABLE</span></div>
+          <div class="id"><span>2.12</span><span>PORTABLE</span></div>
           <h3>Carry it on a drive</h3>
           <p>One script copies Mimi to a USB drive that runs on any Windows 10 or 11 PC with nothing installed. A lite edition fits on 64 GB, and your accounts and chats stay behind unless you ask.</p>
         </article>
@@ -429,7 +484,7 @@ footer a { color: var(--ink-2); }
   <section id="offline" aria-labelledby="off-h">
     <div class="wrap">
       <div class="head">
-        <span class="num">§<b>02</b></span>
+        <span class="num">§<b>03</b></span>
         <h2 id="off-h">How it stays offline</h2>
         <p>Mimi needs the internet exactly once. After setup, nothing it does needs a connection, and its code makes no internet requests of its own.</p>
       </div>
@@ -456,7 +511,7 @@ footer a { color: var(--ink-2); }
   <section id="hardware" aria-labelledby="hw-h">
     <div class="wrap">
       <div class="head">
-        <span class="num">§<b>03</b></span>
+        <span class="num">§<b>04</b></span>
         <h2 id="hw-h">Hardware</h2>
         <p>Mimi runs on Windows 10 and 11 PCs (x64), and it's built and measured on a handheld. When it starts, it checks the memory and graphics and picks a model profile to match.</p>
       </div>
@@ -523,7 +578,7 @@ footer a { color: var(--ink-2); }
   <section id="install" aria-labelledby="in-h">
     <div class="wrap">
       <div class="head">
-        <span class="num">§<b>04</b></span>
+        <span class="num">§<b>05</b></span>
         <h2 id="in-h">Install</h2>
         <p>On a Windows 10 or 11 PC (x64), in PowerShell. No administrator rights needed, and a download that stops can pick up where it left off.</p>
       </div>
@@ -548,7 +603,7 @@ footer a { color: var(--ink-2); }
   <section id="planned" aria-labelledby="pl-h">
     <div class="wrap">
       <div class="head">
-        <span class="num">§<b>05</b></span>
+        <span class="num">§<b>06</b></span>
         <h2 id="pl-h">Further up the trail</h2>
         <p>These are planned, not built. They're listed so you know where Mimi is headed, not as promises about dates.</p>
       </div>
@@ -566,7 +621,7 @@ footer a { color: var(--ink-2); }
   <section id="licence" aria-labelledby="li-h">
     <div class="wrap">
       <div class="head">
-        <span class="num">§<b>06</b></span>
+        <span class="num">§<b>07</b></span>
         <h2 id="li-h">Licence &amp; sources</h2>
         <p>Open code, with honest notes about the content it downloads.</p>
       </div>

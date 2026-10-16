@@ -546,3 +546,34 @@ def test_library_api_without_kiwix(client):
     r = client.get("/api/library/books").json()
     assert r["books"] == [] and r["running"] is False and "indexing" in r
     assert client.get("/api/library/collection/nothing").status_code == 404
+
+
+def test_a_zim_cut_short_is_held_back_and_reported(tmp_path):
+    """A download that stopped early is never handed to kiwix-serve (which would list it, then fail);
+    the owner is told which file and how much of it arrived."""
+    import struct
+
+    from mimi.db import Database
+    from mimi.events import EventBus
+    from mimi.kiwix import KiwixService, zim_expected_size
+    from mimi.paths import Paths
+    from mimi.settings import SettingsStore
+
+    def zim(n_body: int) -> bytes:
+        head = bytearray(80)
+        struct.pack_into("<I", head, 0, 72173914)
+        struct.pack_into("<Q", head, 72, 80 + n_body)
+        return bytes(head) + b"z" * n_body + b"m" * 16
+
+    paths = Paths(data_override=tmp_path / "data")
+    paths.zim.mkdir(parents=True, exist_ok=True)
+    (paths.zim / "wikivoyage_en_all_maxi_2026-01.zim").write_bytes(zim(4000))
+    (paths.zim / "mdwiki_en_all_maxi_2025-11.zim").write_bytes(zim(4000)[:2500])
+    (paths.zim / "notes.zim").write_bytes(b"not a zim file " * 100)
+    svc = KiwixService(paths, SettingsStore(Database(paths.db_file)), EventBus())
+
+    assert [f.name for f in svc.zim_files()] == ["wikivoyage_en_all_maxi_2026-01.zim"]
+    held = {i["file"]: i for i in svc.incomplete}
+    assert held["mdwiki_en_all_maxi_2025-11.zim"] == {"file": "mdwiki_en_all_maxi_2025-11.zim", "size": 2500, "expected": 4096}
+    assert held["notes.zim"]["expected"] == 0
+    assert zim_expected_size(paths.zim / "wikivoyage_en_all_maxi_2026-01.zim") == 4096

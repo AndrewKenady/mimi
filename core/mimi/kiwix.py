@@ -69,6 +69,24 @@ EMBED_RETRY_AFTER = 20.0  # after a failed call, don't try the embedding server 
 Embedder = Callable[[list[str]], Awaitable[list[list[float]]]]
 
 
+def zim_expected_size(path: Path) -> int | None:
+    """The size a ZIM file must have, from its header (None if it isn't a ZIM).
+
+    The header records where the closing 16-byte MD5 sits, so a download that stopped
+    early shows up without hashing a 100 GB file (same rule as scripts/fetch.zim_complete).
+    """
+    import struct
+
+    try:
+        with open(path, "rb") as f:
+            head = f.read(80)
+    except OSError:
+        return None
+    if len(head) < 80 or struct.unpack_from("<I", head, 0)[0] != 72173914:  # ZIM magic number
+        return None
+    return struct.unpack_from("<Q", head, 72)[0] + 16
+
+
 def collection_of(name: str) -> str:
     n = name.lower()
     for key, _, pats in COLLECTIONS:
@@ -155,6 +173,7 @@ class KiwixService:
         self.events = events
         self.proc: ManagedProcess | None = None
         self.files: list[Path] = []
+        self.incomplete: list[dict] = []  # ZIMs held back because their download didn't finish
         self._task: asyncio.Task | None = None
         self._client: KiwixClient | None = None
         self.started_at = 0.0
@@ -166,6 +185,7 @@ class KiwixService:
     def zim_files(self) -> list[Path]:
         dirs = [self.paths.zim] + [Path(d) for d in self.settings.device("knowledge").extra_zim_dirs]
         files: list[Path] = []
+        incomplete: list[dict] = []
         for d in dirs:
             if not d.is_dir():
                 continue
@@ -177,7 +197,16 @@ class KiwixService:
                         continue
                 except OSError:
                     continue
+                expected = zim_expected_size(f)
+                if expected is None or f.stat().st_size != expected:
+                    # Cut short (an interrupted download) or not a ZIM at all: kiwix-serve would list it and
+                    # then fail on the missing part, so it is held back and the library says why.
+                    incomplete.append({"file": f.name, "size": f.stat().st_size, "expected": expected or 0})
+                    L.warning("skipping %s: %s", f.name, "not a ZIM file" if expected is None else
+                              f"incomplete ({f.stat().st_size} of {expected} bytes)")
+                    continue
                 files.append(f)
+        self.incomplete = incomplete
         # If a full edition exists, hide small dev editions of the same family.
         names = [f.name for f in files]
         if any(n.startswith("wikipedia_en_all") for n in names):

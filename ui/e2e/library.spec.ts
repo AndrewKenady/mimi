@@ -17,6 +17,10 @@ test('every card shows an honest status', async ({ page }) => {
 	await expect(card('Project Gutenberg: Classics')).toContainText('damaged');
 	// the header counts documents, not the "1 article" a nautilus ZIM reports, and the middot keeps its space
 	await expect(page.locator('.page-sub')).toContainText('12 documents');
+	// a download that stopped halfway isn't on the shelf, and the owner is told which and how far it got
+	const held = page.getByRole('status').filter({ hasText: "didn't finish downloading" });
+	await expect(held).toContainText('wiktionary_en_all_nopic_2026-07.zim');
+	await expect(held).toContainText('of 8.9 GB');
 	await expect(page.locator('body')).not.toContainText(/\d(articles|documents)·/);
 	expect(errors).toEqual([]);
 });
