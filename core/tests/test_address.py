@@ -13,13 +13,13 @@ CORE = Path(__file__).resolve().parents[1]
 if str(CORE) not in sys.path:
     sys.path.insert(0, str(CORE))
 
-from mimi.address import (  # noqa: E402
+from mimi.address import (
     AddressIndex, _key_variants, _spelled_out, _typos, cell_of, cells_around, encode_polyline, looks_like_address,
     parse_address,
 )
-from mimi.address_norm import STATES, VERSION, street_base, street_key  # noqa: E402
-from mimi.geodata import haversine_km, name_key  # noqa: E402
-from mimi.routing import decode_polyline6  # noqa: E402
+from mimi.address_norm import STATES, VERSION, street_base, street_key
+from mimi.geodata import haversine_km, name_key
+from mimi.routing import decode_polyline6
 
 # --------------------------------------------------------------------------- parser
 

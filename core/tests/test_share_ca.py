@@ -11,10 +11,10 @@ from types import SimpleNamespace
 import pytest
 
 x509 = pytest.importorskip("cryptography.x509")
-from cryptography.hazmat.primitives import hashes, serialization  # noqa: E402
-from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
-from cryptography.x509 import verification as xv  # noqa: E402
-from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID  # noqa: E402
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509 import verification as xv
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 
 @pytest.fixture()
@@ -35,14 +35,14 @@ def _load(p):
 def _verify(ca, leaf, name):
     store = xv.Store([ca])
     subject = xv.IPAddress(ipaddress.ip_address(name)) if name[0].isdigit() else xv.DNSName(name)
-    verifier = xv.PolicyBuilder().store(store).time(dt.datetime.now(dt.timezone.utc)).build_server_verifier(subject)
+    verifier = xv.PolicyBuilder().store(store).time(dt.datetime.now(dt.UTC)).build_server_verifier(subject)
     return verifier.verify(leaf, [])
 
 
 def _forge(ca_cert, ca_key, dns: list[str], ips: list[str] = ()):
     """What an attacker holding the CA key would mint."""
     key = ec.generate_private_key(ec.SECP256R1())
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     san = [x509.DNSName(d) for d in dns] + [x509.IPAddress(ipaddress.ip_address(i)) for i in ips]
     return (x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, (dns or ips)[0])]))
             .issuer_name(ca_cert.subject).public_key(key.public_key()).serial_number(x509.random_serial_number())
@@ -92,7 +92,7 @@ def _legacy_ca(certs):
     """The CA Mimi created before name constraints: ten years, unconstrained."""
     certs.mkdir(parents=True, exist_ok=True)
     key = ec.generate_private_key(ec.SECP256R1())
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Mimi Local Authority")])
     cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
             .serial_number(x509.random_serial_number()).not_valid_before(now - dt.timedelta(days=1))

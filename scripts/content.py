@@ -26,8 +26,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import fetch  # noqa: E402  (scripts/fetch.py: downloads, manifests)
-from fetch import GB, content_root, fmt_size, say  # noqa: E402
+import fetch
+from fetch import GB, content_root, fmt_size, say
 
 HEADROOM = 2 * GB  # keep this much free for Mimi's own data, logs and temp files
 

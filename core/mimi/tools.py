@@ -708,7 +708,7 @@ async def run(name: str, raw_args: str | dict | None, st: TurnState, svc) -> Too
                 res = await asyncio.wait_for(tool.run(args, st, svc), timeout=45)
             finally:
                 st.suggest_only = False
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return ToolResult("The tool took too long.", label=f"{name} timed out", ok=False)
     except Exception as e:
         L.exception("tool %s failed", name)

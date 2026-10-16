@@ -315,7 +315,7 @@ def _route(tokens: list[str]) -> str | None:
     i = 0
     # "State Hwy 59", "State Route 59", "Wyoming Highway 59", "WY 59", "SR 59", "Hwy 59", "Route 59"
     words = " ".join(t)
-    for name, code in STATES.items():
+    for name, _code in STATES.items():
         if words.startswith(name + " "):
             i = len(name.split())
             break

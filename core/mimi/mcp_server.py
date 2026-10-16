@@ -390,7 +390,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"mimi mcp: {e}", file=sys.stderr)
         return 2
     print(f"mimi mcp: serving Mimi tools from {core.base} over stdio", file=sys.stderr)
-    stdin = open(sys.stdin.fileno(), "r", encoding="utf-8", closefd=False)
+    stdin = open(sys.stdin.fileno(), encoding="utf-8", closefd=False)
     stdout = open(sys.stdout.fileno(), "w", encoding="utf-8", newline="\n", closefd=False)
     try:
         Server(MimiTools(core, allow_location=not a.no_location)).serve(stdin, stdout)

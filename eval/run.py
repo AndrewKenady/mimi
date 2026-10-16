@@ -24,7 +24,7 @@ import re
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import quote
@@ -32,7 +32,7 @@ from urllib.parse import quote
 import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import goldset  # noqa: E402
+import goldset
 
 RESULTS = goldset.HERE / "results"
 
@@ -136,7 +136,7 @@ class Mimi:
         body = {"content": question, "temporary": True, "mode": mode, "think": think}
         out: dict[str, Any] = {"deltas": 0, "tools": [], "error": None, "message": None, "meta": None, "statuses": []}
         t0 = time.perf_counter()
-        ms = lambda: int((time.perf_counter() - t0) * 1000)  # noqa: E731
+        ms = lambda: int((time.perf_counter() - t0) * 1000)
         starts: dict[str, dict] = {}
         with self.http.stream("POST", "/api/chats/new/messages", json=body) as r:
             if r.status_code == 401:
@@ -220,7 +220,7 @@ def html_to_text(html: str) -> str:
 
 # --------------------------------------------------------------------------- run
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _slug(s: str) -> str:

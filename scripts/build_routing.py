@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 GEOFABRIK = "https://download.geofabrik.de/{}-latest.osm.pbf"
 CONTINENTS = ("africa", "antarctica", "asia", "australia-oceania", "central-america", "europe", "north-america", "russia", "south-america")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import fetch  # noqa: E402  (verified, resumable downloads)
+import fetch
 
 
 def geofabrik_url(region: str) -> str:

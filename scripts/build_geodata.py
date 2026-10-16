@@ -136,7 +136,7 @@ def fmt_bytes(n: float) -> str:
 
 
 def utc_now_iso() -> str:
-    return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat()
+    return _dt.datetime.now(_dt.UTC).replace(microsecond=0).isoformat()
 
 
 def hilbert_key(lat: float, lon: float) -> int:
@@ -1024,7 +1024,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except DownloadError as e:
         log(f"ERROR: {e}")
         return 2
-    for name, stats in summary.items():
+    for _name, stats in summary.items():
         path = Path(stats.pop("file"))
         log(f"{path.name}: {fmt_bytes(path.stat().st_size)}  {json.dumps(stats, ensure_ascii=False)}")
     log("done")

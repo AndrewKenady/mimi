@@ -30,7 +30,7 @@ L = log.get("procs")
 
 _job_handle = None
 _job_lock = threading.Lock()
-_live: "weakref.WeakSet[ManagedProcess]" = weakref.WeakSet()
+_live: weakref.WeakSet[ManagedProcess] = weakref.WeakSet()
 
 PR_SET_PDEATHSIG = 1
 

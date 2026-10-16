@@ -383,7 +383,7 @@ def _worker_main(conn, file: str, module_name: str) -> None:  # pragma: no cover
     mod, load_error = None, None
     try:
         mod = _import_plugin(file, module_name)
-    except BaseException as e:  # noqa: BLE001 - report anything, including SystemExit
+    except BaseException as e:
         load_error = f"{type(e).__name__}: {e}"
     while True:
         try:
@@ -409,7 +409,7 @@ def _worker_main(conn, file: str, module_name: str) -> None:  # pragma: no cover
             if asyncio.iscoroutine(res):
                 res = asyncio.run(res)
             conn.send(("result", _normalise(res)))
-        except BaseException as e:  # noqa: BLE001
+        except BaseException as e:
             conn.send(("error", f"{type(e).__name__}: {e}"))
 
 

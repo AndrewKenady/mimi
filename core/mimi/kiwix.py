@@ -225,7 +225,7 @@ class KiwixService:
     def alive(self) -> bool:
         return bool(self.proc and self.proc.alive())
 
-    def watch(self, client: "KiwixClient") -> None:
+    def watch(self, client: KiwixClient) -> None:
         self._client = client
         client.refresh()  # survey the books and index their documents in the background
 
@@ -1012,7 +1012,7 @@ def article_blocks(html: str, book: str = "", path: str = "") -> tuple[str, str 
     """(title, lead image, [(kind, text)]) where kind is "h" (h2/h3 heading) or "p" (paragraph, list item…)."""
     tree = HTMLParser(html)
     h1 = tree.css_first("h1")
-    title = _clean(h1.text()) if h1 else _clean((tree.css_first("title").text() if tree.css_first("title") else ""))
+    title = _clean(h1.text()) if h1 else _clean(tree.css_first("title").text() if tree.css_first("title") else "")
     image = lead_image(tree, book, path)
     for sel in _DROP:
         for n in tree.css(sel):

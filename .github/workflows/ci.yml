@@ -35,7 +35,7 @@ jobs:
       - name: Install
         run: uv pip install -e ".[dev,build]"
       - name: Lint
-        run: uv run --no-sync ruff check .
+        run: uv run --no-sync ruff check . ../scripts ../tools ../eval ../ui/e2e
       - name: Test
         run: uv run --no-sync python -m pytest -q
 

@@ -20,7 +20,7 @@ CORE = Path(__file__).resolve().parents[1]
 if str(CORE) not in sys.path:  # allow running from any directory
     sys.path.insert(0, str(CORE))
 
-from mimi.geodata import (  # noqa: E402
+from mimi.geodata import (
     KM_PER_MILE,
     GeoData,
     _fts_term,
@@ -32,7 +32,7 @@ from mimi.geodata import (  # noqa: E402
     initial_bearing_deg,
     name_key,
 )
-from mimi.paths import default_root  # noqa: E402
+from mimi.paths import default_root
 
 MAPS = default_root() / "maps"
 HAVE_PLACES = (MAPS / "places.sqlite").is_file()

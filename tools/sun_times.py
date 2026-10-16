@@ -5,7 +5,7 @@ regions). Times are shown in the device's time zone.
 """
 
 import math
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, UTC
 
 MIMI_API = 1
 NAME = "sun_times"
@@ -27,7 +27,7 @@ TIMEOUT = 10
 
 
 def _julian_to_dt(j: float) -> datetime:
-    return datetime.fromtimestamp((j - 2440587.5) * 86400, tz=timezone.utc)
+    return datetime.fromtimestamp((j - 2440587.5) * 86400, tz=UTC)
 
 
 def solar_events(day: date, lat: float, lon: float) -> dict:

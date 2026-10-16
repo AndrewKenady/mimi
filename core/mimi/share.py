@@ -105,7 +105,7 @@ def ca_problem(ca_pem: Path, ca_key: Path) -> str | None:
     want = ca_name_constraints()
     if set(ext.value.permitted_subtrees or []) != set(want.permitted_subtrees or []):
         return "its local-network limits were out of date"
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     if cert.not_valid_after_utc - now < dt.timedelta(days=CA_RENEW_DAYS):
         return "it was about to expire"
     if cert.not_valid_after_utc - cert.not_valid_before_utc > dt.timedelta(days=CA_DAYS + 2):
@@ -342,7 +342,7 @@ class ShareService:
         self.cdir.mkdir(parents=True, exist_ok=True)
         _restrict_dir(self.cdir)
         ca_pem, ca_key_path = self.ca_paths()
-        now = dt.datetime.now(dt.timezone.utc)
+        now = dt.datetime.now(dt.UTC)
         problem = ca_problem(ca_pem, ca_key_path) if (ca_pem.exists() or ca_key_path.exists()) else None
         if problem:
             self._rotate_ca(problem)
@@ -562,7 +562,7 @@ class ShareService:
 
         cfg = self.svc.settings.device("sharing")
         if kind == "wifi":
-            esc = lambda s: "".join("\\" + c if c in '\\;,:"' else c for c in s)  # noqa: E731
+            esc = lambda s: "".join("\\" + c if c in '\\;,:"' else c for c in s)
             data = f"WIFI:T:WPA;S:{esc(cfg.ssid)};P:{esc(cfg.wifi_password)};;"
         else:
             u = self.urls()

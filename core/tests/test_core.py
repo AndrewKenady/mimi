@@ -1,6 +1,5 @@
 """Unit and API tests for Mimi Core (no model or network needed)."""
 
-import json
 
 import pytest
 
@@ -253,7 +252,7 @@ def test_community_tool_plugins(client, tmp_path):
 
 def test_example_tools():
     import importlib.util
-    from datetime import date, datetime
+    from datetime import date
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[2] / "tools"

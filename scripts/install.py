@@ -29,8 +29,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import fetch  # noqa: E402
-from fetch import ROOT, say  # noqa: E402
+import fetch
+from fetch import ROOT, say
 
 PYTHON = "3.12"
 # Packages Core needs beyond core/pyproject.toml: Valhalla (directions) and osmium (map builds).

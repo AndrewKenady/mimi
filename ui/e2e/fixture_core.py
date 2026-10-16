@@ -25,15 +25,15 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "core"))
 
-import uvicorn  # noqa: E402
-from fastapi.responses import RedirectResponse  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+import uvicorn
+from fastapi.responses import RedirectResponse
+from fastapi.testclient import TestClient
 
-from mimi import llm  # noqa: E402
-from mimi.app import create_app  # noqa: E402
-from mimi.kiwix import Book, Hit, Passage, alias_of  # noqa: E402
-from mimi.libindex import Doc  # noqa: E402
-from mimi.paths import Paths  # noqa: E402
+from mimi import llm
+from mimi.app import create_app
+from mimi.kiwix import Book, Hit, Passage, alias_of
+from mimi.libindex import Doc
+from mimi.paths import Paths
 
 HYPO = (
     "Hypothermia is defined as a body core temperature below 35.0 °C (95.0 °F) in humans. Symptoms depend on the temperature.\n"

@@ -73,7 +73,7 @@ from typing import Iterable, Iterator, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "core"))
 
-from mimi.address_norm import STATE_CODES, VERSION, house_number, street_base, street_key  # noqa: E402
+from mimi.address_norm import STATE_CODES, VERSION, house_number, street_base, street_key
 
 DL = ROOT / ".tools" / "dl"
 DEFAULT_OUT = ROOT / "maps" / "addresses.sqlite"
@@ -860,7 +860,7 @@ def merge(b: Build) -> dict[str, int]:
 def finish(b: Build, counts: dict[str, int]) -> Path:
     db = b.db
     meta = {"norm_version": str(VERSION),
-            "built_at": _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat(),
+            "built_at": _dt.datetime.now(_dt.UTC).replace(microsecond=0).isoformat(),
             "sources": json.dumps(b.sources, ensure_ascii=False),
             "attribution": "; ".join(dict.fromkeys(s["attribution"] for s in b.sources)),
             **{k: str(v) for k, v in counts.items()}}

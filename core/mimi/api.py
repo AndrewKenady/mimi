@@ -6,13 +6,12 @@ import asyncio
 import functools
 import hashlib
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
@@ -209,7 +208,7 @@ async def setup(body: SetupIn, request: Request):
     try:
         u = svc.auth.create(body.name, "owner", pin=body.pin or None)
     except AuthError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     token = svc.auth.create_session(u["id"], request.headers.get("user-agent", ""), request.client.host if request.client else "")
     resp = JSONResponse({"user": public_user(u)})
     _cookie(resp, token, request)
@@ -269,7 +268,7 @@ async def pair_request(body: PairIn, request: Request):
             raise HTTPException(404, "There's no account with that name on this Mimi.")
         r = svc.pairing.request(u, request.headers.get("user-agent", ""), ip)
     except ValueError as e:
-        raise HTTPException(429, str(e))
+        raise HTTPException(429, str(e)) from e
     return {**r, "device_screen": _device_screen(svc)}
 
 
@@ -351,7 +350,7 @@ async def guest(body: GuestIn, request: Request):
     try:
         u = svc.auth.create((body.name or "Guest").strip()[:30] or "Guest", "guest")
     except AuthError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     token = svc.auth.create_session(u["id"], request.headers.get("user-agent", ""), request.client.host if request.client else "")
     resp = JSONResponse({"user": public_user(u)})
     _cookie(resp, token, request)
@@ -382,7 +381,7 @@ async def create_user(body: UserIn, request: Request, ctx: Ctx = Depends(owner_c
     try:
         return public_user(S(request).auth.create(body.name, "user", pin=body.pin, password=body.password))
     except AuthError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.patch("/users/{user_id}")
@@ -392,7 +391,7 @@ async def patch_user(user_id: str, body: UserPatch, request: Request, ctx: Ctx =
     try:
         return public_user(S(request).auth.update(user_id, name=body.name, pin=body.pin, password=body.password, color=body.color))
     except AuthError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.delete("/users/{user_id}")
@@ -420,7 +419,7 @@ async def patch_settings(scope: str, section: str, body: dict[str, Any], request
         before = svc.settings.device(section).model_dump() if scope == "device" and section in DEVICE_SECTIONS else None
         new = svc.settings.update(scope, section, body, user_id=ctx.id, role=ctx.role)
     except SettingsError as e:
-        raise HTTPException(422, str(e))
+        raise HTTPException(422, str(e)) from e
     await _apply_side_effects(svc, scope, section, before, new)
     svc.events.publish("settings", {"scope": scope, "section": section, "value": new}, user_id=None if scope == "device" else ctx.id)
     return new
@@ -434,7 +433,7 @@ async def _apply_side_effects(svc: Services, scope: str, section: str, before: d
             system.set_autostart(new["launch_at_startup"], svc.paths)
         except Exception as e:
             svc.settings.update("device", "general", {"launch_at_startup": system.autostart_enabled()})
-            raise HTTPException(400, f"Couldn't change startup setting: {e}")
+            raise HTTPException(400, f"Couldn't change startup setting: {e}") from e
     if section == "sharing":
         if new["enabled"] and (not svc.share.running or before.get("https_port") != new["https_port"]):
             await svc.share.stop()
@@ -479,7 +478,7 @@ async def import_settings(body: dict[str, Any], request: Request, ctx: Ctx = Dep
     try:
         S(request).settings.import_(body, ctx.id, ctx.role, include_device=ctx.is_owner)
     except SettingsError as e:
-        raise HTTPException(422, str(e))
+        raise HTTPException(422, str(e)) from e
     return S(request).settings.all_for(ctx.id, ctx.role)
 
 
@@ -629,7 +628,7 @@ def _sse(stream_factory) -> StreamingResponse:
         while True:
             try:
                 ev = await asyncio.wait_for(queue.get(), timeout=15)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 yield ": keep-alive\n\n"
                 continue
             if ev is None:
@@ -690,7 +689,7 @@ async def add_memory(body: MemoryIn, request: Request, ctx: Ctx = Depends(member
     try:
         return await S(request).memory.add(ctx.id, body.text, body.category, "active", pinned=body.pinned)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.patch("/memories/{mem_id}")
@@ -735,7 +734,7 @@ async def upload(request: Request, file: UploadFile = File(...), ctx: Ctx = Depe
     try:
         return await asyncio.to_thread(S(request).uploads.save, ctx, file.filename or "upload", data, file.content_type)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.get("/uploads/{upload_id}")
@@ -955,7 +954,7 @@ async def add_file(request: Request, file: UploadFile = File(...), ctx: Ctx = De
     try:
         return await S(request).docs.add_upload(ctx.id, file.filename or "file", await file.read())
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.delete("/files/{doc_id}")
@@ -1088,7 +1087,7 @@ async def route(body: RouteIn, request: Request, ctx: Ctx = Depends(get_ctx)):
         return await asyncio.to_thread(svc.routing.route, (float(origin["lat"]), float(origin["lon"])),
                                        (float(body.to["lat"]), float(body.to["lon"])), body.mode, units)
     except ValueError as e:
-        raise HTTPException(422, str(e))
+        raise HTTPException(422, str(e)) from e
 
 
 def _range_file(path: Path, request: Request, media_type: str) -> Response:
@@ -1141,7 +1140,7 @@ async def stt(request: Request, file: UploadFile = File(...), language: str | No
         r = await asyncio.to_thread(svc.voice.transcribe, data, model if model == "small" else "small", language)
     except Exception as e:
         L.exception("stt failed")
-        raise HTTPException(500, f"Couldn't transcribe: {e}")
+        raise HTTPException(500, f"Couldn't transcribe: {e}") from e
     return {"text": r["text"], "language": r["language"], "duration": r["duration"]}
 
 
@@ -1234,7 +1233,7 @@ async def lens_ocr(request: Request, file: UploadFile = File(...), ctx: Ctx = De
     try:
         return await asyncio.to_thread(S(request).lens.ocr_bytes, data)
     except Exception as e:
-        raise HTTPException(400, f"Couldn't read that image: {e}")
+        raise HTTPException(400, f"Couldn't read that image: {e}") from e
 
 
 # =========================================================================== sharing

@@ -875,7 +875,7 @@ class AddressIndex:
             rows = self._all(f"SELECT {_STREET_COLS} FROM streets WHERE {where} AND cell IN ({','.join(map(str, cells))})",
                              tuple(values))
         out = []
-        for sid, key, base, name, cell, lat, lon, reg, pc in rows:
+        for sid, key, _base, name, _cell, lat, lon, reg, pc in rows:
             if region and reg and reg != region:
                 continue
             out.append({"id": sid, "key": key, "name": name, "lat": lat / 1e6, "lon": lon / 1e6, "region": reg, "postcode": pc})
@@ -1135,7 +1135,7 @@ class AddressIndex:
                 w = cache[k]
                 # the nearest town can be across a border (Orléans, Ontario for a street in Gatineau;
                 # Point Roberts, Washington for one in Delta, BC): then name the locality instead
-                same = lambda x: not r.get("admin1") or not x.get("admin1") or x["admin1"] == r["admin1"]
+                same = lambda x: not r.get("admin1") or not x.get("admin1") or x["admin1"] == r["admin1"]  # noqa: B023 (called within this iteration)
                 loc = w.get("locality") if isinstance(w.get("locality"), dict) else {}
                 if w.get("place") and (w.get("distance_km") or 0) <= 25 and same(w):
                     town = w["place"]

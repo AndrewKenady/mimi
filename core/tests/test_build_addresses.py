@@ -20,8 +20,8 @@ ROOT = CORE.parent
 if str(CORE) not in sys.path:
     sys.path.insert(0, str(CORE))
 
-from mimi.address_norm import VERSION, street_key  # noqa: E402
-from mimi.routing import decode_polyline6  # noqa: E402
+from mimi.address_norm import VERSION, street_key
+from mimi.routing import decode_polyline6
 
 _spec = importlib.util.spec_from_file_location("build_addresses", ROOT / "scripts" / "build_addresses.py")
 ba = importlib.util.module_from_spec(_spec)

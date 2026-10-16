@@ -35,7 +35,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 GB = 1024**3
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import fetch  # noqa: E402  (platform-aware tool lookup)
+import fetch
 
 CODE = ["core", "config", "scripts", "manifests", "docs", "tools", "shell", "LICENSE", "README.md"]
 EXCLUDE_DIRS = ["__pycache__", ".pytest_cache", "node_modules", ".svelte-kit", "obj", "bin\\Debug", "tests"]

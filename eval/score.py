@@ -34,7 +34,7 @@ from typing import Any, Callable
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import goldset  # noqa: E402
+import goldset
 
 try:
     from mimi import grounding
@@ -55,7 +55,7 @@ def load_rows(path: str | Path) -> list[dict]:
             try:
                 rows.append(json.loads(line))
             except ValueError as e:
-                raise SystemExit(f"{path}:{i}: not JSON ({e})")
+                raise SystemExit(f"{path}:{i}: not JSON ({e})") from e
     return rows
 
 

@@ -85,7 +85,7 @@ def test_parse_args_never_evaluates():
 
 
 def test_hung_plugin_is_killed_on_timeout(tmp_path):
-    f = _tool(tmp_path, "sleepy", "import time\ndef run(args, ctx):\n    time.sleep(60)\n", header=V1.format(name="sleepy") + "TIMEOUT = 1\n")
+    _tool(tmp_path, "sleepy", "import time\ndef run(args, ctx):\n    time.sleep(60)\n", header=V1.format(name="sleepy") + "TIMEOUT = 1\n")
     (p,) = discover(tmp_path, set())
     ctx = PluginContext(user_name="t", units="metric", location=None, now=datetime.now().astimezone(), data_dir=tmp_path / "d")
     t0 = time.monotonic()
