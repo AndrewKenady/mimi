@@ -73,7 +73,7 @@ Add or remove content any time with `python -m mimi content list | add | remove`
 
 Every push runs [CI](.github/workflows/ci.yml) (Core on Linux, Windows and macOS):
 
-- **Core:** 356 tests, from geocoding to the CA's name constraints and prompt-injection defences, plus ruff.
+- **Core:** 366 tests, from geocoding to the CA's name constraints and prompt-injection defences, plus ruff.
 - **UI:**
   - type checks;
   - a WCAG AA contrast audit of every theme × token pair;
