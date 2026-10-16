@@ -11,13 +11,17 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import datetime as dt
 import io
 import ipaddress
+import json
+import os
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import psutil
@@ -27,6 +31,178 @@ from . import log
 L = log.get("share")
 RULE_NAME = "Mimi Share"
 LEGACY_RULE_NAMES = ("MIMI Share",)  # rules created before the rename still count
+
+# --------------------------------------------------------------------------- local CA policy
+# The CA is name-constrained (RFC 5280 §4.2.1.10): a phone that installs it trusts it only for
+# these names and addresses, so even a stolen copy of the key can't impersonate a real website.
+CA_PERMITTED_DNS = ("local", "localhost")  # "local" covers mimi.local and <hostname>.local
+CA_PERMITTED_NETS = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "127.0.0.0/8",
+                     "fc00::/7", "fe80::/10", "::1/128")
+CA_DAYS = 730      # two years; Mimi replaces it (and says so) 30 days before it runs out
+CA_RENEW_DAYS = 30
+LEAF_DAYS = 397    # never longer than the CA itself
+_DPAPI_MAGIC = b"MIMI-DPAPI-1\n"
+
+
+def ca_name_constraints():
+    from cryptography import x509
+
+    return x509.NameConstraints(
+        permitted_subtrees=[x509.DNSName(d) for d in CA_PERMITTED_DNS]
+        + [x509.IPAddress(ipaddress.ip_network(n)) for n in CA_PERMITTED_NETS],
+        excluded_subtrees=None,
+    )
+
+
+def _permitted_ip(ip: str) -> bool:
+    try:
+        a = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return any(a in ipaddress.ip_network(n) for n in CA_PERMITTED_NETS if ipaddress.ip_network(n).version == a.version)
+
+
+def leaf_ips(ips: list[str]) -> list[str]:
+    """Addresses the server certificate may name. A public or carrier-grade NAT address would put
+    the certificate outside the CA's constraints and make phones reject it, so those are left out
+    (phones on such a network use https://mimi.local instead)."""
+    return [i for i in dict.fromkeys(ips) if _permitted_ip(i)]
+
+
+def leaf_dns_names(hostname: str) -> list[str]:
+    host = "".join(c for c in (hostname or "").lower() if c.isalnum() or c == "-").strip("-")[:63]
+    return list(dict.fromkeys(["mimi.local", "localhost", *([f"{host}.local"] if host else [])]))
+
+
+def fingerprint(cert) -> str:
+    from cryptography.hazmat.primitives import hashes
+
+    return cert.fingerprint(hashes.SHA256()).hex(":").upper()
+
+
+def _name_constraints(cert):
+    from cryptography import x509
+
+    try:
+        ext = cert.extensions.get_extension_for_class(x509.NameConstraints)
+    except x509.ExtensionNotFound:
+        return None
+    return ext if ext.critical else None
+
+
+def ca_problem(ca_pem: Path, ca_key: Path) -> str | None:
+    """Why an existing CA must be replaced, or None when it's fine to keep."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import serialization
+
+    try:
+        cert = x509.load_pem_x509_certificate(ca_pem.read_bytes())
+    except Exception:
+        return "the certificate file was missing or unreadable"
+    ext = _name_constraints(cert)
+    if ext is None:
+        return "it wasn't limited to the local network"
+    want = ca_name_constraints()
+    if set(ext.value.permitted_subtrees or []) != set(want.permitted_subtrees or []):
+        return "its local-network limits were out of date"
+    now = dt.datetime.now(dt.timezone.utc)
+    if cert.not_valid_after_utc - now < dt.timedelta(days=CA_RENEW_DAYS):
+        return "it was about to expire"
+    if cert.not_valid_after_utc - cert.not_valid_before_utc > dt.timedelta(days=CA_DAYS + 2):
+        return "it was valid for too long"
+    try:
+        key = serialization.load_pem_private_key(unprotect_key(ca_key.read_bytes()), None)
+    except Exception:
+        return "its key can't be read on this computer (was the drive moved?)"
+    if key.public_key().public_numbers() != cert.public_key().public_numbers():
+        return "its key didn't match"
+    return None
+
+
+# --------------------------------------------------------------------------- key at rest
+def _restrict_dir(path: Path) -> None:
+    if os.name == "posix":
+        with contextlib.suppress(OSError):
+            os.chmod(path, 0o700)
+
+
+def _write_private(path: Path, data: bytes) -> None:
+    """Write a file only the current user can read (POSIX mode 0600; on Windows the data
+    folder already sits in the user's profile or on their drive)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0), 0o600)
+    try:
+        os.write(fd, data)
+    finally:
+        os.close(fd)
+    if os.name == "posix":
+        os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+
+def _shred(path: Path) -> None:
+    """Best-effort overwrite, then delete (SSDs may keep old blocks; this is still better than unlink)."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return
+    with contextlib.suppress(OSError):
+        with open(path, "r+b") as f:
+            f.write(os.urandom(size))
+            f.flush()
+            os.fsync(f.fileno())
+    with contextlib.suppress(OSError):
+        path.unlink()
+
+
+def _dpapi(data: bytes, protect: bool) -> bytes:
+    """Windows DPAPI (current user): the blob only opens under this Windows account on this PC."""
+    import ctypes
+    from ctypes import wintypes
+
+    class Blob(ctypes.Structure):
+        _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_char))]
+
+    def blob(b: bytes):
+        buf = ctypes.create_string_buffer(b, len(b))
+        return Blob(len(b), ctypes.cast(buf, ctypes.POINTER(ctypes.c_char))), buf
+
+    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)  # type: ignore[attr-defined]
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+    fn = crypt32.CryptProtectData if protect else crypt32.CryptUnprotectData
+    fn.argtypes = [ctypes.POINTER(Blob), wintypes.LPCWSTR, ctypes.POINTER(Blob), ctypes.c_void_p, ctypes.c_void_p,
+                   wintypes.DWORD, ctypes.POINTER(Blob)]
+    fn.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    src, _keep1 = blob(data)
+    entropy, _keep2 = blob(b"Mimi local certificate authority")
+    out = Blob()
+    if not fn(ctypes.byref(src), "Mimi CA key" if protect else None, ctypes.byref(entropy), None, None, 0x1, ctypes.byref(out)):
+        raise OSError(ctypes.get_last_error(), "DPAPI failed")  # type: ignore[attr-defined]
+    try:
+        return ctypes.string_at(out.pbData, out.cbData)
+    finally:
+        kernel32.LocalFree(ctypes.cast(out.pbData, ctypes.c_void_p))
+
+
+def protect_key(pem: bytes) -> bytes:
+    """Seal the CA key for storage: DPAPI on Windows (so a copied drive is useless without this
+    Windows login), otherwise PEM in a 0600 file."""
+    if sys.platform == "win32":
+        try:
+            return _DPAPI_MAGIC + base64.b64encode(_dpapi(pem, True)) + b"\n"
+        except Exception as e:  # pragma: no cover - Windows only
+            L.warning("couldn't protect the CA key with DPAPI (%s); storing it as a private file", e)
+    return pem
+
+
+def unprotect_key(data: bytes) -> bytes:
+    if data.startswith(_DPAPI_MAGIC):
+        if sys.platform != "win32":
+            raise ValueError("this key is sealed to a Windows account")
+        return _dpapi(base64.b64decode(data[len(_DPAPI_MAGIC):].strip()), False)
+    return data
 
 
 def interfaces() -> list[dict]:
@@ -79,6 +255,11 @@ class ShareService:
         self.redirect = None
         self.redirect_task: asyncio.Task | None = None
         self.redirect_port: int | None = None
+        self._ca_info_cache: tuple | None = None
+        try:  # retire an old, unconstrained CA at startup even if sharing stays off
+            self._migrate_ca()
+        except Exception as e:
+            L.warning("certificate check failed: %s", e)
 
     # --- certificates ------------------------------------------------------------------
     @property
@@ -88,37 +269,116 @@ class ShareService:
     def ca_paths(self) -> tuple[Path, Path]:
         return self.cdir / "mimi-ca.pem", self.cdir / "mimi-ca.key"
 
+    def _notice_path(self) -> Path:
+        return self.cdir / "ca-notice.json"
+
+    def _migrate_ca(self) -> None:
+        """At startup: retire a CA that phones shouldn't keep trusting (made before name
+        constraints, expiring, or whose key can't be read on this computer)."""
+        ca_pem, ca_key = self.ca_paths()
+        if not ca_pem.exists() and not ca_key.exists():
+            return
+        reason = ca_problem(ca_pem, ca_key)
+        if reason:
+            self._rotate_ca(reason)
+
+    def _rotate_ca(self, reason: str) -> None:
+        """Destroy the old CA (and the server certificate it signed) and leave a notice: phones
+        that installed the old one must remove it and install the new one from /cert."""
+        ca_pem, ca_key = self.ca_paths()
+        old_fp = None
+        with contextlib.suppress(Exception):
+            from cryptography import x509
+
+            old_fp = fingerprint(x509.load_pem_x509_certificate(ca_pem.read_bytes()))
+        for f in (ca_key, self.cdir / "server.key", ca_pem, self.cdir / "server.pem"):
+            _shred(f)
+        self._ca_info_cache = None
+        _write_private(self._notice_path(), json.dumps({"rotated_at": time.time(), "reason": reason, "old_fingerprint": old_fp,
+                                                        "acknowledged": False}).encode())
+        L.warning("retired the local certificate authority (%s); phones must install the new one from /cert", reason)
+
+    def ca_notice(self) -> dict | None:
+        """The pending "re-install the certificate on your phones" notice, if any."""
+        try:
+            n = json.loads(self._notice_path().read_text("utf-8"))
+        except (OSError, ValueError):
+            return None
+        return None if n.get("acknowledged") else n
+
+    def ack_ca_notice(self) -> None:
+        n = self.ca_notice()
+        if n:
+            _write_private(self._notice_path(), json.dumps({**n, "acknowledged": True}).encode())
+
+    def ca_info(self) -> dict | None:
+        """What a person needs to check the certificate on a phone: fingerprint, expiry, scope."""
+        ca_pem = self.ca_paths()[0]
+        try:
+            st = ca_pem.stat()
+        except OSError:
+            return None
+        key = (st.st_mtime_ns, st.st_size)
+        if self._ca_info_cache and self._ca_info_cache[0] == key:
+            info = self._ca_info_cache[1]
+        else:
+            try:
+                from cryptography import x509
+
+                c = x509.load_pem_x509_certificate(ca_pem.read_bytes())
+                info = {"name": c.subject.rfc4514_string(), "fingerprint_sha256": fingerprint(c),
+                        "not_after": c.not_valid_after_utc.isoformat(), "local_only": _name_constraints(c) is not None}
+            except Exception:
+                return None
+            self._ca_info_cache = (key, info)
+        return {**info, "notice": self.ca_notice()}
+
     def ensure_certs(self) -> tuple[Path, Path]:
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes, serialization
         from cryptography.hazmat.primitives.asymmetric import ec
         from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
+        self.cdir.mkdir(parents=True, exist_ok=True)
+        _restrict_dir(self.cdir)
         ca_pem, ca_key_path = self.ca_paths()
         now = dt.datetime.now(dt.timezone.utc)
+        problem = ca_problem(ca_pem, ca_key_path) if (ca_pem.exists() or ca_key_path.exists()) else None
+        if problem:
+            self._rotate_ca(problem)
         if not ca_pem.exists() or not ca_key_path.exists():
             key = ec.generate_private_key(ec.SECP256R1())
-            name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Mimi Local Authority"), x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Mimi")])
+            # The date in the name tells people which "Mimi" certificate on their phone is current.
+            name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, f"Mimi Local Authority {now:%Y-%m-%d} (local network only)"),
+                              x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Mimi")])
             cert = (
                 x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
-                .serial_number(x509.random_serial_number()).not_valid_before(now - dt.timedelta(days=1)).not_valid_after(now + dt.timedelta(days=3650))
+                .serial_number(x509.random_serial_number()).not_valid_before(now - dt.timedelta(days=1))
+                .not_valid_after(now + dt.timedelta(days=CA_DAYS))
                 .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
                 .add_extension(x509.KeyUsage(digital_signature=True, key_cert_sign=True, crl_sign=True, content_commitment=False, key_encipherment=False,
                                              data_encipherment=False, key_agreement=False, encipher_only=False, decipher_only=False), critical=True)
+                # Phones that trust this CA trust it only for local names and private addresses: a copy
+                # of the key can't be used to impersonate any real website.
+                .add_extension(ca_name_constraints(), critical=True)
                 .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
                 .sign(key, hashes.SHA256())
             )
-            ca_key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+            _write_private(ca_key_path, protect_key(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                                                       serialization.NoEncryption())))
             ca_pem.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+            self._ca_info_cache = None
+            L.info("created a local certificate authority (local names and private addresses only)")
         ca_cert = x509.load_pem_x509_certificate(ca_pem.read_bytes())
-        ca_key = serialization.load_pem_private_key(ca_key_path.read_bytes(), None)
+        ca_key = serialization.load_pem_private_key(unprotect_key(ca_key_path.read_bytes()), None)
 
         srv_pem, srv_key = self.cdir / "server.pem", self.cdir / "server.key"
-        ips = ["127.0.0.1", *local_ipv4s()]
+        ips = leaf_ips(["127.0.0.1", *local_ipv4s()])
         need = True
         if srv_pem.exists() and srv_key.exists():
             try:
                 c = x509.load_pem_x509_certificate(srv_pem.read_bytes())
+                c.verify_directly_issued_by(ca_cert)  # signed by the current CA (not a retired one)
                 san = c.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
                 have = {str(i) for i in san.get_values_for_type(x509.IPAddress)}
                 need = not set(ips) <= have or c.not_valid_after_utc < now + dt.timedelta(days=30)
@@ -126,20 +386,24 @@ class ShareService:
                 need = True
         if need:
             key = ec.generate_private_key(ec.SECP256R1())
-            host = socket.gethostname().lower()
-            dns = ["mimi.local", "localhost", f"{host}.local"]
+            dns = leaf_dns_names(socket.gethostname())
             san = [x509.DNSName(d) for d in dns] + [x509.IPAddress(ipaddress.ip_address(i)) for i in ips]
             cert = (
                 x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "mimi.local")]))
                 .issuer_name(ca_cert.subject).public_key(key.public_key()).serial_number(x509.random_serial_number())
-                .not_valid_before(now - dt.timedelta(days=1)).not_valid_after(now + dt.timedelta(days=397))
+                .not_valid_before(now - dt.timedelta(days=1))
+                .not_valid_after(min(now + dt.timedelta(days=LEAF_DAYS), ca_cert.not_valid_after_utc - dt.timedelta(hours=1)))
                 .add_extension(x509.SubjectAlternativeName(san), critical=False)
                 .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+                .add_extension(x509.KeyUsage(digital_signature=True, key_cert_sign=False, crl_sign=False, content_commitment=False, key_encipherment=False,
+                                             data_encipherment=False, key_agreement=False, encipher_only=False, decipher_only=False), critical=True)
                 .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False)
+                .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
                 .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()), critical=False)
                 .sign(ca_key, hashes.SHA256())
             )
-            srv_key.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+            # uvicorn reads this key from a file path, so it stays PEM (0600); it can only vouch for local names.
+            _write_private(srv_key, key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
             srv_pem.write_bytes(cert.public_bytes(serialization.Encoding.PEM) + ca_cert.public_bytes(serialization.Encoding.PEM))
             L.info("issued local certificate for %s", ", ".join(dns + ips))
         return srv_pem, srv_key
@@ -281,6 +545,9 @@ class ShareService:
             "enabled": cfg.enabled, "running": self.running, "error": self.error, "ssid": cfg.ssid, "network_mode": cfg.network_mode,
             "port": self.port or cfg.https_port, "redirect_port": self.redirect_port, "urls": self.urls(), "mdns": self.zc is not None,
             "ips": [i["ip"] for i in interfaces()],
+            # fingerprint/expiry to compare on a phone; "notice" is set after the CA was replaced,
+            # until the owner dismisses it (phones must remove the old certificate and install the new one)
+            "ca": self.ca_info(),
         }
         if owner:
             o = self.svc.auth.owner()
