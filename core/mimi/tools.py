@@ -244,9 +244,11 @@ async def search_library(args: dict, st: TurnState, svc) -> ToolResult:
     top = _dedupe_hits(hits)[:n]
     passages = await asyncio.gather(*(svc.kiwix.passage(h, q, chars) for h in top), return_exceptions=True)
     blocks, sources = [], []
+    pages = 0
     for p in passages:
         if not p or isinstance(p, Exception):
             continue
+        pages += p.extra.get("kind") == "pdf"
         src = {
             "type": "library", "title": p.title, "book": p.book, "book_title": p.book_title, "collection": p.collection,
             "path": p.path, "url": p.url, "image": p.image, "snippet": p.text[:240],
@@ -259,8 +261,14 @@ async def search_library(args: dict, st: TurnState, svc) -> ToolResult:
         return ToolResult(f"No results in the offline library for “{q}”. Try different words, or answer from general knowledge and say so.",
                           label=f"Searched {where} for “{q}”", summary="No results", ok=False)
     text = "\n\n".join(blocks) + f"\n\nCite these as [n]. {UNTRUSTED_NOTE}"
-    return ToolResult(text, label=f"Searched {where} for “{q}”", summary=f"Read {len(sources)} article{'s' if len(sources) != 1 else ''}",
+    return ToolResult(text, label=f"Searched {where} for “{q}”", summary=_read_summary(len(sources) - pages, pages),
                       sources=sources, untrusted=True)
+
+
+def _read_summary(articles: int, pages: int) -> str:
+    """"Read 3 articles", "Read 2 document pages", "Read 1 article and 2 document pages"."""
+    parts = [f"{n} {noun}{'s' if n != 1 else ''}" for n, noun in ((articles, "article"), (pages, "document page")) if n]
+    return "Read " + " and ".join(parts)
 
 
 def _passage_block(n: int, p) -> str:
