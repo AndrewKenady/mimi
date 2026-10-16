@@ -741,7 +741,8 @@ class Item:
         part = out.with_name(out.name + ".part")
         out.parent.mkdir(parents=True, exist_ok=True)
         part.unlink(missing_ok=True)  # pmtiles extract can't resume; start clean
-        subprocess.run([str(exe), "extract", src, str(part), *args, "--download-threads=8"], check=True)
+        quiet = [] if sys.stdout.isatty() else ["--quiet"]  # its progress bar floods logs
+        subprocess.run([str(exe), "extract", src, str(part), *args, "--download-threads=8", *quiet], check=True)
         r = subprocess.run([str(exe), "verify", str(part)], capture_output=True, text=True)
         if r.returncode != 0:
             part.unlink(missing_ok=True)

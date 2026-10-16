@@ -20,12 +20,13 @@ def serve(args: argparse.Namespace) -> None:
     from . import log
     from .app import MAIN_PORT, create_app
 
-    if args.host not in ("127.0.0.1", "localhost", "::1"):
+    app = create_app()
+    if args.host not in ("127.0.0.1", "localhost", "::1") and not os.path.exists("/.dockerenv"):
         # Owner auto-sign-in only ever applies to loopback (and MIMI_LOCAL_PEERS) clients, so
         # other machines that can reach this port get the sign-in page - but they can reach it.
-        log.get("main").warning("listening on %s: the app port is reachable from other machines", args.host)
+        log.get("main").warning("listening on %s: other machines that can reach port %s get Mimi's sign-in page",
+                                args.host, args.port or MAIN_PORT)
 
-    app = create_app()
     config = uvicorn.Config(app, host=args.host, port=args.port or MAIN_PORT, log_config=None, access_log=False,
                             ws_ping_interval=20, timeout_graceful_shutdown=5)
     server = uvicorn.Server(config)
