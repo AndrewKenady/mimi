@@ -7,6 +7,8 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
+	import { dialog } from '$lib/dialog';
+	import { motion } from '$lib/motion';
 	import { app } from '$lib/app.svelte';
 	import { post, stream } from '$lib/api';
 	import { Recorder, Speaker, transcribe } from '$lib/audio';
@@ -34,12 +36,10 @@
 	});
 	let typed = $state('');
 	let typeBox: HTMLInputElement | undefined = $state();
-	// A little personality while Mimi works; a new line is picked for each turn.
-	const HEARING = ['Processing…', 'Decombobulating…', 'Untangling your words…', 'Deciphering…', 'Parsing syllables…', 'Making sense of that…', 'Unscrambling…'];
-	const THINKING = ['Thinking…', 'Mulling it over…', 'Pondering…', 'Connecting the dots…', 'Noodling on that…', 'Working it out…'];
-	const pick = (xs: string[]) => xs[Math.floor(Math.random() * xs.length)];
-	let hearingLine = $state(HEARING[0]);
-	let thinkingLine = $state(THINKING[0]);
+	// Status lines are calm and literal: Mimi may be used in a medical or emergency
+	// setting, where a joke while it works reads as not taking the question seriously.
+	const HEARING = 'Transcribing what you said…';
+	const THINKING = 'Working on an answer…';
 	let startedAt = 0;
 	let vadTimer: ReturnType<typeof setInterval> | undefined;
 	// Hands-free: after Mimi finishes speaking, listen again for a follow-up.
@@ -155,7 +155,6 @@
 		clearInterval(vadTimer);
 		const long = performance.now() - startedAt;
 		phase = 'transcribing';
-		hearingLine = pick(HEARING);
 		// the new question replaces the previous exchange on screen (a hands-free follow-up
 		// kept the last answer visible while listening)
 		heard = '';
@@ -199,7 +198,6 @@
 		let stale = false;
 		reply = ''; // each answer starts a fresh caption (it used to append to the last one)
 		phase = 'thinking';
-		thinkingLine = pick(THINKING);
 		// latency marks (performance.now) for diagnostics: window.__mimiVoice
 		const marks: Record<string, any> = { ask: performance.now() };
 		(window as any).__mimiVoice = marks;
@@ -286,22 +284,17 @@
 		startListening(); // opening voice mode means "I want to talk"
 		const down = () => toggle();
 		const key = (e: KeyboardEvent) => {
-			if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement)) {
+			// A focused button handles Space itself (it is usually the talk button).
+			if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLButtonElement)) {
 				e.preventDefault();
 				toggle();
 			}
 		};
-		const back = (e: Event) => {
-			e.preventDefault();
-			close();
-		};
 		addEventListener('mimi:ptt-down', down);
 		addEventListener('keydown', key);
-		addEventListener('mimi:back', back);
 		return () => {
 			removeEventListener('mimi:ptt-down', down);
 			removeEventListener('keydown', key);
-			removeEventListener('mimi:back', back);
 		};
 	});
 	// Escape, Ctrl+Shift+V and the controller close the overlay without calling close(),
@@ -314,15 +307,29 @@
 	});
 
 	const status = $derived(
-		phase === 'listening' ? 'Listening…' : phase === 'transcribing' ? hearingLine : phase === 'thinking' ? tool || thinkingLine : phase === 'speaking' ? '' : phase === 'error' ? '' : 'Tap the mic to talk'
+		phase === 'listening' ? 'Listening…' : phase === 'transcribing' ? HEARING : phase === 'thinking' ? tool || THINKING : phase === 'speaking' ? '' : phase === 'error' ? '' : 'Tap the mic to talk'
+	);
+	// Controller and keyboard hints only for people using them (no "B to close" on a phone).
+	const how = $derived(app.input === 'touch' ? 'tap' : app.input === 'pad' ? 'press' : 'click');
+	const fine = $derived(
+		phase === 'listening'
+			? `Pause when you’re done, or ${how} the button to send`
+			: phase === 'speaking'
+				? `${how === 'press' ? 'Press' : how === 'tap' ? 'Tap' : 'Click'} the button to interrupt`
+				: app.input === 'touch'
+					? 'Tap the mic to talk'
+					: app.input === 'pad'
+						? 'Press A on the mic to talk'
+						: 'Click the mic or press Space'
 	);
 </script>
 
-<div class="voice" data-layer transition:fade={{ duration: 220 }} onpointerupcapture={() => speaker.unlock()} role="presentation">
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions (unlocks audio on any tap; not an interaction of its own) -->
+<div class="voice" use:dialog={{ label: 'Voice conversation with Mimi', onclose: close }} transition:fade={motion({ duration: 'base' })} onpointerupcapture={() => speaker.unlock()}>
 	<div class="top">
-		<button class="icon-btn" onclick={newConversation} title="New conversation"><MessagesSquare size={20} /></button>
-		<span class="brand">Mimi</span>
-		<button class="icon-btn" onclick={close} aria-label="Close voice"><X size={22} /></button>
+		<button class="icon-btn" onclick={newConversation} aria-label="New conversation" title="New conversation"><MessagesSquare size={20} aria-hidden="true" /></button>
+		<span class="brand" aria-hidden="true">Mimi</span>
+		<button class="icon-btn" onclick={close} aria-label="Close voice"><X size={22} aria-hidden="true" /></button>
 	</div>
 
 	<div class="stage">
@@ -330,13 +337,14 @@
 		<div class="captions">
 			{#if heard}<p class="heard">“{heard}”</p>{/if}
 			{#if reply}<p class="reply" bind:this={replyEl}>{plain(reply)}</p>{/if}
-			{#if status}<p class="status">{status}</p>{/if}
+			<p class="status" aria-live="polite">{status}</p>
 			{#if hint}<p class="hint">{hint}</p>{/if}
 		</div>
 	</div>
 
 	<div class="controls">
 		<button
+			data-autofocus
 			class="talk"
 			class:on={phase === 'listening'}
 			onclick={toggle}
@@ -350,20 +358,20 @@
 				<button class="send" disabled={!typed.trim()} aria-label="Send"><ArrowUp size={18} /></button>
 			</form>
 		{:else}
-			<button class="typeit" onclick={openTyping}><Keyboard size={14} /> Type instead</button>
+			<button class="typeit" onclick={openTyping}><Keyboard size={14} aria-hidden="true" /> Type instead</button>
 		{/if}
-		<p class="fine">{phase === 'listening' ? 'Pause when you’re done, or tap to send' : phase === 'speaking' ? 'Tap to interrupt' : 'Tap the mic or press Space'} · B to close</p>
+		<p class="fine">{fine}{#if app.input === 'pad'} · B to close{/if}</p>
 	</div>
 </div>
 
 <style>
 	.typebox {
 		display: flex;
-		gap: 8px;
+		gap: var(--space-2);
 		width: min(480px, calc(100vw - 32px));
-		margin-top: 14px;
-		padding: 6px 6px 6px 16px;
-		border-radius: 999px;
+		margin-top: var(--space-3);
+		padding: var(--space-1-5) var(--space-1-5) var(--space-1-5) var(--space-4);
+		border-radius: var(--radius-pill);
 		background: var(--surface);
 		border: 1px solid var(--line-2);
 	}
@@ -373,7 +381,7 @@
 		border: 0;
 		background: none;
 		color: var(--text);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.typebox input:focus-visible {
 		outline: none;
@@ -381,7 +389,7 @@
 	.typebox .send {
 		width: 38px;
 		height: 38px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		display: grid;
 		place-items: center;
 		background: var(--accent);
@@ -394,12 +402,12 @@
 	.typeit {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
-		margin-top: 12px;
-		font-size: 0.82rem;
+		gap: var(--space-1-5);
+		margin-top: var(--space-3);
+		font-size: var(--fs-sm);
 		color: var(--text-3);
-		padding: 6px 12px;
-		border-radius: 999px;
+		padding: var(--space-1-5) var(--space-3);
+		border-radius: var(--radius-pill);
 	}
 	.typeit:hover {
 		color: var(--text);
@@ -408,7 +416,7 @@
 	.voice {
 		position: fixed;
 		inset: 0;
-		z-index: 80;
+		z-index: var(--z-fullscreen);
 		display: flex;
 		flex-direction: column;
 		background:
@@ -419,13 +427,13 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 16px 20px;
+		padding: var(--space-4) var(--space-5);
 	}
 	.brand {
 		letter-spacing: 0.02em;
-		font-weight: 500;
+		font-weight: var(--fw-medium);
 		color: var(--text-2);
-		font-size: 1rem;
+		font-size: var(--fs-base);
 	}
 	.stage {
 		flex: 1;
@@ -433,8 +441,8 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 12px;
-		padding: 0 24px;
+		gap: var(--space-3);
+		padding: 0 var(--space-6);
 		min-height: 0;
 	}
 	.captions {
@@ -444,8 +452,8 @@
 	}
 	.heard {
 		color: var(--text-3);
-		font-size: 1.05rem;
-		margin: 0 0 12px;
+		font-size: var(--fs-base);
+		margin: 0 0 var(--space-3);
 	}
 	.reply {
 		font-size: clamp(1.1rem, 2vw, 1.4rem);
@@ -457,26 +465,26 @@
 	}
 	.status {
 		color: var(--accent);
-		font-size: 1rem;
-		margin: 10px 0 0;
+		font-size: var(--fs-base);
+		margin: var(--space-2) 0 0;
 		letter-spacing: 0.01em;
 	}
 	.hint {
 		color: var(--text-3);
-		margin: 8px 0 0;
-		font-size: 0.9rem;
+		margin: var(--space-2) 0 0;
+		font-size: var(--fs-md);
 	}
 	.controls {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 12px;
-		padding: 18px 0 36px;
+		gap: var(--space-3);
+		padding: var(--space-4) 0 var(--space-8);
 	}
 	.talk {
 		width: 88px;
 		height: 88px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		display: grid;
 		place-items: center;
 		background: var(--surface-2);
@@ -484,9 +492,9 @@
 		color: var(--text);
 		touch-action: none;
 		transition:
-			transform 0.15s,
-			background 0.2s,
-			box-shadow 0.2s;
+			transform var(--dur-fast),
+			background var(--dur-base),
+			box-shadow var(--dur-base);
 	}
 	.talk:hover {
 		box-shadow: var(--shadow-glow);
@@ -499,7 +507,7 @@
 	}
 	.fine {
 		color: var(--text-3);
-		font-size: 0.8rem;
+		font-size: var(--fs-sm);
 		margin: 0;
 	}
 </style>

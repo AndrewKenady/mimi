@@ -24,7 +24,7 @@
 		<WifiOff size={13} strokeWidth={2} aria-hidden="true" />
 		<span class="txt">Offline · all local</span>
 	</span>
-	<a href="/settings/models" class="pill" class:loading={model?.status === 'loading'} class:bad={model?.status === 'error'} title={model?.error || 'Language model'}>
+	<a href="/settings/intelligence#models" class="pill" class:loading={model?.status === 'loading'} class:bad={model?.status === 'error'} title={model?.error || 'Language model'}>
 		<Cpu size={13} strokeWidth={2} aria-hidden="true" />
 		<span aria-live="polite">{modelLabel}</span>
 	</a>

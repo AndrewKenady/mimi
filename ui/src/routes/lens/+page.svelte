@@ -113,7 +113,7 @@
 				</div>
 			{:else if url}
 				<div class="shot">
-					<img src={url} alt="Captured" />
+					<img src={url} alt="Your capture" />
 					{#if ocr && showBoxes && polys.length}
 						<svg viewBox="0 0 {ocr.width} {ocr.height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
 							{#each polys as p}<polygon points={p.pts}><title>{p.text}</title></polygon>{/each}
@@ -145,7 +145,7 @@
 							<button class="icon-btn sm" onclick={copyText} aria-label="Copy text">{#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}</button>
 						{/if}
 					</header>
-					{#if reading}<p class="faint"><Loader size={14} class="spin" /> Reading…</p>
+					{#if reading}<p class="faint" role="status"><Loader size={14} class="spin" aria-hidden="true" /> Reading…</p>
 					{:else if ocr?.text}<pre class="ocr selectable">{ocr.text}</pre>
 					{:else}<p class="faint">No text detected. You can still ask Mimi about the picture.</p>{/if}
 					{#if ocr?.ms}<small class="faint">Read on-device in {ocr.ms} ms</small>{/if}
@@ -160,7 +160,7 @@
 						<button class="act" onclick={() => ask('Summarize this document and list anything I need to act on.')}><HelpCircle size={17} /> Summarize</button>
 					</div>
 					<form class="custom" onsubmit={(e) => { e.preventDefault(); if (prompt.trim()) ask(prompt.trim()); }}>
-						<input class="input" placeholder="Or ask your own question…" bind:value={prompt} />
+						<input class="input" placeholder="Or ask your own question…" aria-label="Your question about this photo" bind:value={prompt} />
 						<button class="btn btn-primary" disabled={!prompt.trim()}>Ask</button>
 					</form>
 					<button class="btn btn-sm btn-ghost again" onclick={reset}><RotateCcw size={14} /> New photo</button>
@@ -172,8 +172,8 @@
 
 <style>
 	.stage {
-		margin-top: 22px;
-		border-radius: 24px;
+		margin-top: var(--space-5);
+		border-radius: var(--radius-xl);
 		background: var(--surface);
 		border: 1px solid var(--line);
 		min-height: 320px;
@@ -183,7 +183,7 @@
 		position: relative;
 	}
 	.stage.has {
-		background: #000;
+		background: var(--media-bg);
 	}
 	.feed {
 		width: 100%;
@@ -198,19 +198,19 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		gap: 40px;
+		gap: var(--space-10);
 	}
 	.camctl .icon-btn {
-		background: rgba(0, 0, 0, 0.45);
-		color: #fff;
+		background: var(--media-scrim);
+		color: var(--media-fg);
 	}
 	.shutter {
 		width: 74px;
 		height: 74px;
-		border-radius: 50%;
-		background: #fff;
-		box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.35);
-		transition: transform 0.12s;
+		border-radius: var(--radius-round);
+		background: var(--media-fg);
+		box-shadow: 0 0 0 5px color-mix(in oklab, var(--media-fg) 35%, transparent);
+		transition: transform var(--dur-fast);
 	}
 	.shutter:active {
 		transform: scale(0.92);
@@ -260,33 +260,33 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 16px;
+		gap: var(--space-4);
 		color: var(--text-3);
-		padding: 40px;
+		padding: var(--space-10);
 	}
 	.btns {
 		display: flex;
-		gap: 10px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		justify-content: center;
 	}
 	.results {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 14px;
-		margin-top: 16px;
+		gap: var(--space-3);
+		margin-top: var(--space-4);
 	}
 	.textcard,
 	.askcard {
-		padding: 16px 18px;
+		padding: var(--space-4) var(--space-4);
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		gap: var(--space-2);
 	}
 	.textcard header {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: var(--space-1-5);
 	}
 	.grow {
 		flex: 1;
@@ -295,7 +295,7 @@
 		margin: 0;
 		white-space: pre-wrap;
 		font-family: var(--font-sans);
-		font-size: 0.95rem;
+		font-size: var(--fs-base);
 		line-height: 1.6;
 		max-height: 300px;
 		overflow-y: auto;
@@ -312,19 +312,19 @@
 	.actions {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.act {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		padding: 14px;
-		border-radius: 14px;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		border-radius: var(--radius-md);
 		background: var(--surface-2);
 		border: 1px solid var(--line);
-		font-weight: 550;
-		font-size: 0.9rem;
-		transition: background 0.15s, border-color 0.15s;
+		font-weight: var(--fw-medium);
+		font-size: var(--fs-md);
+		transition: background var(--dur-fast), border-color var(--dur-fast);
 	}
 	.act:hover {
 		background: var(--surface-3);
@@ -335,7 +335,7 @@
 	}
 	.custom {
 		display: flex;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.again {
 		align-self: flex-start;

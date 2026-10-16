@@ -5,8 +5,145 @@
 
 /* ============================================================================
    Mimi design tokens — "deep water"
-   Everything visual derives from these variables; themes only redefine them.
+   Documented in docs/DESIGN_SYSTEM.md; rendered live at /dev/design.
+
+   Three tiers:
+     1. Scales      — type, space, radius, elevation, layers, motion. Theme-free.
+     2. Theme       — semantic colours, redefined per theme / contrast / Well style.
+     3. Primitives  — .btn, .card, .input, .chip … built only from tiers 1–2.
+   Components consume tiers 1–3 and never hard-code a colour, size or timing.
+   Contrast of every text token in every theme is enforced by `npm run contrast`.
    ========================================================================== */
+
+/* ---- 1. Scales ----------------------------------------------------------- */
+:root {
+	/* Type — a 1.125-ish scale tuned for 720p handhelds read at arm's length.
+	   Every size has a paired line-height; use them together. */
+	--fs-2xs: 0.6875rem; /* 11 · rail labels, micro meta */
+	--lh-2xs: 1.3;
+	--fs-xs: 0.75rem; /* 12 · captions, eyebrows, timestamps */
+	--lh-xs: 1.4;
+	--fs-sm: 0.8125rem; /* 13 · hints, secondary rows, small buttons */
+	--lh-sm: 1.45;
+	--fs-md: 0.875rem; /* 14 · dense UI text, menus, chips */
+	--lh-md: 1.5;
+	--fs-base: 1rem; /* 16 · body, inputs, reading */
+	--lh-base: 1.55;
+	--fs-lg: 1.125rem; /* 18 · lede, emphasized body */
+	--lh-lg: 1.5;
+	--fs-xl: 1.25rem; /* 20 · card & dialog titles */
+	--lh-xl: 1.35;
+	--fs-2xl: 1.5rem; /* 24 · section titles */
+	--lh-2xl: 1.25;
+	--fs-3xl: 1.875rem; /* 30 · page titles on handheld, step titles */
+	--lh-3xl: 1.2;
+	--fs-4xl: 2.25rem; /* 36 · numerals: codes, timers */
+	--lh-4xl: 1.1;
+	--fs-display: clamp(2rem, 3.4vw, 2.75rem); /* greeting, hero */
+	--lh-display: 1.1;
+
+	--fw-regular: 400;
+	--fw-medium: 550;
+	--fw-semibold: 600;
+	--fw-bold: 650;
+
+	--tracking-tight: -0.02em;
+	--tracking-tighter: -0.035em;
+	--tracking-wide: 0.08em;
+	/* Families (--font-sans/serif/mono) live in the @theme block below. */
+
+	/* Space — a 4px grid. Steps ≥ 8px scale with density (Settings → Appearance);
+	   hairline steps (2/4/6px) never do. In rem, so "Text size" also scales rhythm. */
+	--density: 1;
+	--space-0-5: 0.125rem; /* 2 */
+	--space-1: 0.25rem; /* 4 */
+	--space-1-5: 0.375rem; /* 6 */
+	--space-2: calc(0.5rem * var(--density)); /* 8 */
+	--space-3: calc(0.75rem * var(--density)); /* 12 */
+	--space-4: calc(1rem * var(--density)); /* 16 */
+	--space-5: calc(1.25rem * var(--density)); /* 20 */
+	--space-6: calc(1.5rem * var(--density)); /* 24 */
+	--space-8: calc(2rem * var(--density)); /* 32 */
+	--space-10: calc(2.5rem * var(--density)); /* 40 */
+	--space-12: calc(3rem * var(--density)); /* 48 */
+	--space-16: calc(4rem * var(--density)); /* 64 */
+
+	/* Controls — heights of interactive things. Hit areas never shrink below
+	   --hit-min on touch, whatever the density (see "Touch targets" below). */
+	--density-control: 1;
+	--control-sm: calc(2rem * var(--density-control)); /* 32 */
+	--control-md: calc(2.5rem * var(--density-control)); /* 40 */
+	--control-lg: calc(3rem * var(--density-control)); /* 48 */
+	--hit-min: 44px;
+
+	/* Radius — concentric: an element inside a padded container uses the next step down. */
+	--radius-xs: 6px; /* code, kbd, progress */
+	--radius-sm: 8px; /* small tiles, log panes */
+	--radius-md: 12px; /* inputs, list rows, nav items */
+	--radius-lg: 16px; /* toasts, small cards, tiles */
+	--radius-xl: 20px; /* cards */
+	--radius-2xl: 28px; /* sheets & dialogs */
+	--radius-pill: 999px;
+	--radius-round: 50%;
+
+	/* Layers — named, in paint order. Pair scrims and their panel on the same layer
+	   (the panel comes later in the DOM). */
+	--z-raised: 1; /* map overlays, sticky headers inside a page */
+	--z-nav: 5; /* nav rail */
+	--z-popover: 20; /* menus anchored to a control */
+	--z-tabbar: 30; /* phone tab bar */
+	--z-palette: 60; /* command palette */
+	--z-sheet: 70; /* quick menu */
+	--z-fullscreen: 80; /* voice conversation */
+	--z-dialog: 90; /* confirmations, sign-in requests */
+	--z-toast: 100; /* toasts stay reachable above dialogs (Undo) */
+	--z-system: 120; /* connection banner */
+
+	/* Motion — durations collapse to 0 under reduced motion (OS or app setting),
+	   and $lib/motion reads these same tokens for Svelte transitions. */
+	--dur-instant: 80ms; /* press feedback */
+	--dur-fast: 140ms; /* hover, colour, small state changes */
+	--dur-base: 200ms; /* enter/exit of small surfaces, toggles */
+	--dur-slow: 300ms; /* sheets, dialogs, toasts */
+	--dur-slower: 480ms; /* hero/morphing (onboarding orb) */
+	--ease-standard: cubic-bezier(0.2, 0, 0, 1); /* most UI movement */
+	--ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* entrances: arrive softly */
+	--ease-in: cubic-bezier(0.4, 0, 1, 1); /* exits: leave quickly */
+	--ease-breathe: cubic-bezier(0.45, 0, 0.55, 1); /* ambient loops (the Well) */
+	--ease-out-soft: var(--ease-out); /* legacy alias */
+
+	/* Focus */
+	--focus-width: 2px;
+	--focus-offset: 2px;
+
+	/* Phone tab bar height (content reserves this much at the bottom) */
+	--tabbar-h: calc(64px + env(safe-area-inset-bottom));
+}
+
+[data-density='compact'] {
+	--density: 0.8;
+	--density-control: 0.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--dur-instant: 0ms;
+		--dur-fast: 0ms;
+		--dur-base: 0ms;
+		--dur-slow: 0ms;
+		--dur-slower: 0ms;
+	}
+}
+[data-motion='reduced'] {
+	--dur-instant: 0ms;
+	--dur-fast: 0ms;
+	--dur-base: 0ms;
+	--dur-slow: 0ms;
+	--dur-slower: 0ms;
+}
+
+/* ---- 2. Theme ------------------------------------------------------------ */
+/* Deep water (dark, default). Text tokens meet WCAG AA (4.5:1) on every surface. */
 :root,
 [data-theme='dark'] {
 	--bg: #070b12;
@@ -19,24 +156,24 @@
 	--line-2: rgba(150, 180, 220, 0.16);
 	--text: #e8eef7;
 	--text-2: #a9b5c8;
-	--text-3: #6c7a90;
+	--text-3: #8794a9;
 	--accent: #6ee7d2;
 	--accent-2: #8ab4ff;
-	--accent-ink: #032520;
-	--accent-soft: color-mix(in oklab, var(--accent) 14%, transparent);
-	--accent-line: color-mix(in oklab, var(--accent) 34%, transparent);
+	--accent-ink: #041310;
 	--ok: #7dd3a8;
 	--warn: #f5c27a;
 	--danger: #ff8f86;
-	--shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
-	--shadow-2: 0 12px 36px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
-	--shadow-glow: 0 0 0 1px var(--accent-line), 0 0 32px color-mix(in oklab, var(--accent) 18%, transparent);
-	--well-a: var(--accent);
+	--danger-ink: #1b0605;
+	--scrim: rgba(3, 6, 10, 0.58);
+	--elev-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+	--elev-2: 0 6px 18px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+	--elev-3: 0 12px 36px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
 	--well-b: #1e7f8f;
 	--well-c: #0b2432;
 	color-scheme: dark;
 }
 
+/* Midnight: true-black surfaces for OLED panels; text tokens inherit from dark. */
 [data-theme='oled'] {
 	--bg: #000000;
 	--bg-2: #04070b;
@@ -44,33 +181,148 @@
 	--surface-2: #0d131d;
 	--surface-3: #141c29;
 	--glass: rgba(6, 9, 14, 0.9);
+	color-scheme: dark;
 }
 
+/* Daylight. Status colours are deep enough to be text, not just dots. */
 [data-theme='light'] {
 	--bg: #f4f6f9;
 	--bg-2: #eef1f6;
 	--surface: #ffffff;
 	--surface-2: #f6f8fb;
 	--surface-3: #eceff5;
-	--glass: rgba(255, 255, 255, 0.9);
-	--line: rgba(20, 35, 60, 0.08);
-	--line-2: rgba(20, 35, 60, 0.15);
+	--glass: rgba(255, 255, 255, 0.92);
+	--line: rgba(20, 35, 60, 0.09);
+	--line-2: rgba(20, 35, 60, 0.16);
 	--text: #0f1726;
 	--text-2: #465367;
-	--text-3: #7d8899;
+	--text-3: #5d6878;
+	--accent: #006959;
+	--accent-2: #2f5fb8;
 	--accent-ink: #ffffff;
-	--accent-soft: color-mix(in oklab, var(--accent) 16%, transparent);
-	--shadow-1: 0 1px 2px rgba(15, 25, 45, 0.08);
-	--shadow-2: 0 12px 32px rgba(15, 25, 45, 0.12), 0 2px 6px rgba(15, 25, 45, 0.06);
+	--ok: #1b744c;
+	--warn: #7f5200;
+	--danger: #b02c23;
+	--danger-ink: #ffffff;
+	--scrim: rgba(15, 23, 38, 0.32);
+	--elev-1: 0 1px 2px rgba(15, 25, 45, 0.08);
+	--elev-2: 0 6px 16px rgba(15, 25, 45, 0.08), 0 1px 3px rgba(15, 25, 45, 0.06);
+	--elev-3: 0 12px 32px rgba(15, 25, 45, 0.12), 0 2px 6px rgba(15, 25, 45, 0.06);
 	--well-b: #3aa6b3;
 	--well-c: #d8eef2;
 	color-scheme: light;
 }
+
+/* High contrast: text reaches 7:1 (AAA) and hairlines become real borders.
+   Defined per theme so Daylight + high contrast gets darker, not paler. */
 [data-contrast='high'] {
 	--line: rgba(200, 220, 255, 0.28);
 	--line-2: rgba(200, 220, 255, 0.45);
 	--text-2: #d3dbe8;
-	--text-3: #a3afc2;
+	--text-3: #b4bfd0;
+	--ok: #a6e9c6;
+	--warn: #ffd8a0;
+	--danger: #ffb3ab;
+	--accent-2: #b3cdff;
+}
+[data-theme='light'][data-contrast='high'] {
+	--line: rgba(20, 35, 60, 0.3);
+	--line-2: rgba(20, 35, 60, 0.5);
+	--text: #05080f;
+	--text-2: #2b3443;
+	--text-3: #3a4557;
+	--accent: #00594b;
+	--ok: #164d34;
+	--warn: #5c3b00;
+	--danger: #7f1d18;
+	--accent-2: #1f4690;
+}
+
+/* Derived tokens: declared after every theme block so they resolve against the
+   active theme's values. */
+:root,
+[data-theme] {
+	--accent-soft: color-mix(in oklab, var(--accent) 16%, transparent);
+	--accent-line: color-mix(in oklab, var(--accent) 34%, transparent);
+	--danger-soft: color-mix(in oklab, var(--danger) 10%, transparent);
+	--danger-line: color-mix(in oklab, var(--danger) 35%, transparent);
+	--warn-soft: color-mix(in oklab, var(--warn) 12%, transparent);
+	--focus-ring: var(--accent);
+	--elev-glow: 0 0 0 1px var(--accent-line), 0 0 32px color-mix(in oklab, var(--accent) 18%, transparent);
+	/* legacy aliases (components outside the design-system pass still use these) */
+	--shadow-1: var(--elev-1);
+	--shadow-2: var(--elev-3);
+	--shadow-glow: var(--elev-glow);
+}
+
+/* ---- The Well: Mimi's presence ----------------------------------------- */
+/* --well-a is the light in the water (the raw accent unless a style overrides it),
+   --well-b the body, --well-c the depths. One gradient serves every static orb
+   (rail mark, WebGL fallback, boot screen); the WebGL Well reads the same three. */
+:root,
+[data-theme] {
+	--well-a: var(--accent-raw, #6ee7d2);
+}
+/* Well styles (Settings → Appearance → The Well). Each works on <html> and on a
+   nested preview element (the second selector of each light variant). */
+[data-well='tide'] {
+	--well-a: var(--accent-raw, #6ee7d2);
+	--well-b: #1e7f8f;
+	--well-c: #0b2432;
+}
+[data-theme='light'][data-well='tide'],
+[data-theme='light'] [data-well='tide'] {
+	--well-b: #3aa6b3;
+	--well-c: #d8eef2;
+}
+[data-well='aurora'] {
+	--well-a: var(--accent-raw, #6ee7d2);
+	--well-b: #5b4bd6;
+	--well-c: #120f33;
+}
+[data-theme='light'][data-well='aurora'],
+[data-theme='light'] [data-well='aurora'] {
+	--well-b: #8b7cf0;
+	--well-c: #e6e2fb;
+}
+[data-well='ember'] {
+	--well-a: #ffb070;
+	--well-b: #c2410c;
+	--well-c: #2a0e05;
+}
+[data-theme='light'][data-well='ember'],
+[data-theme='light'] [data-well='ember'] {
+	--well-b: #ea7a3a;
+	--well-c: #fbe6d8;
+}
+[data-well='mono'] {
+	--well-a: #e8eef7;
+	--well-b: #5d6b80;
+	--well-c: #121821;
+}
+[data-theme='light'][data-well='mono'],
+[data-theme='light'] [data-well='mono'] {
+	--well-a: #ffffff;
+	--well-b: #9aa6b8;
+	--well-c: #e3e7ee;
+}
+/* Derived per element, so a nested [data-well] or [data-theme] (a style preview)
+   draws its own orb. */
+:root,
+[data-theme],
+[data-well] {
+	--well-spec: color-mix(in oklab, var(--well-a) 18%, white);
+	--orb: radial-gradient(circle at 36% 32%, var(--well-spec) 0, var(--well-a) 25%, var(--well-b) 54%, var(--well-c) 78%);
+}
+
+/* Fixed colours for media, not themes: camera viewfinder, QR codes (must be
+   dark-on-white to scan), and the map's route casing. */
+:root {
+	--media-bg: #000000;
+	--media-fg: #ffffff;
+	--media-scrim: rgba(0, 0, 0, 0.45);
+	--qr-bg: #ffffff;
+	--map-route-casing: #04121a;
 }
 
 @theme inline {
@@ -92,7 +344,6 @@
 	--color-ok: var(--ok);
 	--color-warn: var(--warn);
 	--color-danger: var(--danger);
-	--ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* ============================================================================
@@ -163,36 +414,71 @@ img {
 }
 *::-webkit-scrollbar-thumb {
 	background: var(--line-2);
-	border-radius: 10px;
+	border-radius: var(--radius-pill);
 	border: 3px solid transparent;
 	background-clip: padding-box;
 }
 
-/* Focus: invisible for mouse/touch, a luminous ring for keyboard & gamepad */
+/* ---- Focus ---------------------------------------------------------------
+   One ring for every focusable thing. It is an outline, so it follows the
+   element's own radius (a circle stays a circle). It shows whenever the browser
+   says focus should be visible (keyboard, screen readers, programmatic focus)
+   and always under the gamepad, whose focus moves are programmatic. Text fields
+   clicked with a mouse or finger rely on their own focus border instead. */
 :focus {
 	outline: none;
 }
-[data-input='keys'] :focus-visible,
+:focus-visible,
 [data-input='pad'] :focus {
-	outline: 2px solid var(--accent);
-	outline-offset: 3px;
-	box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent) 18%, transparent);
-	border-radius: 12px;
+	outline: var(--focus-width) solid var(--focus-ring);
+	outline-offset: var(--focus-offset);
+}
+[data-input='pad'] :focus {
+	--focus-width: 3px;
+}
+:is([data-input='mouse'], [data-input='touch']) :is(input, textarea, select):focus-visible {
+	outline: none;
 }
 
+/* ---- Reduced motion -----------------------------------------------------
+   Tokens already collapse to 0 above; this catches literal timings and
+   keyframe loops (shimmer, pulses) everywhere, including other components. */
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
 	*::after {
 		animation-duration: 0.001ms !important;
+		animation-iteration-count: 1 !important;
 		transition-duration: 0.001ms !important;
+		scroll-behavior: auto !important;
 	}
 }
 [data-motion='reduced'] *,
 [data-motion='reduced'] *::before,
 [data-motion='reduced'] *::after {
 	animation-duration: 0.001ms !important;
+	animation-iteration-count: 1 !important;
 	transition-duration: 0.001ms !important;
+	scroll-behavior: auto !important;
+}
+
+/* ---- Touch targets --------------------------------------------------------
+   Small controls keep their visual size but get an invisible 44px hit area on
+   coarse pointers (phones, the handheld's touchscreen). Tabs and radios are
+   covered by role; add `.hit` to any other compact control to opt in. */
+@media (pointer: coarse) {
+	:where(.icon-btn, .chip, .btn-sm, .hit, [role='tab'], [role='radio']) {
+		position: relative;
+	}
+	:where(.icon-btn, .chip, .btn-sm, .hit, [role='tab'], [role='radio'])::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: max(100%, var(--hit-min));
+		height: max(100%, var(--hit-min));
+		transform: translate(-50%, -50%);
+	}
 }
 
 /* ============================================================================
@@ -202,19 +488,19 @@ img {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	gap: 0.5rem;
-	height: 2.5rem;
-	padding: 0 1rem;
-	border-radius: 999px;
-	font-size: 0.9rem;
-	font-weight: 550;
+	gap: var(--space-2);
+	height: var(--control-md);
+	padding: 0 var(--space-4);
+	border-radius: var(--radius-pill);
+	font-size: var(--fs-md);
+	font-weight: var(--fw-medium);
 	letter-spacing: -0.005em;
 	white-space: nowrap;
 	transition:
-		background 0.18s,
-		border-color 0.18s,
-		transform 0.12s,
-		color 0.18s;
+		background var(--dur-fast) var(--ease-standard),
+		border-color var(--dur-fast) var(--ease-standard),
+		transform var(--dur-instant) var(--ease-standard),
+		color var(--dur-fast) var(--ease-standard);
 	border: 1px solid var(--line-2);
 	background: var(--surface-2);
 	color: var(--text);
@@ -225,7 +511,8 @@ img {
 .btn:active {
 	transform: scale(0.97);
 }
-.btn:disabled {
+.btn:disabled,
+.btn[aria-disabled='true'] {
 	opacity: 0.45;
 	pointer-events: none;
 }
@@ -235,7 +522,7 @@ img {
 	color: var(--accent-ink);
 }
 .btn-primary:hover {
-	background: color-mix(in oklab, var(--accent) 88%, white);
+	background: color-mix(in oklab, var(--accent) 88%, var(--text));
 }
 .btn-ghost {
 	background: transparent;
@@ -248,30 +535,41 @@ img {
 }
 .btn-danger {
 	color: var(--danger);
-	border-color: color-mix(in oklab, var(--danger) 35%, transparent);
-	background: color-mix(in oklab, var(--danger) 8%, transparent);
+	border-color: var(--danger-line);
+	background: var(--danger-soft);
+}
+.btn-danger:hover {
+	background: color-mix(in oklab, var(--danger) 16%, transparent);
+}
+.btn-danger-solid {
+	background: var(--danger);
+	border-color: transparent;
+	color: var(--danger-ink);
+}
+.btn-danger-solid:hover {
+	background: color-mix(in oklab, var(--danger) 88%, var(--text));
 }
 .btn-sm {
-	height: 2rem;
-	padding: 0 0.75rem;
-	font-size: 0.82rem;
+	height: var(--control-sm);
+	padding: 0 var(--space-3);
+	font-size: var(--fs-sm);
 }
 .btn-lg {
-	height: 3rem;
-	padding: 0 1.4rem;
-	font-size: 1rem;
+	height: var(--control-lg);
+	padding: 0 var(--space-6);
+	font-size: var(--fs-base);
 }
 .icon-btn {
 	display: inline-grid;
 	place-items: center;
-	width: 2.5rem;
-	height: 2.5rem;
-	border-radius: 999px;
+	width: var(--control-md);
+	height: var(--control-md);
+	border-radius: var(--radius-round);
 	color: var(--text-2);
 	transition:
-		background 0.15s,
-		color 0.15s,
-		transform 0.12s;
+		background var(--dur-fast) var(--ease-standard),
+		color var(--dur-fast) var(--ease-standard),
+		transform var(--dur-instant) var(--ease-standard);
 }
 .icon-btn:hover {
 	background: var(--surface-2);
@@ -281,20 +579,20 @@ img {
 	transform: scale(0.94);
 }
 .icon-btn.sm {
-	width: 2rem;
-	height: 2rem;
+	width: var(--control-sm);
+	height: var(--control-sm);
 }
 
 .card {
 	background: var(--surface);
 	border: 1px solid var(--line);
-	border-radius: 20px;
+	border-radius: var(--radius-xl);
 }
 .card-hover {
 	transition:
-		border-color 0.2s,
-		background 0.2s,
-		transform 0.2s var(--ease-out-soft);
+		border-color var(--dur-base) var(--ease-standard),
+		background var(--dur-base) var(--ease-standard),
+		transform var(--dur-base) var(--ease-out);
 }
 .card-hover:hover {
 	border-color: var(--line-2);
@@ -303,62 +601,113 @@ img {
 
 .input {
 	width: 100%;
-	height: 2.75rem;
-	padding: 0 1rem;
-	border-radius: 14px;
+	height: calc(var(--control-md) + 0.25rem);
+	padding: 0 var(--space-4);
+	border-radius: var(--radius-md);
 	background: var(--surface-2);
-	border: 1px solid var(--line);
+	border: 1px solid var(--line-2);
 	color: var(--text);
 	transition:
-		border-color 0.15s,
-		background 0.15s;
+		border-color var(--dur-fast) var(--ease-standard),
+		background var(--dur-fast) var(--ease-standard);
 }
 .input::placeholder {
 	color: var(--text-3);
 }
 .input:focus {
-	border-color: var(--accent-line);
+	border-color: var(--accent);
 	background: var(--surface-3);
 }
 textarea.input {
 	height: auto;
-	padding: 0.75rem 1rem;
-	line-height: 1.5;
+	padding: var(--space-3) var(--space-4);
+	line-height: var(--lh-md);
 	resize: vertical;
+}
+
+/* A visible label for a form field. Placeholders are examples, never labels. */
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1-5);
+	text-align: left;
+	width: 100%;
+}
+.field-label {
+	font-size: var(--fs-sm);
+	line-height: var(--lh-sm);
+	font-weight: var(--fw-medium);
+	color: var(--text-2);
 }
 
 .chip {
 	display: inline-flex;
 	align-items: center;
-	gap: 0.4rem;
-	height: 1.9rem;
-	padding: 0 0.75rem;
-	border-radius: 999px;
-	font-size: 0.8rem;
-	font-weight: 500;
+	gap: var(--space-1-5);
+	height: var(--control-sm);
+	padding: 0 var(--space-3);
+	border-radius: var(--radius-pill);
+	font-size: var(--fs-sm);
+	font-weight: var(--fw-medium);
 	color: var(--text-2);
 	background: var(--surface-2);
 	border: 1px solid var(--line);
 	white-space: nowrap;
 	transition:
-		background 0.15s,
-		color 0.15s,
-		border-color 0.15s;
+		background var(--dur-fast) var(--ease-standard),
+		color var(--dur-fast) var(--ease-standard),
+		border-color var(--dur-fast) var(--ease-standard);
 }
 button.chip:hover {
 	color: var(--text);
 	border-color: var(--line-2);
 }
-.chip.active {
+.chip.active,
+.chip[aria-pressed='true'] {
 	color: var(--accent);
 	border-color: var(--accent-line);
 	background: var(--accent-soft);
 }
 
+/* Status tag: a quiet pill for states ("Ready", "Not installed"). */
+.tag {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	height: 1.5rem;
+	padding: 0 var(--space-2);
+	border-radius: var(--radius-pill);
+	font-size: var(--fs-xs);
+	font-weight: var(--fw-semibold);
+	background: var(--surface-3);
+	color: var(--text-2);
+	white-space: nowrap;
+}
+.tag.live,
+.tag.ok {
+	background: var(--accent-soft);
+	color: var(--accent);
+}
+.tag.err {
+	background: var(--danger-soft);
+	color: var(--danger);
+}
+
+kbd {
+	font-family: var(--font-sans);
+	font-size: var(--fs-xs);
+	padding: 0.15rem var(--space-2);
+	border-radius: var(--radius-xs);
+	background: var(--surface-2);
+	border: 1px solid var(--line-2);
+	color: var(--text-2);
+}
+
 .label {
-	font-size: 0.72rem;
-	font-weight: 600;
-	letter-spacing: 0.08em;
+	font-size: var(--fs-xs);
+	line-height: var(--lh-xs);
+	font-weight: var(--fw-semibold);
+	letter-spacing: var(--tracking-wide);
 	text-transform: uppercase;
 	color: var(--text-3);
 }
@@ -372,10 +721,45 @@ button.chip:hover {
 	border-color: var(--line);
 }
 
+/* Visually hidden, still announced. */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
 .glass {
 	background: var(--glass);
 	backdrop-filter: blur(18px) saturate(1.2);
 	-webkit-backdrop-filter: blur(18px) saturate(1.2);
+}
+
+/* Modal scaffolding: a scrim and a raised panel (see $lib/dialog). */
+.scrim {
+	position: fixed;
+	inset: 0;
+	background: var(--scrim);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+}
+.sheet {
+	background: var(--surface);
+	border: 1px solid var(--line-2);
+	border-radius: var(--radius-2xl);
+	box-shadow: var(--elev-3);
+}
+
+/* A static orb drawn with the Well's palette (rail mark, fallbacks, previews). */
+.orb {
+	border-radius: var(--radius-round);
+	background: var(--orb);
+	box-shadow: 0 0 22px color-mix(in oklab, var(--well-a) 40%, transparent);
 }
 
 /* Page scaffolding */
@@ -387,18 +771,20 @@ button.chip:hover {
 .page-inner {
 	max-width: 1120px;
 	margin: 0 auto;
-	padding: 1.75rem clamp(1rem, 3vw, 2.5rem) 4rem;
+	padding: var(--space-6) clamp(1rem, 3vw, 2.5rem) var(--space-16);
 }
 .page-title {
-	font-size: clamp(1.6rem, 2.2vw, 2rem);
-	font-weight: 650;
+	font-size: clamp(var(--fs-2xl), 2.2vw, 2rem);
+	line-height: var(--lh-2xl);
+	font-weight: var(--fw-bold);
 	letter-spacing: -0.025em;
 	margin: 0;
 }
 .page-sub {
-	margin: 0.35rem 0 0;
+	margin: var(--space-1-5) 0 0;
 	color: var(--text-2);
-	font-size: 0.98rem;
+	font-size: var(--fs-base);
+	line-height: var(--lh-base);
 }
 
 /* Shimmer for loading placeholders */
@@ -406,7 +792,7 @@ button.chip:hover {
 	background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
 	background-size: 200% 100%;
 	animation: shimmer 1.6s linear infinite;
-	border-radius: 10px;
+	border-radius: var(--radius-md);
 }
 @keyframes shimmer {
 	to {
@@ -425,14 +811,14 @@ button.chip:hover {
 	}
 }
 .fade-up {
-	animation: fade-up 0.45s var(--ease-out-soft) both;
+	animation: fade-up var(--dur-slower) var(--ease-out) both;
 }
 
 /* ============================================================================
    Long-form reading (answers and library articles)
    ========================================================================== */
 .prose {
-	font-size: 1rem;
+	font-size: var(--fs-base);
 	line-height: 1.68;
 	color: var(--text);
 	overflow-wrap: anywhere;
@@ -449,7 +835,7 @@ button.chip:hover {
 .prose h1,
 .prose h2,
 .prose h3 {
-	font-weight: 650;
+	font-weight: var(--fw-bold);
 	letter-spacing: -0.015em;
 	line-height: 1.3;
 	margin: 1.4em 0 0.5em;
@@ -486,7 +872,7 @@ ol.steps-list {
 	color: var(--text-3);
 }
 .prose strong {
-	font-weight: 650;
+	font-weight: var(--fw-bold);
 	color: var(--text);
 }
 .prose a {
@@ -501,12 +887,12 @@ ol.steps-list {
 	background: var(--surface-2);
 	border: 1px solid var(--line);
 	padding: 0.1em 0.35em;
-	border-radius: 6px;
+	border-radius: var(--radius-xs);
 }
 .prose pre {
 	background: var(--surface-2);
 	border: 1px solid var(--line);
-	border-radius: 14px;
+	border-radius: var(--radius-md);
 	padding: 0.9rem 1rem;
 	overflow-x: auto;
 	font-size: 0.86em;
@@ -538,7 +924,7 @@ ol.steps-list {
 }
 .prose th {
 	color: var(--text-2);
-	font-weight: 600;
+	font-weight: var(--fw-semibold);
 }
 .prose hr {
 	border: 0;
@@ -555,17 +941,17 @@ ol.steps-list {
 	height: 1.35em;
 	padding: 0 0.35em;
 	margin: 0 0.1em;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	font-size: 0.7em;
-	font-weight: 650;
+	font-weight: var(--fw-bold);
 	vertical-align: 0.18em;
 	color: var(--accent);
 	background: var(--accent-soft);
 	border: 1px solid var(--accent-line);
 	cursor: pointer;
 	transition:
-		background 0.15s,
-		transform 0.15s;
+		background var(--dur-fast) var(--ease-standard),
+		transform var(--dur-fast) var(--ease-standard);
 	font-family: var(--font-sans);
 	line-height: 1;
 }

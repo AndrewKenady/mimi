@@ -1,6 +1,7 @@
 // Global app state (Svelte 5 runes). One instance, imported everywhere as `app`.
 import { api, del, patch, post } from './api';
 import { onHost } from './host';
+import { applyTheme } from './theme';
 
 export type Toast = { id: number; text: string; kind: 'info' | 'ok' | 'error'; action?: { label: string; run: () => void } };
 
@@ -31,6 +32,8 @@ class AppState {
 	navOpen = $state(false);
 	fullscreen = $state(false);
 	input = $state<'mouse' | 'keys' | 'pad' | 'touch'>('mouse');
+	/** A game controller has been seen this session (the handheld's built-in pad counts). */
+	gamepad = $state(false);
 	chatsVersion = $state(0);
 	notesVersion = $state(0);
 	memoryVersion = $state(0);
@@ -43,6 +46,11 @@ class AppState {
 	private lastFix = { t: 0, lat: 0, lon: 0, accuracy: 0 };
 	private retry = 0;
 	private toastId = 0;
+	private toastTimers = new Map<number, { t: ReturnType<typeof setTimeout>; left: number; started: number; paused?: boolean }>();
+	private toastClosed = new Map<number, () => void>();
+	private commits = new Map<string, () => Promise<void>>();
+	/** Keys of items deleted with Undo still available (see deferDelete). */
+	pending = $state(new Set<string>());
 	private watchingBuild = false;
 
 	get isOwner() {
@@ -179,24 +187,10 @@ class AppState {
 		}
 	}
 
-	/** Apply theme, accent, font scale, motion and contrast to <html>. */
+	/** Apply theme, accent, font scale, motion, contrast, density and Well style to <html>. */
 	applyAppearance() {
 		const a = this.settings.user?.appearance;
-		if (!a) return;
-		const root = document.documentElement;
-		let theme = a.theme;
-		if (theme === 'auto') theme = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-		root.dataset.theme = theme;
-		const accent = theme === 'light' ? shade(a.accent, -0.28) : a.accent;
-		root.style.setProperty('--accent', accent);
-		root.style.setProperty('--well-a', a.accent);
-		root.style.setProperty('--font-scale', String(a.font_scale || 1));
-		root.dataset.motion = a.reduced_motion ? 'reduced' : 'full';
-		root.dataset.contrast = a.high_contrast ? 'high' : 'normal';
-		root.dataset.density = a.density;
-		root.dataset.reading = a.reading_font;
-		root.dataset.well = a.well_style;
-		document.querySelector('meta[name="theme-color"]')?.setAttribute('content', getComputedStyle(root).getPropertyValue('--bg').trim() || '#070b12');
+		if (a) applyTheme(a);
 	}
 
 	async setSetting(scope: 'device' | 'user', section: string, value: Record<string, unknown>) {
@@ -216,13 +210,83 @@ class AppState {
 		}
 	}
 
-	toast(text: string, kind: Toast['kind'] = 'info', action?: Toast['action'], ms = 4200) {
+	/**
+	 * Show a toast. Toasts with an action (Undo, Reload) stay longer, and every toast
+	 * pauses while it is hovered or focused so nobody has to race the timer (WCAG 2.2.1).
+	 */
+	toast(text: string, kind: Toast['kind'] = 'info', action?: Toast['action'], ms = action ? 8000 : 4200) {
 		const id = ++this.toastId;
 		this.toasts = [...this.toasts, { id, text, kind, action }];
-		setTimeout(() => this.dismiss(id), ms);
+		this.toastTimers.set(id, { left: ms, started: Date.now(), t: setTimeout(() => this.dismiss(id), ms) });
+		return id;
 	}
 	dismiss(id: number) {
+		const timer = this.toastTimers.get(id);
+		if (timer) clearTimeout(timer.t);
+		this.toastTimers.delete(id);
 		this.toasts = this.toasts.filter((t) => t.id !== id);
+		this.toastClosed.get(id)?.();
+		this.toastClosed.delete(id);
+	}
+	pauseToast(id: number) {
+		const timer = this.toastTimers.get(id);
+		if (!timer || timer.paused) return;
+		clearTimeout(timer.t);
+		timer.left -= Date.now() - timer.started;
+		timer.paused = true;
+	}
+	resumeToast(id: number) {
+		const timer = this.toastTimers.get(id);
+		if (!timer?.paused) return;
+		timer.paused = false;
+		timer.started = Date.now();
+		timer.t = setTimeout(() => this.dismiss(id), Math.max(1500, timer.left));
+	}
+
+	/**
+	 * Reversible delete: the item disappears at once, an Undo toast appears, and the real
+	 * delete runs only when the toast goes away. Lists hide pending items with isPending().
+	 * Use confirmDialog() instead for bulk or irreversible actions.
+	 */
+	deferDelete(opts: { key: string; text: string; commit: () => Promise<unknown>; onUndo?: () => void; onDone?: () => void }) {
+		this.pending = new Set(this.pending).add(opts.key);
+		let undone = false;
+		const finish = () => {
+			const next = new Set(this.pending);
+			next.delete(opts.key);
+			this.pending = next;
+		};
+		const commit = async () => {
+			this.commits.delete(opts.key);
+			try {
+				await opts.commit();
+				opts.onDone?.();
+			} catch (e: any) {
+				this.toast(e?.message || 'Could not delete that', 'error');
+			} finally {
+				finish();
+			}
+		};
+		this.commits.set(opts.key, commit);
+		const id = this.toast(opts.text, 'info', {
+			label: 'Undo',
+			run: () => {
+				undone = true;
+				this.commits.delete(opts.key);
+				finish();
+				opts.onUndo?.();
+			}
+		});
+		this.toastClosed.set(id, () => {
+			if (!undone && this.commits.has(opts.key)) commit();
+		});
+	}
+	isPending(key: string) {
+		return this.pending.has(key);
+	}
+	/** Run every waiting delete now (the page is going away). */
+	flushDeletes() {
+		for (const run of [...this.commits.values()]) run();
 	}
 
 	private readLive() {
@@ -306,16 +370,7 @@ class AppState {
 	}
 }
 
-/** Lighten (amount > 0) or darken (amount < 0) a hex colour. */
-export function shade(hex: string, amount: number): string {
-	const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
-	if (!m) return hex;
-	const n = parseInt(m[1], 16);
-	const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
-		const t = amount < 0 ? 0 : 255;
-		return Math.round(c + (t - c) * Math.abs(amount));
-	});
-	return '#' + ch.map((c) => c.toString(16).padStart(2, '0')).join('');
-}
+/** @deprecated use shade() from $lib/color */
+export { shade } from './color';
 
 export const app = new AppState();

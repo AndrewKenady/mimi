@@ -4,7 +4,7 @@
 	import { app } from '$lib/app.svelte';
 	import { get } from '$lib/api';
 	import { toggleFullscreen } from '$lib/host';
-	import { SETTINGS_SECTIONS } from '$lib/settings-sections';
+	import { SETTINGS_SECTIONS, settingsHref } from '$lib/settings-sections';
 	import { Search, House, MessageSquarePlus, Library, Map, AudioLines, ScanText, Brain, Settings, Moon, Maximize, QrCode, MessagesSquare, CornerDownLeft, NotebookPen } from '@lucide/svelte';
 
 	type Item = { id: string; label: string; hint?: string; icon: any; run: () => void; group: string; keys?: string; owner?: boolean };
@@ -27,15 +27,27 @@
 		{ id: 'lens', label: 'Lens — read a photo', icon: ScanText, run: () => goto('/lens'), group: 'Go' },
 		{ id: 'memory', label: 'Memory', icon: Brain, run: () => goto('/memory'), group: 'Go' },
 		{ id: 'settings', label: 'Settings', icon: Settings, run: () => goto('/settings'), group: 'Go' },
-		...SETTINGS_SECTIONS.map((s) => ({
-			id: 'set-' + s.id,
-			label: `Settings: ${s.label}`,
-			icon: s.icon,
-			run: () => goto('/settings/' + s.id),
-			group: 'Settings',
-			keys: s.keys,
-			owner: s.owner
-		})),
+		...SETTINGS_SECTIONS.flatMap((s) => [
+			{
+				id: 'set-' + s.id,
+				label: `Settings: ${s.label}`,
+				icon: s.icon,
+				run: () => goto(settingsHref(s.id)),
+				group: 'Settings',
+				keys: s.keywords,
+				owner: s.ownerOnly
+			},
+			// Sub-sections jump straight to their anchor, so "voice" or "tools" still lands where it used to.
+			...s.subsections.map((x) => ({
+				id: `set-${s.id}-${x.id}`,
+				label: `Settings: ${s.label} › ${x.label}`,
+				icon: s.icon,
+				run: () => goto(settingsHref(s.id, x.id)),
+				group: 'Settings',
+				keys: x.keywords,
+				owner: s.ownerOnly
+			}))
+		]),
 		{
 			id: 'theme',
 			label: 'Toggle light / dark',
@@ -44,7 +56,7 @@
 			group: 'Actions'
 		},
 		{ id: 'fs', label: 'Toggle full screen', hint: 'F11', icon: Maximize, run: () => toggleFullscreen(), group: 'Actions' },
-		{ id: 'share', label: 'Share Mimi with nearby phones', icon: QrCode, run: () => goto('/settings/sharing'), group: 'Actions' }
+		{ id: 'share', label: 'Share Mimi with nearby phones', icon: QrCode, run: () => goto(settingsHref('sharing')), group: 'Actions' }
 	];
 
 	const items = $derived.by(() => {

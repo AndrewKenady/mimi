@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { app } from '$lib/app.svelte';
+	import { inkOn } from '$lib/color';
+	import { DEFAULT_ACCENT } from '$lib/accents';
 	import { House, MessagesSquare, Library, Map, AudioLines, ScanText, Brain, Settings, Menu, Mic, NotebookPen } from '@lucide/svelte';
 
 	const items = [
@@ -31,7 +33,7 @@
 		{#each shown as it (it.href)}
 			{@const Icon = it.icon}
 			<a href={it.href} class="item" class:active={active(it.href)} aria-current={active(it.href) ? 'page' : undefined}>
-				<span class="ico"><Icon size={21} strokeWidth={1.8} /></span>
+				<span class="ico"><Icon size={21} strokeWidth={1.8} aria-hidden="true" /></span>
 				<span class="lbl">{it.label}</span>
 			</a>
 		{/each}
@@ -46,7 +48,7 @@
 			<span class="ico"><Settings size={21} strokeWidth={1.8} /></span>
 			<span class="lbl">Settings</span>
 		</a>
-		<button class="avatar" style="--c:{app.me?.color || 'var(--accent)'}" onclick={() => (app.quick = true)} aria-label="Quick menu" title="Quick menu">
+		<button class="avatar" style="--c:{app.me?.color || DEFAULT_ACCENT}; --ink:{inkOn(app.me?.color || DEFAULT_ACCENT)}" onclick={() => (app.quick = true)} aria-label="Quick menu" aria-haspopup="dialog" title="Quick menu">
 			{initial}
 		</button>
 	</div>
@@ -55,13 +57,13 @@
 <nav class="tabs glass" aria-label="Main">
 	{#each shown.slice(0, 4) as it (it.href)}
 		{@const Icon = it.icon}
-		<a href={it.href} class:active={active(it.href)}>
-			<Icon size={21} strokeWidth={1.8} />
+		<a href={it.href} class:active={active(it.href)} aria-current={active(it.href) ? 'page' : undefined}>
+			<Icon size={21} strokeWidth={1.8} aria-hidden="true" />
 			<span>{it.label}</span>
 		</a>
 	{/each}
-	<button onclick={() => (app.quick = true)}>
-		<Menu size={21} strokeWidth={1.8} />
+	<button onclick={() => (app.quick = true)} aria-haspopup="dialog">
+		<Menu size={21} strokeWidth={1.8} aria-hidden="true" />
 		<span>More</span>
 	</button>
 </nav>
@@ -73,30 +75,30 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		padding: 18px 0 16px;
+		padding: var(--space-4) 0 var(--space-4);
 		border-right: 1px solid var(--line);
 		background: var(--bg-2);
-		z-index: 5;
+		z-index: var(--z-nav);
 	}
 	.brand {
 		width: 40px;
 		height: 40px;
 		display: grid;
 		place-items: center;
-		margin-bottom: 18px;
+		margin-bottom: var(--space-4);
 	}
 	.dot {
 		width: 26px;
 		height: 26px;
-		border-radius: 50%;
-		background: radial-gradient(circle at 36% 32%, #e7fffb 0, var(--well-a) 26%, var(--well-b) 56%, var(--well-c) 80%);
+		border-radius: var(--radius-round);
+		background: var(--orb);
 		box-shadow: 0 0 22px color-mix(in oklab, var(--well-a) 40%, transparent);
 		transition:
-			filter 0.4s,
-			opacity 0.4s;
+			filter var(--dur-slower),
+			opacity var(--dur-slower);
 	}
 	.dot.waking {
-		animation: breathe 1.6s ease-in-out infinite;
+		animation: breathe 1.6s var(--ease-breathe) infinite;
 	}
 	.dot.offline {
 		filter: grayscale(1) brightness(0.7);
@@ -111,16 +113,21 @@
 			opacity: 0.7;
 		}
 	}
+	/* Without motion, "waking" still reads: the mark dims instead of breathing. */
 	@media (prefers-reduced-motion: reduce) {
 		.dot.waking {
 			animation: none;
-			opacity: 0.7;
+			opacity: 0.6;
 		}
+	}
+	:global([data-motion='reduced']) .dot.waking {
+		animation: none;
+		opacity: 0.6;
 	}
 	.items {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: var(--space-1);
 		flex: 1;
 	}
 	.item {
@@ -128,13 +135,13 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 4px;
-		padding: 8px 0 7px;
-		border-radius: 16px;
+		gap: var(--space-1);
+		padding: var(--space-2) 0 var(--space-1-5);
+		border-radius: var(--radius-lg);
 		color: var(--text-3);
 		transition:
-			color 0.18s,
-			background 0.18s;
+			color var(--dur-base),
+			background var(--dur-base);
 		position: relative;
 	}
 	.item:hover {
@@ -146,8 +153,8 @@
 		place-items: center;
 		width: 44px;
 		height: 30px;
-		border-radius: 999px;
-		transition: background 0.2s;
+		border-radius: var(--radius-pill);
+		transition: background var(--dur-base);
 	}
 	.item.active {
 		color: var(--text);
@@ -158,15 +165,15 @@
 		box-shadow: inset 0 0 0 1px var(--accent-line);
 	}
 	.lbl {
-		font-size: 0.68rem;
-		font-weight: 550;
+		font-size: var(--fs-2xs);
+		font-weight: var(--fw-medium);
 		letter-spacing: 0.01em;
 	}
 	.bottom {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 10px;
+		gap: var(--space-2);
 	}
 	/* Talk is an action, not a place: the one filled button in the rail. */
 	.talk {
@@ -189,36 +196,36 @@
 		width: 32px;
 		height: 1px;
 		background: var(--line);
-		margin: 2px 0;
+		margin: var(--space-0-5) 0;
 	}
 	.avatar {
 		width: 36px;
 		height: 36px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		display: grid;
 		place-items: center;
-		font-weight: 650;
-		font-size: 0.9rem;
-		color: #06131a;
+		font-weight: var(--fw-bold);
+		font-size: var(--fs-md);
+		color: var(--ink);
 		background: var(--c);
-		margin-top: 2px;
+		margin-top: var(--space-0-5);
 	}
 	/* Short screens (the handheld runs 1280x720 at 150%): tighter rhythm so nothing is cut off. */
 	@media (max-height: 820px) {
 		.rail {
-			padding: 12px 0 10px;
+			padding: var(--space-3) 0 var(--space-2);
 			overflow-y: auto;
 			scrollbar-width: none;
 		}
 		.brand {
-			margin-bottom: 8px;
+			margin-bottom: var(--space-2);
 		}
 		.items {
 			gap: 1px;
 		}
 		.item {
-			padding: 5px 0 4px;
-			gap: 2px;
+			padding: var(--space-1) 0 var(--space-1);
+			gap: var(--space-0-5);
 		}
 		.ico {
 			height: 28px;
@@ -227,7 +234,7 @@
 			height: 30px;
 		}
 		.bottom {
-			gap: 4px;
+			gap: var(--space-1);
 		}
 	}
 	.tabs {
@@ -243,9 +250,11 @@
 			left: 0;
 			right: 0;
 			bottom: 0;
-			z-index: 30;
+			z-index: var(--z-tabbar);
 			justify-content: space-around;
-			padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+			align-items: stretch;
+			height: var(--tabbar-h);
+			padding: var(--space-1) var(--space-1-5) env(safe-area-inset-bottom);
 			border-top: 1px solid var(--line);
 		}
 		.tabs a,
@@ -253,10 +262,14 @@
 			display: flex;
 			flex-direction: column;
 			align-items: center;
-			gap: 3px;
-			font-size: 0.68rem;
+			justify-content: center;
+			gap: var(--space-0-5);
+			font-size: var(--fs-2xs);
+			line-height: var(--lh-2xs);
+			font-weight: var(--fw-medium);
 			color: var(--text-3);
-			min-width: 56px;
+			min-width: 64px;
+			border-radius: var(--radius-md);
 		}
 		.tabs .active {
 			color: var(--accent);
