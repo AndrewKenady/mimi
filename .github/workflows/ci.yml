@@ -49,9 +49,11 @@ jobs:
           enable-cache: true
           cache-dependency-glob: core/pyproject.toml
       - run: uv pip install -e "core[dev]"
-      - name: Score the fixture run
+      - name: Score the fixture runs (A/B scoreboard)
         run: |
-          if [ -d eval ]; then uv run --no-sync python -m pytest -q eval; else echo "no eval/ yet"; fi
+          uv run --no-sync python eval/score.py eval/fixtures/results-a.jsonl \
+            --compare eval/fixtures/results-b.jsonl --out-dir "$RUNNER_TEMP/eval" --name fixtures
+          cat "$RUNNER_TEMP/eval/fixtures.md" >> "$GITHUB_STEP_SUMMARY"
 
   ui:
     name: UI
