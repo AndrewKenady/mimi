@@ -172,8 +172,8 @@
 
 <style>
 	.stage {
-		margin-top: 22px;
-		border-radius: 24px;
+		margin-top: var(--space-5);
+		border-radius: var(--radius-xl);
 		background: var(--surface);
 		border: 1px solid var(--line);
 		min-height: 320px;
@@ -198,7 +198,7 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		gap: 40px;
+		gap: var(--space-10);
 	}
 	.camctl .icon-btn {
 		background: rgba(0, 0, 0, 0.45);
@@ -207,10 +207,10 @@
 	.shutter {
 		width: 74px;
 		height: 74px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		background: #fff;
 		box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.35);
-		transition: transform 0.12s;
+		transition: transform var(--dur-fast);
 	}
 	.shutter:active {
 		transform: scale(0.92);
@@ -260,33 +260,33 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 16px;
+		gap: var(--space-4);
 		color: var(--text-3);
-		padding: 40px;
+		padding: var(--space-10);
 	}
 	.btns {
 		display: flex;
-		gap: 10px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		justify-content: center;
 	}
 	.results {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 14px;
-		margin-top: 16px;
+		gap: var(--space-3);
+		margin-top: var(--space-4);
 	}
 	.textcard,
 	.askcard {
-		padding: 16px 18px;
+		padding: var(--space-4) var(--space-4);
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		gap: var(--space-2);
 	}
 	.textcard header {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: var(--space-1-5);
 	}
 	.grow {
 		flex: 1;
@@ -295,7 +295,7 @@
 		margin: 0;
 		white-space: pre-wrap;
 		font-family: var(--font-sans);
-		font-size: 0.95rem;
+		font-size: var(--fs-base);
 		line-height: 1.6;
 		max-height: 300px;
 		overflow-y: auto;
@@ -312,19 +312,19 @@
 	.actions {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.act {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		padding: 14px;
-		border-radius: 14px;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		border-radius: var(--radius-md);
 		background: var(--surface-2);
 		border: 1px solid var(--line);
-		font-weight: 550;
-		font-size: 0.9rem;
-		transition: background 0.15s, border-color 0.15s;
+		font-weight: var(--fw-medium);
+		font-size: var(--fs-md);
+		transition: background var(--dur-fast), border-color var(--dur-fast);
 	}
 	.act:hover {
 		background: var(--surface-3);
@@ -335,7 +335,7 @@
 	}
 	.custom {
 		display: flex;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.again {
 		align-self: flex-start;

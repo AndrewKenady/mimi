@@ -160,14 +160,14 @@
 
 <style>
 	.recorder {
-		margin-top: 24px;
-		padding: 34px 24px 26px;
+		margin-top: var(--space-6);
+		padding: var(--space-8) var(--space-6) var(--space-6);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 12px;
+		gap: var(--space-3);
 		text-align: center;
-		transition: border-color 0.3s, box-shadow 0.3s;
+		transition: border-color var(--dur-slow), box-shadow var(--dur-slow);
 	}
 	.recorder.live {
 		border-color: color-mix(in oklab, var(--danger) 40%, transparent);
@@ -177,12 +177,12 @@
 	.rec {
 		width: 92px;
 		height: 92px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		display: grid;
 		place-items: center;
 		background: var(--surface-2);
 		color: var(--text);
-		transition: transform 0.15s, box-shadow 0.2s;
+		transition: transform var(--dur-fast), box-shadow var(--dur-base);
 		box-shadow: inset 0 0 0 3px var(--text-3), 0 0 0 8px var(--surface);
 	}
 	.rec:hover {
@@ -191,7 +191,7 @@
 	.dotrec {
 		width: 40px;
 		height: 40px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		background: var(--danger);
 		box-shadow: 0 0 18px color-mix(in oklab, var(--danger) 45%, transparent);
 	}
@@ -215,16 +215,16 @@
 		}
 	}
 	.big {
-		font-size: 1.1rem;
-		font-weight: 600;
-		margin: 4px 0 0;
+		font-size: var(--fs-lg);
+		font-weight: var(--fw-semibold);
+		margin: var(--space-1) 0 0;
 	}
 	.wave {
 		width: min(560px, 100%);
 		height: 90px;
 	}
 	.timer {
-		font-size: 2.2rem;
+		font-size: var(--fs-4xl);
 		font-weight: 300;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: 0.02em;
@@ -232,18 +232,18 @@
 	.list {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.note {
 		display: flex;
 		align-items: center;
-		gap: 14px;
-		padding: 14px 16px;
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-4);
 	}
 	.ni {
 		width: 40px;
 		height: 40px;
-		border-radius: 12px;
+		border-radius: var(--radius-md);
 		display: grid;
 		place-items: center;
 		background: var(--surface-2);
@@ -255,14 +255,14 @@
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: var(--space-0-5);
 	}
 	.info b {
-		font-weight: 600;
+		font-weight: var(--fw-semibold);
 	}
 	.info small {
 		color: var(--text-3);
-		font-size: 0.82rem;
+		font-size: var(--fs-sm);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -271,20 +271,20 @@
 		color: var(--danger);
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-1);
 	}
 	.prog {
 		height: 4px;
-		border-radius: 4px;
+		border-radius: var(--radius-xs);
 		background: var(--surface-3);
 		overflow: hidden;
-		margin-top: 6px;
+		margin-top: var(--space-1-5);
 	}
 	.prog span {
 		display: block;
 		height: 100%;
 		background: var(--accent);
-		transition: width 0.6s var(--ease-out-soft);
+		transition: width var(--dur-slower) var(--ease-out-soft);
 	}
 	.note :global(.chev) {
 		color: var(--text-3);

@@ -124,40 +124,40 @@
 	.back {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
+		gap: var(--space-1-5);
 		color: var(--text-3);
-		font-size: 0.85rem;
+		font-size: var(--fs-md);
 	}
 	.back:hover {
 		color: var(--accent);
 	}
 	header {
-		margin: 12px 0 18px;
+		margin: var(--space-3) 0 var(--space-4);
 	}
 	.tt {
 		text-align: left;
 	}
 	.titlein {
-		font-size: 1.6rem;
+		font-size: var(--fs-2xl);
 		height: 3rem;
-		font-weight: 600;
+		font-weight: var(--fw-semibold);
 	}
 	.acts {
 		display: flex;
-		gap: 8px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
-		margin-top: 14px;
+		margin-top: var(--space-3);
 	}
 	audio {
 		width: 100%;
-		margin-bottom: 16px;
-		border-radius: 14px;
+		margin-bottom: var(--space-4);
+		border-radius: var(--radius-md);
 	}
 	.working {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding: 16px 18px;
+		gap: var(--space-3);
+		padding: var(--space-4) var(--space-4);
 		color: var(--text-2);
 		flex-wrap: wrap;
 	}
@@ -176,7 +176,7 @@
 	.prog {
 		flex-basis: 100%;
 		height: 4px;
-		border-radius: 4px;
+		border-radius: var(--radius-xs);
 		background: var(--surface-3);
 		overflow: hidden;
 	}
@@ -184,22 +184,22 @@
 		display: block;
 		height: 100%;
 		background: var(--accent);
-		transition: width 0.6s;
+		transition: width var(--dur-slower);
 	}
 	.sum {
-		padding: 22px 24px;
+		padding: var(--space-5) var(--space-6);
 	}
 	.lead {
-		font-size: 1.08rem;
+		font-size: var(--fs-lg);
 		line-height: 1.6;
-		margin: 0 0 8px;
+		margin: 0 0 var(--space-2);
 	}
 	.sum h3 {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		font-size: 0.95rem;
-		margin: 18px 0 8px;
+		gap: var(--space-2);
+		font-size: var(--fs-base);
+		margin: var(--space-4) 0 var(--space-2);
 		color: var(--text-2);
 	}
 	.sum h3 :global(svg) {
@@ -216,26 +216,26 @@
 	}
 	.todo li {
 		display: flex;
-		gap: 8px;
+		gap: var(--space-2);
 		align-items: flex-start;
-		margin: 6px 0;
+		margin: var(--space-1-5) 0;
 	}
 	.todo :global(svg) {
 		color: var(--text-3);
 		flex: none;
-		margin-top: 4px;
+		margin-top: var(--space-1);
 	}
 	.label {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: var(--space-1-5);
 	}
 	.transcript p {
 		display: flex;
-		gap: 14px;
+		gap: var(--space-3);
 		margin: 0;
-		padding: 7px 10px;
-		border-radius: 10px;
+		padding: var(--space-1-5) var(--space-2);
+		border-radius: var(--radius-sm);
 		line-height: 1.6;
 	}
 	.transcript p.now {
@@ -244,8 +244,8 @@
 	.ts {
 		font-variant-numeric: tabular-nums;
 		color: var(--accent);
-		font-size: 0.8rem;
-		padding-top: 3px;
+		font-size: var(--fs-sm);
+		padding-top: var(--space-0-5);
 		flex: none;
 		width: 44px;
 		text-align: left;

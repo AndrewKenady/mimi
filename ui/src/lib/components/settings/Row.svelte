@@ -15,8 +15,8 @@
 	.row {
 		display: flex;
 		align-items: center;
-		gap: 20px;
-		padding: 14px 0;
+		gap: var(--space-5);
+		padding: var(--space-3) 0;
 		border-bottom: 1px solid var(--line);
 	}
 	.row:last-child {
@@ -25,27 +25,27 @@
 	.row.stack {
 		flex-direction: column;
 		align-items: stretch;
-		gap: 10px;
+		gap: var(--space-2);
 	}
 	.txt {
 		flex: 1;
 		min-width: 0;
 	}
 	.l {
-		font-weight: 550;
-		font-size: 0.95rem;
+		font-weight: var(--fw-medium);
+		font-size: var(--fs-base);
 	}
 	.h {
 		color: var(--text-3);
-		font-size: 0.83rem;
-		margin-top: 2px;
+		font-size: var(--fs-sm);
+		margin-top: var(--space-0-5);
 		line-height: 1.45;
 	}
 	.ctl {
 		flex: none;
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.stack .ctl {
 		flex: 1;

@@ -11,20 +11,20 @@
 <style>
 	.seg {
 		display: inline-flex;
-		padding: 3px;
-		border-radius: 999px;
+		padding: var(--space-0-5);
+		border-radius: var(--radius-pill);
 		background: var(--surface-2);
 		border: 1px solid var(--line);
 		flex-wrap: wrap;
 	}
 	button {
 		height: 32px;
-		padding: 0 14px;
-		border-radius: 999px;
-		font-size: 0.84rem;
-		font-weight: 550;
+		padding: 0 var(--space-3);
+		border-radius: var(--radius-pill);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
 		color: var(--text-2);
-		transition: background 0.18s, color 0.18s;
+		transition: background var(--dur-base), color var(--dur-base);
 	}
 	button:hover {
 		color: var(--text);

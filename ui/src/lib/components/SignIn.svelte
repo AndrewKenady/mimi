@@ -124,27 +124,27 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 14px;
+		gap: var(--space-3);
 		text-align: center;
-		padding: 40px 0;
+		padding: var(--space-10) 0;
 	}
 	h1 {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		font-size: 1.9rem;
-		font-weight: 620;
+		gap: var(--space-2);
+		font-size: var(--fs-3xl);
+		font-weight: var(--fw-semibold);
 		letter-spacing: -0.03em;
-		margin: 4px 0 0;
+		margin: var(--space-1) 0 0;
 	}
 	.sub {
 		color: var(--text-2);
-		margin: -4px 0 8px;
+		margin: calc(var(--space-1) * -1) 0 var(--space-2);
 	}
 	.seg {
 		display: flex;
-		padding: 4px;
-		border-radius: 999px;
+		padding: var(--space-1);
+		border-radius: var(--radius-pill);
 		background: var(--surface);
 		border: 1px solid var(--line);
 		width: 100%;
@@ -152,10 +152,10 @@
 	.seg button {
 		flex: 1;
 		height: 38px;
-		border-radius: 999px;
+		border-radius: var(--radius-pill);
 		color: var(--text-2);
-		font-weight: 550;
-		font-size: 0.9rem;
+		font-weight: var(--fw-medium);
+		font-size: var(--fs-md);
 	}
 	.seg button.on {
 		background: var(--surface-3);
@@ -163,13 +163,13 @@
 	}
 	.input.big {
 		height: 3.2rem;
-		font-size: 1.05rem;
+		font-size: var(--fs-base);
 		text-align: center;
-		border-radius: 16px;
+		border-radius: var(--radius-lg);
 	}
 	.fine {
 		color: var(--text-3);
-		font-size: 0.82rem;
+		font-size: var(--fs-sm);
 		margin: 0;
 	}
 	.pic {
@@ -177,23 +177,23 @@
 		place-items: center;
 		width: 64px;
 		height: 64px;
-		border-radius: 20px;
+		border-radius: var(--radius-xl);
 		background: var(--accent-soft);
 		color: var(--accent);
 	}
 	.code {
 		display: flex;
-		gap: 10px;
-		margin: 4px 0 6px;
+		gap: var(--space-2);
+		margin: var(--space-1) 0 var(--space-1-5);
 	}
 	.code span {
 		width: 56px;
 		height: 68px;
-		border-radius: 16px;
+		border-radius: var(--radius-lg);
 		display: grid;
 		place-items: center;
-		font-size: 2.2rem;
-		font-weight: 650;
+		font-size: var(--fs-4xl);
+		font-weight: var(--fw-bold);
 		font-variant-numeric: tabular-nums;
 		background: var(--surface);
 		border: 1px solid var(--line-2);
@@ -201,12 +201,12 @@
 	.waiting {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.dot {
 		width: 8px;
 		height: 8px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		background: var(--accent);
 		animation: blink 1.2s ease-in-out infinite;
 	}
@@ -221,7 +221,7 @@
 	}
 	.warn {
 		color: var(--warn);
-		font-size: 0.88rem;
+		font-size: var(--fs-md);
 		line-height: 1.45;
 		margin: 0;
 	}

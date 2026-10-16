@@ -27,16 +27,16 @@
 	.sl {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: var(--space-2);
 		min-width: 280px;
 	}
 	.end {
-		font-size: 0.78rem;
+		font-size: var(--fs-xs);
 		color: var(--text-3);
 		white-space: nowrap;
 	}
 	.val {
-		font-size: 0.82rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2);
 		font-variant-numeric: tabular-nums;
 		min-width: 3.2em;
@@ -47,7 +47,7 @@
 		appearance: none;
 		flex: 1;
 		height: 6px;
-		border-radius: 6px;
+		border-radius: var(--radius-xs);
 		background: linear-gradient(90deg, var(--accent) var(--p), var(--surface-3) var(--p));
 		outline: none;
 	}
@@ -55,7 +55,7 @@
 		-webkit-appearance: none;
 		width: 22px;
 		height: 22px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		background: var(--text);
 		border: 3px solid var(--bg);
 		box-shadow: 0 0 0 1px var(--line-2), var(--shadow-1);

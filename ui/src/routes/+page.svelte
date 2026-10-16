@@ -177,14 +177,14 @@
 	}
 	h1 {
 		font-size: clamp(2rem, 3.4vw, 2.7rem);
-		font-weight: 600;
+		font-weight: var(--fw-semibold);
 		letter-spacing: -0.035em;
 		margin: 0;
 	}
 	.lede {
 		color: var(--text-2);
-		margin: 8px 0 22px;
-		font-size: 1.05rem;
+		margin: var(--space-2) 0 var(--space-5);
+		font-size: var(--fs-base);
 	}
 	.composer-wrap {
 		width: min(760px, 100%);
@@ -193,25 +193,25 @@
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
-		gap: 8px;
-		margin-top: 16px;
+		gap: var(--space-2);
+		margin-top: var(--space-4);
 	}
 	.qa {
 		display: inline-flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		height: 40px;
-		padding: 0 16px;
-		border-radius: 999px;
-		font-size: 0.88rem;
-		font-weight: 550;
+		padding: 0 var(--space-4);
+		border-radius: var(--radius-pill);
+		font-size: var(--fs-md);
+		font-weight: var(--fw-medium);
 		color: var(--text-2);
 		background: var(--surface);
 		border: 1px solid var(--line);
 		transition:
-			color 0.15s,
-			border-color 0.15s,
-			background 0.15s;
+			color var(--dur-fast),
+			border-color var(--dur-fast),
+			background var(--dur-fast);
 	}
 	.qa:hover {
 		color: var(--text);
@@ -224,13 +224,13 @@
 	.widgets {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
-		gap: 16px;
-		margin-top: 44px;
+		gap: var(--space-4);
+		margin-top: var(--space-10);
 	}
 	.w {
-		padding: 16px 18px 14px;
+		padding: var(--space-4) var(--space-4) var(--space-3);
 		min-height: 170px;
-		animation: fade-up 0.5s var(--ease-out-soft) both;
+		animation: fade-up var(--dur-slower) var(--ease-out-soft) both;
 	}
 	.w:nth-child(2) {
 		animation-delay: 0.05s;
@@ -245,14 +245,14 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 10px;
+		margin-bottom: var(--space-2);
 		min-height: 32px;
 	}
 	.more {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
-		font-size: 0.8rem;
+		gap: var(--space-1);
+		font-size: var(--fs-sm);
 		color: var(--text-3);
 	}
 	.more:hover {
@@ -268,23 +268,23 @@
 		flex-direction: column;
 		width: 100%;
 		text-align: left;
-		padding: 8px 10px;
-		margin: 0 -10px;
-		border-radius: 12px;
-		transition: background 0.15s;
+		padding: var(--space-2) var(--space-2);
+		margin: 0 calc(var(--space-2) * -1);
+		border-radius: var(--radius-md);
+		transition: background var(--dur-fast);
 	}
 	.rows li > *:hover {
 		background: var(--surface-2);
 	}
 	.rt {
-		font-weight: 550;
-		font-size: 0.92rem;
+		font-weight: var(--fw-medium);
+		font-size: var(--fs-md);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 	.rs {
-		font-size: 0.78rem;
+		font-size: var(--fs-xs);
 		color: var(--text-3);
 		text-transform: capitalize;
 	}
@@ -292,12 +292,12 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 8px;
+		gap: var(--space-2);
 		color: var(--text-3);
 	}
 	.empty p {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: var(--fs-md);
 		color: var(--text-2);
 	}
 	.discover {
@@ -306,43 +306,43 @@
 	.disc {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		gap: var(--space-3);
 	}
 	.disc img {
 		width: 100%;
 		max-height: 220px;
 		object-fit: cover;
-		border-radius: 14px;
+		border-radius: var(--radius-md);
 		background: var(--surface-2);
 	}
 	.disc h3 {
 		font-family: var(--font-serif);
-		font-size: 1.35rem;
-		font-weight: 600;
+		font-size: var(--fs-xl);
+		font-weight: var(--fw-semibold);
 		letter-spacing: -0.01em;
-		margin: 0 0 6px;
+		margin: 0 0 var(--space-1-5);
 	}
 	.disc p {
-		margin: 0 0 10px;
+		margin: 0 0 var(--space-2);
 		color: var(--text-2);
 		line-height: 1.55;
-		font-size: 0.92rem;
+		font-size: var(--fs-md);
 	}
 	.src {
 		display: inline-flex;
 		align-items: center;
-		gap: 6px;
-		font-size: 0.78rem;
+		gap: var(--space-1-5);
+		font-size: var(--fs-xs);
 		color: var(--text-3);
 	}
 	.libline {
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		gap: 8px;
-		margin-top: 28px;
+		gap: var(--space-2);
+		margin-top: var(--space-6);
 		color: var(--text-3);
-		font-size: 0.84rem;
+		font-size: var(--fs-sm);
 	}
 	.libline:hover {
 		color: var(--accent);

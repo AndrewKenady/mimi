@@ -183,25 +183,25 @@
 		max-width: 860px;
 	}
 	.head {
-		margin-bottom: 20px;
+		margin-bottom: var(--space-5);
 	}
 	.controls {
-		padding: 18px 20px;
+		padding: var(--space-4) var(--space-5);
 	}
 	.seg {
 		display: inline-flex;
-		padding: 4px;
-		border-radius: 999px;
+		padding: var(--space-1);
+		border-radius: var(--radius-pill);
 		background: var(--surface-2);
 		border: 1px solid var(--line);
 	}
 	.seg button {
 		height: 36px;
-		padding: 0 18px;
-		border-radius: 999px;
+		padding: 0 var(--space-4);
+		border-radius: var(--radius-pill);
 		color: var(--text-2);
-		font-weight: 550;
-		font-size: 0.88rem;
+		font-weight: var(--fw-medium);
+		font-size: var(--fs-md);
 	}
 	.seg button.on {
 		background: var(--accent);
@@ -209,13 +209,13 @@
 	}
 	.explain {
 		color: var(--text-2);
-		margin: 12px 0 14px;
-		font-size: 0.92rem;
+		margin: var(--space-3) 0 var(--space-3);
+		font-size: var(--fs-md);
 	}
 	.row {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.grow {
@@ -227,35 +227,35 @@
 	.confirm {
 		display: inline-flex;
 		align-items: center;
-		gap: 8px;
-		font-size: 0.88rem;
+		gap: var(--space-2);
+		font-size: var(--fs-md);
 		color: var(--text-2);
 	}
 	.paused {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		margin: 12px 0 0;
+		gap: var(--space-2);
+		margin: var(--space-3) 0 0;
 		color: var(--warn);
-		font-size: 0.86rem;
+		font-size: var(--fs-md);
 	}
 	.sect {
-		margin: 26px 0 10px;
+		margin: var(--space-6) 0 var(--space-2);
 	}
 	.toolbar {
 		display: flex;
-		gap: 10px;
+		gap: var(--space-2);
 		align-items: center;
 		flex-wrap: wrap;
-		margin-top: 26px;
+		margin-top: var(--space-6);
 	}
 	.search {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		height: 38px;
-		padding: 0 12px;
-		border-radius: 12px;
+		padding: 0 var(--space-3);
+		border-radius: var(--radius-md);
 		background: var(--surface);
 		border: 1px solid var(--line);
 		color: var(--text-3);
@@ -270,15 +270,15 @@
 	}
 	.filters {
 		display: flex;
-		gap: 6px;
+		gap: var(--space-1-5);
 		flex: 1;
 		flex-wrap: wrap;
 	}
 	.add {
 		display: flex;
-		gap: 8px;
-		padding: 12px;
-		margin-top: 12px;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		margin-top: var(--space-3);
 	}
 	.sel {
 		width: 170px;
@@ -286,13 +286,13 @@
 	.list {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.mem {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		padding: 12px 12px 12px 18px;
+		gap: var(--space-2);
+		padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
 	}
 	.mem.sug {
 		border-color: var(--accent-line);
@@ -307,24 +307,24 @@
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: var(--space-0-5);
 		line-height: 1.45;
 	}
 	.mt :global(.pin) {
 		color: var(--accent);
 		display: inline;
-		margin-right: 6px;
+		margin-right: var(--space-1-5);
 		vertical-align: -1px;
 	}
 	.mt small {
 		color: var(--text-3);
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 	}
 	.mt small a {
 		color: var(--text-2);
 		display: inline-flex;
 		align-items: center;
-		gap: 3px;
+		gap: var(--space-0-5);
 	}
 	.mt small a:hover {
 		color: var(--accent);
@@ -333,10 +333,10 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 10px;
+		gap: var(--space-2);
 		text-align: center;
 		color: var(--text-3);
-		padding: 50px 20px;
+		padding: var(--space-12) var(--space-5);
 	}
 	.empty p {
 		max-width: 440px;
