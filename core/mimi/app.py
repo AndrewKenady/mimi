@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from . import __version__, hardware, log
 from .awake import KeepAwake
-from .auth import SESSION_COOKIE, Auth, Ctx, FailureGuard
+from .auth import SESSION_COOKIE, Auth, Ctx, FailureGuard, KnownDevices
 from .catalog import Catalog
 from .chat import ChatService
 from .db import Database
@@ -49,6 +49,7 @@ class Services:
         self.auth = Auth(self.db)
         self.pairing = PairingService(self.auth, self.events)
         self.guard = FailureGuard(self.db)  # wrong PIN/password lockouts (kept across restarts)
+        self.devices = KnownDevices(self.db)  # browsers that signed in before: exempt from the account-wide budget
         self.catalog = Catalog(paths)
         self.hw = hardware.detect(paths, use_cache=True, max_age=10**9) if (paths.data / "hardware.json").exists() else {
             "profile": "standard", "backend": "vulkan", "cores": os.cpu_count() or 4, "gpus": [], "battery": hardware.battery()}

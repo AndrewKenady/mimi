@@ -54,7 +54,7 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - **The local certificate authority is name-constrained** to `.local` names and private addresses, valid for two years, and its key is protected at rest. Older CAs rotate automatically, and Settings explains how to update phones. Portable drives never carry the key.
 - **Sign-in:**
   - phones and laptops need a PIN of at least 6 digits;
-  - lockouts survive restarts;
+  - lockouts survive restarts, and a flood of wrong guesses can't lock out phones and laptops that have signed in before (they keep their own limit);
   - sessions expire after 30 idle days.
 - **Prompt-injection defences.** Library passages, attached files and plugin output reach the model as delimited, untrusted data. Once a turn has read outside content, `remember` only suggests a memory, and side-effecting tools need the user's own request.
 - **ZIM content is sandboxed.** The reader strips `javascript:` and similar links, frames and forms.

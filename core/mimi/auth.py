@@ -262,12 +262,54 @@ class Auth:
         )
 
 
+DEVICE_COOKIE = "mimi_device"
+DEVICE_DAYS = 365
+
+
+class KnownDevices:
+    """Browsers that have signed in to an account before, so a wrong-guess flood from elsewhere on
+    the network can't lock them out (see FailureGuard). Each holds a random token in a long-lived
+    cookie; only its SHA-256 is stored. A token isn't a session: it grants nothing by itself, it
+    only exempts its device from the account-wide guess budget (its own per-device limit stays)."""
+
+    def __init__(self, db: dbm.Database) -> None:
+        self.db = db
+        db.execute("CREATE TABLE IF NOT EXISTS known_devices (token_hash TEXT NOT NULL, account TEXT NOT NULL, "
+                   "created_at REAL NOT NULL, last_seen REAL NOT NULL, PRIMARY KEY (token_hash, account))")
+        db.execute("DELETE FROM known_devices WHERE last_seen < ?", (time.time() - DEVICE_DAYS * 86400,))
+
+    @staticmethod
+    def _h(token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    def remember(self, token: str | None, account: str) -> str:
+        """Mark this device as known for `account`; returns the token to (re)set in its cookie."""
+        if not token or len(token) < 32:
+            token = secrets.token_urlsafe(32)
+        now = time.time()
+        self.db.execute("INSERT INTO known_devices(token_hash, account, created_at, last_seen) VALUES(?,?,?,?) "
+                        "ON CONFLICT(token_hash, account) DO UPDATE SET last_seen=excluded.last_seen",
+                        (self._h(token), account.strip().lower(), now, now))
+        return token
+
+    def knows(self, token: str | None, account: str) -> bool:
+        if not token:
+            return False
+        row = self.db.one("SELECT last_seen FROM known_devices WHERE token_hash=? AND account=?", (self._h(token), account.strip().lower()))
+        return bool(row and time.time() - row["last_seen"] < DEVICE_DAYS * 86400)
+
+    def forget_account(self, account: str) -> None:
+        self.db.execute("DELETE FROM known_devices WHERE account=?", (account.strip().lower(),))
+
+
 class FailureGuard:
     """Slows down guessing. After FREE_TRIES wrong PINs/passwords for a (source, account) pair,
     further tries are refused for a lockout that doubles each time (up to 15 minutes). Network
     sources also share a per-account budget (ACCOUNT_FREE_TRIES), so rotating addresses on the
     LAN doesn't buy more guesses; the device's own lock screen ("device") has its own counter, so
-    guessing from the network can't lock the owner out of the device.
+    guessing from the network can't lock the owner out of the device. Browsers that have signed in
+    to the account before (KnownDevices, passed as known=True) skip that shared budget, so a guest
+    spamming wrong PINs can't lock the owner's phones out either; they keep their own limit.
 
     With a database the counters are stored in SQLite (wall-clock times, each wait capped at
     MAX_LOCK so a clock change can't extend it), so restarting Core doesn't reset them. A success
@@ -323,10 +365,10 @@ class FailureGuard:
             self._db.execute("DELETE FROM auth_failures WHERE rowid IN (SELECT rowid FROM auth_failures "
                              "ORDER BY updated_at LIMIT ?)", (self.MAX_KEYS // 4,))
 
-    def _keys(self, source: str, account: str) -> list[tuple[str, tuple[str, str]]]:
+    def _keys(self, source: str, account: str, known: bool = False) -> list[tuple[str, tuple[str, str]]]:
         acct = account.strip().lower()
         keys = [("source", (source, acct))]
-        if source != self.DEVICE:
+        if source != self.DEVICE and not known:
             keys.append(("account", (self.ACCOUNT, acct)))
         return keys
 
@@ -335,16 +377,16 @@ class FailureGuard:
         return 0.0 if n < free else min(self.MAX_LOCK, self.BASE_LOCK * 2 ** (n - free))
 
     # --- API -----------------------------------------------------------------
-    def check(self, source: str, account: str) -> float:
+    def check(self, source: str, account: str, known: bool = False) -> float:
         """Seconds until another try is allowed (0 = go ahead)."""
         now = time.time()
         with self._lock:
-            return max(max(0.0, min(self._get(key)[1] - now, self.MAX_LOCK)) for _, key in self._keys(source, account))
+            return max(max(0.0, min(self._get(key)[1] - now, self.MAX_LOCK)) for _, key in self._keys(source, account, known))
 
-    def failed(self, source: str, account: str) -> None:
+    def failed(self, source: str, account: str, known: bool = False) -> None:
         now = time.time()
         with self._lock:
-            for kind, key in self._keys(source, account):
+            for kind, key in self._keys(source, account, known):
                 n = self._get(key)[0] + 1
                 self._put(key, (n, now + self._lock_for(kind, n), now))
 

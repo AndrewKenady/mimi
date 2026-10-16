@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from . import __version__, log, system, tools
 from .app import Services, ctx_or_none, get_ctx, is_local, member_ctx, owner_ctx
-from .auth import SESSION_COOKIE, AuthError, Ctx, WeakSecretError, public_user, require_network_secret
+from .auth import DEVICE_COOKIE, DEVICE_DAYS, SESSION_COOKIE, AuthError, Ctx, WeakSecretError, public_user, require_network_secret
 from .kiwix import COLLECTION_LABELS, book_dict, doc_dict, hit_dict
 from .settings import DEVICE_SECTIONS, USER_SECTIONS, SettingsError
 
@@ -28,6 +28,14 @@ public_router = APIRouter()
 
 def S(request: Request) -> Services:
     return request.app.state.svc
+
+
+def _remember_device(resp: Response, request: Request, svc, account: str) -> None:
+    """After a sign-in from another device: remember this browser for `account`, so a flood of
+    wrong guesses from elsewhere on the network can't lock it out (auth.KnownDevices)."""
+    token = svc.devices.remember(request.cookies.get(DEVICE_COOKIE), account)
+    resp.set_cookie(DEVICE_COOKIE, token, httponly=True, samesite="lax", secure=request.url.scheme == "https",
+                    max_age=DEVICE_DAYS * 86400)
 
 
 def _cookie(resp: Response, token: str, request: Request) -> None:
@@ -230,18 +238,21 @@ async def login(body: LoginIn, request: Request):
         except WeakSecretError as e:
             raise HTTPException(403, str(e)) from None
     src = request.client.host if request.client else ""
-    wait = svc.guard.check(src, body.name)
+    known = svc.devices.knows(request.cookies.get(DEVICE_COOKIE), body.name)
+    wait = svc.guard.check(src, body.name, known)
     if wait:
-        raise HTTPException(429, f"Too many wrong tries. Try again in {int(wait) + 1} seconds.")
+        raise HTTPException(429, f"Too many wrong tries. Try again in {int(wait) + 1} seconds, "
+                                 "or leave the PIN blank and choose “Ask the Mimi device”.")
     u = svc.auth.by_name(body.name)
     if not u or u["role"] == "guest" or not svc.auth.verify(u, body.secret):
-        svc.guard.failed(src, body.name)
+        svc.guard.failed(src, body.name, known)
         await asyncio.sleep(0.8)
         raise HTTPException(401, "That name and password/PIN don't match.")
     svc.guard.succeeded(src, body.name)
     token = svc.auth.create_session(u["id"], request.headers.get("user-agent", ""), src)
     resp = JSONResponse({"user": public_user(u)})
     _cookie(resp, token, request)
+    _remember_device(resp, request, svc, u["name"])
     return resp
 
 
@@ -313,6 +324,7 @@ async def pair_poll(rid: str, request: Request, poll: str = ""):
     token = svc.auth.create_session(user["id"], request.headers.get("user-agent", ""), request.client.host if request.client else "")
     resp = JSONResponse({"status": "approved", "user": public_user(user)})
     _cookie(resp, token, request)
+    _remember_device(resp, request, svc, user["name"])  # approved on the device: this browser is the owner's
     return resp
 
 
@@ -399,8 +411,11 @@ async def delete_user(user_id: str, request: Request, ctx: Ctx = Depends(owner_c
     svc = S(request)
     if user_id == ctx.id:
         raise HTTPException(400, "The owner account can't be deleted.")
+    u = svc.auth.get(user_id)
     svc.docs.purge_user(user_id)
     svc.auth.delete(user_id)
+    if u:
+        svc.devices.forget_account(u["name"])  # a later account with the same name starts with no known devices
     return {"ok": True}
 
 

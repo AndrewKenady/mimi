@@ -104,3 +104,57 @@ def test_in_memory_guard_still_works():
     for _ in range(FailureGuard.FREE_TRIES):
         g.failed("a", "x")
     assert g.check("a", "x") > 0 and g.check("b", "x") == 0
+
+
+def test_a_guess_flood_cannot_lock_out_devices_that_signed_in_before(client):
+    """The account-wide guess budget stops an attacker rotating addresses, but it must not let a
+    guest on the Wi-Fi lock the owner's own phones out of PIN sign-in: devices that have signed in
+    to the account before skip it (they keep their own per-device limit)."""
+    from fastapi.testclient import TestClient
+
+    from mimi.auth import DEVICE_COOKIE, FailureGuard
+
+    client.post("/api/auth/setup", json={"name": "Ada", "pin": "246813"})
+    app = client.app
+
+    def device(ip: str) -> TestClient:
+        return TestClient(app, base_url="https://mimi.local", client=(ip, 50000))
+
+    phone = device("192.168.1.20")
+    assert phone.post("/api/auth/login", json={"name": "Ada", "secret": "246813"}).status_code == 200
+    assert phone.cookies.get(DEVICE_COOKIE)  # this browser is now known for Ada
+    phone.cookies.delete("mimi_session")      # its session ends later; the device cookie stays
+
+    # a guest floods wrong PINs from many addresses, enough to exhaust the account-wide budget
+    for i in range(FailureGuard.ACCOUNT_FREE_TRIES + 2):
+        device(f"192.168.1.{100 + i % 6}").post("/api/auth/login", json={"name": "Ada", "secret": f"{i:06d}"})
+
+    laptop = device("192.168.1.30")  # never signed in here: held to the shared budget
+    r = laptop.post("/api/auth/login", json={"name": "Ada", "secret": "246813"})
+    assert r.status_code == 429 and "Ask the Mimi device" in r.json()["detail"]
+    assert phone.post("/api/auth/login", json={"name": "Ada", "secret": "246813"}).status_code == 200  # the owner's phone
+
+    # a known device still has its own limit, so a stolen phone can't brute-force the PIN
+    thief = device("192.168.1.20")
+    thief.cookies.set(DEVICE_COOKIE, phone.cookies.get(DEVICE_COOKIE))
+    for i in range(FailureGuard.FREE_TRIES):
+        assert thief.post("/api/auth/login", json={"name": "Ada", "secret": f"{900000 + i}"}).status_code == 401
+    assert thief.post("/api/auth/login", json={"name": "Ada", "secret": "246813"}).status_code == 429
+
+    # and "Ask the Mimi device" works for the locked-out laptop throughout
+    req = laptop.post("/api/auth/pair", json={"name": "Ada"}).json()
+    assert client.post(f"/api/auth/pair/{req['id']}/decide", json={"approve": True}).json()["status"] == "approved"
+    assert laptop.get(f"/api/auth/pair/{req['id']}?poll={req['poll']}").json()["status"] == "approved"
+    assert laptop.cookies.get(DEVICE_COOKIE)  # approved on the device: now known too
+
+
+def test_known_devices_store_only_a_hash_and_forget_deleted_accounts(client):
+    from mimi.auth import KnownDevices
+
+    kd: KnownDevices = client.app.state.svc.devices
+    token = kd.remember(None, "Bo")
+    assert kd.knows(token, "bo") and not kd.knows(token, "Ada") and not kd.knows("x" * 43, "Bo")
+    stored = client.app.state.svc.db.all("SELECT token_hash FROM known_devices")
+    assert token not in str(stored)
+    kd.forget_account("Bo")
+    assert not kd.knows(token, "Bo")

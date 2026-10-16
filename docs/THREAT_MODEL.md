@@ -74,7 +74,10 @@ models or engine binaries (Mimi trusts what it ships).
   longer PIN or to approve-on-device.
 - **Lockouts** (`FailureGuard`): after 5 wrong tries from one address for one account, waits
   double from 30 s up to 15 min. A per-account budget of 20 tries across *all* network
-  addresses stops guessers who rotate addresses. The device lock screen has its own counter,
+  addresses stops guessers who rotate addresses. Browsers that have signed in to the account
+  before (a long-lived `mimi_device` cookie; only its SHA-256 is stored) skip that shared budget,
+  so a guest flooding wrong PINs can't lock the owner's own phones out; each still has its own
+  per-address limit, so a stolen phone can't brute-force the PIN. The device lock screen has its own counter,
   so network guessing can't lock the owner out of the device. Counters are stored in SQLite
   and survive a restart.
 - **Sessions** are 256-bit random tokens in `HttpOnly`, `SameSite=Lax` cookies (`Secure` over
@@ -172,7 +175,7 @@ UNTRUSTED markers. `--no-location` hides location for clients whose model runs i
 | Session tokens are stored in plain text in `mimi.db` | they allow a server-side lookup; whoever has the database already has the data | full-disk encryption |
 | Phones still trust an old, unconstrained CA after rotation | Mimi can't remove certificates from phones | the share status notice tells the owner to remove "Mimi Local Authority" (the undated one) from phones |
 | The first visit to `http://<ip>/` can be redirected | the redirect listener serves plain HTTP, and there's no HSTS preload for local names | use the QR code or `https://` links |
-| A network attacker can lock network sign-in for an account | the per-account lockout trades availability for guessing resistance | approve-on-device and the device lock screen still work; waits are at most 15 min |
+| A network attacker can lock *new* devices out of PIN sign-in for an account | the per-account budget trades availability for guessing resistance; devices that signed in before are exempt | known devices, approve-on-device and the device lock screen still work; waits are at most 15 min |
 | Prompt-injection policy is heuristic | intent is matched with keywords, and a small model can still be misled into a wrong *answer* | the policy prevents *actions*, not persuasion; citations show where the claims came from |
 | Plugins run with the user's rights | Python offers no practical in-process sandbox | only enable reviewed tools; `SIDE_EFFECTS`/`USES` claims are reviewed for tools in this repo |
 | Memory-safety bugs in engines (llama.cpp, libzim) | C/C++ parsers read untrusted GGUF and ZIM files | engines are loopback-only; install content from trusted sources |
