@@ -469,11 +469,12 @@ class ChatService:
             yield {"event": "error", "data": {"message": "No language model is installed. Open Settings → Models."}}
             return
         asst_id = dbm.new_id("msg_")
+        # Registered before the client learns the chat id, so a Stop sent right away is not lost.
+        cancel = asyncio.Event()
+        self.active[chat_id] = cancel
         yield {"event": "meta", "data": {"chat_id": chat_id, "user_message": user_msg, "assistant_message_id": asst_id,
                                           "model": spec.id, "model_name": spec.name, "mode": mode_id, "title": chat.get("title") or ""}}
 
-        cancel = asyncio.Event()
-        self.active[chat_id] = cancel
         state = tools.TurnState(ctx=ctx, chat_id=chat_id, message_id=asst_id, query=content, mode=mode_cfg,
                                 vision=spec.vision, temporary=bool(chat["temporary"]), voice=voice)
         t_start = time.time()

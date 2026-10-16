@@ -206,3 +206,18 @@ def test_tool_passages_and_best_excerpt():
     excerpt, section = best_excerpt(p[1], "zzz", "Hypothermia")
     assert section is None and excerpt.startswith("Hypothermia is defined")
     assert best_excerpt("", "x") == ("", None)
+
+
+def test_stop_right_after_meta_is_not_lost(svc):
+    svc.models = FakeModels([SEARCH, ANSWER])
+
+    async def go():
+        out = []
+        async for ev in svc.chats.send(svc.ctx, None, content="How do you treat hypothermia?"):
+            out.append(ev)
+            if ev["event"] == "meta":
+                assert svc.chats.stop(ev["data"]["chat_id"]) is True
+        return out
+
+    evs = asyncio.run(go())
+    assert evs[-1]["data"]["message"]["meta"]["cancelled"] is True
