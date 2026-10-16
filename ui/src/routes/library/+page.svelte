@@ -7,7 +7,6 @@
 	import { Search, BookOpen, Sparkles, FolderOpen, X, Loader, FileText } from '@lucide/svelte';
 
 	let books = $state<any[]>([]);
-	let indexing = $state<any>(null);
 	let loading = $state(true);
 	let searchEl: HTMLInputElement | undefined = $state();
 	let q = $state(page.url.searchParams.get('q') || '');
@@ -46,9 +45,7 @@
 
 	async function load() {
 		try {
-			const r = await get('/api/library/books');
-			books = r.books;
-			indexing = r.indexing;
+			books = (await get('/api/library/books')).books;
 		} finally {
 			loading = false;
 		}
@@ -182,7 +179,7 @@
 								<small>{b.summary}</small>
 								<!-- One string: Svelte trims whitespace at the edge of {#if} blocks, which once ate the space before "·". -->
 								<span class="bmeta">{[`${(b.items ?? b.articles).toLocaleString()} ${b.item_noun || 'articles'}`, b.size ? fmtBytes(b.size) : ''].filter(Boolean).join(' · ')}</span>
-								<span class="bstatus {st.tone}"><i></i>{st.label}{#if st.tone === 'busy' && indexing?.total && b.name === indexing.book}{` · ${indexing.done} of ${indexing.total}`}{/if}</span>
+								<span class="bstatus {st.tone}"><i></i>{st.label}</span>
 								{#if b.health?.note && st.tone !== 'ok' && st.tone !== 'idle'}<span class="bnote">{b.health.note}</span>{/if}
 							</span>
 						</button>
