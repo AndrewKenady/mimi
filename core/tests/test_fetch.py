@@ -303,15 +303,38 @@ def test_map_region_conflict_and_upgrade(tmp_path):
     assert fetch.plan(["world-detail"], fetch.resolve_region("us"))[0].installed()
 
 
+def _zim(n_body: int) -> bytes:
+    """A minimal ZIM-shaped file: its header's checksumPos says the file is 80 + n_body + 16 bytes."""
+    import struct
+
+    head = bytearray(80)
+    struct.pack_into("<I", head, 0, 72173914)
+    struct.pack_into("<Q", head, 72, 80 + n_body)
+    return bytes(head) + b"z" * n_body + b"m" * 16
+
+
 def test_zim_targets_match_whole_names(tmp_path):
     z = Path(os.environ["MIMI_CONTENT"]) / "zim"
     z.mkdir(parents=True)
-    (z / "mdwiki_en_all_2025-11.zim").write_bytes(b"x")
+    (z / "mdwiki_en_all_2025-11.zim").write_bytes(_zim(10))
     (z / "mdwiki_en_all_maxi_2025-11.zim.part").write_bytes(b"xx")
     item = next(i for i in fetch.plan(["library-essentials"], fetch.resolve_region("us")) if i.spec.get("name") == "mdwiki_en_all_maxi")
     assert not item.installed() and item.partial_bytes() == 2
-    (z / "mdwiki_en_all_maxi_2025-11.zim").write_bytes(b"x")
+    (z / "mdwiki_en_all_maxi_2025-11.zim").write_bytes(_zim(10))
     assert item.installed()
+
+
+def test_truncated_zim_is_not_installed(tmp_path):
+    z = Path(os.environ["MIMI_CONTENT"]) / "zim"
+    z.mkdir(parents=True)
+    f = z / "zimgit-water_en_2024-08.zim"
+    f.write_bytes(_zim(1000)[:500])  # what the old downloader could leave behind
+    item = next(i for i in fetch.plan(["library-essentials"], fetch.resolve_region("us")) if i.spec.get("name") == "zimgit-water_en")
+    assert not fetch.zim_complete(f) and not item.installed()
+    f.write_bytes(_zim(1000))
+    assert fetch.zim_complete(f) and item.installed()
+    f.write_bytes(b"not a zim file at all" * 10)
+    assert not fetch.zim_complete(f)
 
 
 def test_parse_metalink():

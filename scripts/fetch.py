@@ -638,7 +638,7 @@ class Item:
             p = self.path(s["path"])
             return p.exists() and (s.get("size") is None or p.stat().st_size == s["size"])
         if k == "zim":
-            return bool(self.targets())
+            return any(zim_complete(p) for p in self.targets())
         if k == "archive":
             return all((self.path(s["path"]) / d).exists() for d in s.get("subdirs") or [""])
         if k == "world":
@@ -689,7 +689,11 @@ class Item:
 
     def _fetch_zim(self, dry: bool) -> None:
         name = self.spec["name"]
-        have = self.targets()
+        files = self.targets()
+        have = [p for p in files if zim_complete(p)]
+        broken = [p for p in files if p not in have]  # cut short by an older Mimi's downloader
+        for p in broken:
+            say(f"  ! {p.name} is incomplete")
         if dry:
             say(f"  ✓ {have[-1].name}" if have else f"  ↓ {name} (newest from the Kiwix catalog, ~{fmt_size(self.size)})")
             return
@@ -714,6 +718,9 @@ class Item:
             raise IntegrityError(f"Kiwix's metalink for {name} has no sha-256 to check the download against")
         # Also re-checks a same-named file by size, so one an older Mimi left truncated gets finished.
         download(href[: -len(".meta4")], content_root() / "zim" / meta["name"], sha256=meta["sha256"], size=meta["size"], mirrors=meta["urls"])
+        for p in broken:
+            if p.name != meta["name"]:
+                p.unlink(missing_ok=True)  # replaced by the complete, newer release
 
     def _fetch_archive(self, dry: bool) -> None:
         s = self.spec
@@ -816,6 +823,20 @@ class Item:
             return
         env = dict(os.environ, PYTHONUTF8="1")
         subprocess.run(cmd, check=True, cwd=str(ROOT), env=env)
+
+
+def zim_complete(path: Path) -> bool:
+    """A ZIM file's header says where its closing MD5 sits, so a cut-short file shows without hashing."""
+    import struct
+
+    try:
+        with open(path, "rb") as f:
+            head = f.read(80)
+        if len(head) < 80 or struct.unpack_from("<I", head, 0)[0] != 72173914:  # ZIM magic number
+            return False
+        return path.stat().st_size == struct.unpack_from("<Q", head, 72)[0] + 16
+    except OSError:
+        return False
 
 
 def _read_json(p: Path) -> dict:
