@@ -125,6 +125,8 @@ def test_sources_and_preview_arrive_before_the_answer(svc):
 
     tool_start = next(e["data"] for e in evs if e["event"] == "tool" and e["data"]["state"] == "start")
     assert tool_start["label"] == searching["label"]  # the activity trail and the narrative agree
+    tool_end = next(e["data"] for e in evs if e["event"] == "tool" and e["data"]["state"] == "end")
+    assert tool_end["label"] == "Searched Wikipedia and WikiMed for “hypothermia treatment”"
 
     preview = next(e["data"] for e in evs if e["event"] == "preview")
     assert preview["n"] == 1 and preview["title"] == "Hypothermia" and preview["collection"] == "medicine"

@@ -266,7 +266,8 @@ class ChatService:
             rows = self.db.all(sql, tuple(params))
         for r in rows:
             last = self.db.one("SELECT content FROM messages WHERE id=?", (r["head_id"],)) if r.get("head_id") else None
-            r["preview"] = re.sub(r"\s+", " ", (last or {}).get("content") or "")[:120]
+            text = re.sub(r"\[\d+(?:\s*,\s*\d+)*\]|[*_#`>]", "", (last or {}).get("content") or "")  # plain text, no citations
+            r["preview"] = re.sub(r"\s+", " ", text).strip()[:120]
         return rows
 
     @staticmethod
@@ -593,13 +594,17 @@ class ChatService:
                         tid = c["id"]
                         args = tools.parse_args(c["arguments"])
                         label = _pending_label(c["name"], args)
+                        where = None
                         if c["name"] == "search_library":
-                            label = f"Searching {await self._search_where(args, mode_cfg)} for “{args.get('query') or content}”…"
+                            where = await self._search_where(args, mode_cfg)
+                            label = f"Searching {where} for “{args.get('query') or content}”…"
                         yield {"event": "tool", "data": {"id": tid, "name": c["name"], "state": "start", "args": args, "label": label}}
                         kind = "searching" if c["name"] in ("search_library", "search_my_files") else "tool"
                         yield _status(kind, label, t_start, tool=c["name"])
                         t0 = time.time()
                         res = await tools.run(c["name"], c["arguments"], state, svc)
+                        if where and res.label.startswith("Searched the library "):  # keep the trail as specific as the narrative
+                            res.label = res.label.replace("the library", where, 1)
                         entry = {"id": tid, "name": c["name"], "state": "end", "label": res.label, "summary": res.summary, "ok": res.ok,
                                  "ms": int((time.time() - t0) * 1000), "data": res.data}
                         trail.append(entry)
