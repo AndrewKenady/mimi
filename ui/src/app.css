@@ -464,13 +464,13 @@ img {
 
 /* ---- Touch targets --------------------------------------------------------
    Small controls keep their visual size but get an invisible 44px hit area on
-   coarse pointers (phones, the handheld's touchscreen). Add `.hit` to any other
-   compact control to opt in. */
+   coarse pointers (phones, the handheld's touchscreen). Tabs and radios are
+   covered by role; add `.hit` to any other compact control to opt in. */
 @media (pointer: coarse) {
-	:where(.icon-btn, .chip, .btn-sm, .hit) {
+	:where(.icon-btn, .chip, .btn-sm, .hit, [role='tab'], [role='radio']) {
 		position: relative;
 	}
-	:where(.icon-btn, .chip, .btn-sm, .hit)::after {
+	:where(.icon-btn, .chip, .btn-sm, .hit, [role='tab'], [role='radio'])::after {
 		content: '';
 		position: absolute;
 		left: 50%;

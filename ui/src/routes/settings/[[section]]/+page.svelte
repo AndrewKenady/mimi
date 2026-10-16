@@ -771,7 +771,7 @@
 					</div>
 					{@render group('about', 'About')}
 					<div class="group card about">
-						<p><b>Mimi — Machine Intelligence, Minus the Internet.</b> Open source (MIT), non-commercial. Named for Mímir, keeper of wisdom.</p>
+						<p><b>Mimi — Machine Intelligence, Minus the Internet.</b> Open source (MIT), non-commercial. Named for Mímir, keeper of wisdom. <a href="/dev/design">Design system</a></p>
 						<p class="faint">Knowledge: Wikipedia &amp; Wikimedia projects (CC BY-SA), Stack Exchange (CC BY-SA), iFixit, WikiProjectMed, Project Gutenberg, TED (CC BY-NC-ND). Maps © OpenStreetMap contributors, Protomaps; places © GeoNames (CC BY). Models: Gemma 4 (Google), Qwen3.5 (Alibaba), BGE-M3 (BAAI), Whisper (OpenAI), Kokoro. Engines: llama.cpp, kiwix-tools.</p>
 					</div>
 				{:else}
@@ -1223,6 +1223,11 @@
 	}
 	.about {
 		padding: var(--space-4) var(--space-5);
+	}
+	.about a {
+		color: var(--accent);
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 	.about p {
 		margin: 0 0 var(--space-2);

@@ -73,4 +73,14 @@
 			min-height: var(--hit-min);
 		}
 	}
+	/* Phones: options may wrap onto two rows; a pill can't hold that gracefully, so the
+	   track becomes a rounded panel and options share each row evenly. */
+	@media (max-width: 560px) {
+		.seg {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+			width: 100%;
+			border-radius: var(--radius-lg);
+		}
+	}
 </style>
