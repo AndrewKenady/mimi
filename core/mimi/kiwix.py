@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import struct
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
@@ -43,6 +44,20 @@ COLLECTION_LABELS = {k: label for k, label, _ in COLLECTIONS}
 STOPWORDS = set(
     "a an and are as at be by can do does for from how i if in into is it its me my of on or should the this to was what when where which who why will with you your".split()
 )
+
+
+def zim_complete(path: Path) -> bool:
+    """Whether a ZIM file is whole, from its header: checksumPos (uint64 LE at offset 72) points at
+    the closing 16-byte MD5, so a download cut short is spotted without hashing the file."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(80)
+        size = path.stat().st_size
+    except OSError:
+        return False
+    if len(head) < 80 or struct.unpack_from("<I", head, 0)[0] != 72173914:  # ZIM magic number
+        return False
+    return struct.unpack_from("<Q", head, 72)[0] == size - 16
 
 
 def collection_of(name: str) -> str:
@@ -133,6 +148,9 @@ class KiwixService:
                     if f.stat().st_size < 1024:
                         continue
                 except OSError:
+                    continue
+                if not zim_complete(f):  # e.g. truncated by an interrupted download; kiwix-serve would choke on it
+                    L.warning("skipping %s: incomplete or not a ZIM file; finish it with `python scripts/content.py add <pack>`", f)
                     continue
                 files.append(f)
         # If a full edition exists, hide small dev editions of the same family.
