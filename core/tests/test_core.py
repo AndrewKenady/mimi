@@ -470,3 +470,22 @@ def test_security_hardening(client):
 
     h = client.get("/api/ping").headers
     assert h["x-frame-options"] == "DENY" and "frame-ancestors 'none'" in h["content-security-policy"]
+
+
+def test_maps_info_world_maxzoom(client, paths, tmp_path, monkeypatch):
+    """The map must not ask for world tiles deeper than the installed pack has (Lite stops at zoom 7)."""
+    monkeypatch.setattr(type(paths), "maps", property(lambda self: tmp_path / "maps"))  # not the tree's own maps/
+    client.post("/api/auth/setup", json={"name": "Ada"})
+    info = lambda: client.get("/api/maps/info").json()
+    assert info()["world_url"] is None and info()["world_maxzoom"] is None  # no world map
+
+    paths.maps.mkdir()
+    world = paths.maps / "world.pmtiles"
+    header = bytearray(b"PMTiles\x03" + bytes(119))
+    header[100], header[101] = 0, 7
+    world.write_bytes(bytes(header))  # a Lite world copied to a drive without its world.json
+    assert info()["world_maxzoom"] == 7
+    world.write_bytes(b"not a pmtiles file")  # older installs: zoom 0-11
+    assert info()["world_url"] == "/maps/world.pmtiles" and info()["world_maxzoom"] == 11
+    (paths.maps / "world.json").write_text(json.dumps({"maxzoom": 7, "source": "Protomaps 20260811"}), "utf-8")
+    assert info()["world_maxzoom"] == 7

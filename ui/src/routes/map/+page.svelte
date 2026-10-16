@@ -58,9 +58,9 @@
 	const metric = $derived(app.settings.device?.general?.units === 'metric');
 	const fmtDist = (km: number) => (metric ? `${km.toFixed(1)} km` : `${(km * 0.621371).toFixed(1)} mi`);
 
-	// The world map (zoom 0-11) is drawn under the detailed regions. Where a region fully
-	// covers a world tile, that tile is served empty so the handheld doesn't draw both;
-	// abroad, MapLibre stretches the zoom-11 world tiles when you zoom in further.
+	// The world map is drawn under the detailed regions. Where a region fully covers a world
+	// tile, that tile is served empty so the handheld doesn't draw both; abroad, MapLibre
+	// stretches the world map's deepest tiles (zoom 7 in Lite, 11 in Standard) when you zoom in further.
 	const EMPTY = new Uint8Array(0);
 	function coveredByRegion(z: number, x: number, y: number): boolean {
 		const n = 2 ** z;
@@ -87,7 +87,7 @@
 		const sources: Record<string, any> = {};
 		let all: any[] = [];
 		if (info.world_url) {
-			sources.world = { type: 'vector', tiles: ['mimiworld://{z}/{x}/{y}'], minzoom: 0, maxzoom: 11, attribution: '© OpenStreetMap contributors · Protomaps' };
+			sources.world = { type: 'vector', tiles: ['mimiworld://{z}/{x}/{y}'], minzoom: 0, maxzoom: info.world_maxzoom ?? 11, attribution: '© OpenStreetMap contributors · Protomaps' };
 			all = (layers('world', flavor, { lang: 'en' }) as any[]).map((l) => ({ ...l, id: `world-${l.id}` }));
 		}
 		if (info.tiles_url) {

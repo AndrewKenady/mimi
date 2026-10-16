@@ -991,6 +991,26 @@ async def search_places(request: Request, q: str, ctx: Ctx = Depends(get_ctx)):
     return {"results": results, **({"error": note} if note else {})}
 
 
+def _world_maxzoom(maps: Path) -> int:
+    """How deep the world map goes: zoom 7 for the Lite pack, 11 for Standard.
+
+    The content manager notes it in world.json; a world.pmtiles copied without it (or from
+    before it existed) is read from its PMTiles v3 header, and failing that it's the old zoom 11.
+    """
+    try:
+        return int(json.loads((maps / "world.json").read_text("utf-8"))["maxzoom"])
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    try:
+        with open(maps / "world.pmtiles", "rb") as f:
+            head = f.read(127)
+        if head[:7] == b"PMTiles" and head[7] == 3:
+            return head[101]
+    except (OSError, IndexError):
+        pass
+    return 11
+
+
 @router.get("/maps/info")
 async def maps_info(request: Request, ctx: Ctx = Depends(get_ctx)):
     svc = S(request)
@@ -1003,8 +1023,10 @@ async def maps_info(request: Request, ctx: Ctx = Depends(get_ctx)):
     return {
         "tiles": tiles.exists() or world.exists(),
         "tiles_url": "/maps/tiles.pmtiles" if tiles.exists() else None,
-        # the whole planet at overview detail (zoom 0-11), drawn under the detailed regions
+        # the whole planet at overview detail, drawn under the detailed regions
         "world_url": "/maps/world.pmtiles" if world.exists() else None,
+        # the map must not ask for deeper world tiles than the file has, or it's blank abroad
+        "world_maxzoom": _world_maxzoom(svc.paths.maps) if world.exists() else None,
         "regions": [{"url": "/maps/tiles.pmtiles", "bounds": meta.get("bounds"), "maxzoom": meta.get("maxzoom"),
                      "name": meta.get("region")}] if tiles.exists() else [],
         "size": tiles.stat().st_size if tiles.exists() else 0,
