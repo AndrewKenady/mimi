@@ -1,0 +1,32 @@
+name: Wrong or badly sourced answer
+description: Mimi answered incorrectly, cited the wrong source, or should have said it didn't know.
+labels: [answer-quality]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These reports become test cases in the [evaluation set](../../tree/main/eval), so every one makes Mimi measurably better.
+        **If this is about medicine, never rely on Mimi alone.**
+  - type: input
+    id: question
+    attributes:
+      label: The exact question
+    validations:
+      required: true
+  - type: textarea
+    id: answer
+    attributes:
+      label: Mimi's answer and the sources it cited
+      description: Copy the answer (the copy button under it) including the source cards.
+    validations:
+      required: true
+  - type: textarea
+    id: correct
+    attributes:
+      label: What a correct answer says, and where it is in the library
+      placeholder: "WikiMed → Hypothermia, section Treatment: …"
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: "Shown under the answer, e.g. Gemma 4 12B"

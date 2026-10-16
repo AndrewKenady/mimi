@@ -1,0 +1,21 @@
+name: Idea or feature request
+description: Suggest something Mimi should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: situation
+    attributes:
+      label: The situation
+      description: Where were you and what were you trying to do? Mimi is built around real field situations, so this matters more than the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+  - type: checkboxes
+    id: offline
+    attributes:
+      label: Offline check
+      options:
+        - label: This works with no internet connection at all.
