@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 
-import make_drive  # noqa: E402
+import make_drive
 
 
 def test_personal_data_copy_leaves_the_ca_key_behind(tmp_path):
