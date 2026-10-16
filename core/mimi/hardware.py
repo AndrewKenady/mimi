@@ -18,7 +18,7 @@ from .paths import Paths
 
 L = log.get("hardware")
 
-_DEV_RE = re.compile(r"^\s*(Vulkan|CUDA|ROCm|SYCL)(\d+):\s*(.+?)\s*\((\d+)\s*MiB,\s*(\d+)\s*MiB free\)", re.M)
+_DEV_RE = re.compile(r"^\s*(Vulkan|CUDA|ROCm|SYCL|MTL|Metal)(\d+):\s*(.+?)\s*\((\d+)\s*MiB,\s*(\d+)\s*MiB free\)", re.M)
 
 
 def _reg(path: str, name: str) -> str | None:
@@ -33,24 +33,61 @@ def _reg(path: str, name: str) -> str | None:
         return None
 
 
+def _read(path: str) -> str | None:
+    try:
+        return Path(path).read_text("utf-8", "replace").strip() or None
+    except OSError:
+        return None
+
+
+def _sysctl(name: str) -> str | None:
+    if sys.platform != "darwin":
+        return None
+    try:
+        out = subprocess.run(["sysctl", "-n", name], capture_output=True, text=True, timeout=5)
+        return out.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _linux_cpu() -> str | None:
+    if not sys.platform.startswith("linux"):
+        return None
+    info = _read("/proc/cpuinfo") or ""
+    m = re.search(r"^(?:model name|Model|Hardware)\s*:\s*(.+)$", info, re.M)
+    return m.group(1).strip() if m else None
+
+
 def cpu_name() -> str:
     return (
         _reg(r"HARDWARE\DESCRIPTION\System\CentralProcessor\0", "ProcessorNameString")
+        or _linux_cpu()
+        or _sysctl("machdep.cpu.brand_string")
         or platform.processor()
         or "Unknown CPU"
     )
 
 
+_DMI_JUNK = {"", "to be filled by o.e.m.", "default string", "system product name", "system manufacturer", "none", "not specified"}
+
+
 def device_name() -> str:
     maker = _reg(r"HARDWARE\DESCRIPTION\System\BIOS", "SystemManufacturer") or ""
-    model = _reg(r"HARDWARE\DESCRIPTION\System\BIOS", "SystemProductName") or platform.node()
-    return f"{maker} {model}".strip()
+    model = _reg(r"HARDWARE\DESCRIPTION\System\BIOS", "SystemProductName") or ""
+    if sys.platform.startswith("linux"):  # e.g. "Valve Jupiter" on a Steam Deck
+        maker = maker or _read("/sys/class/dmi/id/sys_vendor") or ""
+        model = model or _read("/sys/class/dmi/id/product_name") or _read("/proc/device-tree/model") or ""
+    elif sys.platform == "darwin":
+        maker, model = maker or "Apple", model or _sysctl("hw.model") or ""
+    maker = "" if maker.strip().lower() in _DMI_JUNK else maker.strip()
+    model = "" if model.strip().lower() in _DMI_JUNK else model.strip().strip("\x00")
+    return f"{maker} {model}".strip() or platform.node()
 
 
 def list_gpu_devices(paths: Paths) -> list[dict]:
     """Ask the bundled llama.cpp builds which accelerators they can use."""
     devices: list[dict] = []
-    for build in ("llama-cuda", "llama-vulkan"):
+    for build in ("llama-cuda", "llama-vulkan", "llama-metal"):
         exe = paths.exe(build, "llama-server")
         if not exe.exists():
             continue
@@ -69,7 +106,7 @@ def list_gpu_devices(paths: Paths) -> list[dict]:
         for m in _DEV_RE.finditer(text):
             devices.append(
                 {
-                    "backend": m.group(1).lower(),
+                    "backend": "metal" if m.group(1) in ("MTL", "Metal") else m.group(1).lower(),
                     "index": int(m.group(2)),
                     "name": m.group(3),
                     "total_mb": int(m.group(4)),
@@ -135,6 +172,8 @@ def detect(paths: Paths, use_cache: bool = True, max_age: float = 3600) -> dict:
         backend = "cuda"
     elif any(g["backend"] == "vulkan" for g in gpus):
         backend = "vulkan"
+    elif any(g["backend"] == "metal" for g in gpus):
+        backend = "metal"  # Apple silicon: unified memory, served by the llama-metal build
     else:
         backend = "cpu"
     info = {
