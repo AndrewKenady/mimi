@@ -10,6 +10,7 @@ test('old settings links still land in the right place', async ({ page }) => {
 
 test('the command palette lists every settings section, including Tools', async ({ page }) => {
 	await signIn(page, '/');
+	await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 	await page.keyboard.press('Control+k');
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toBeVisible();

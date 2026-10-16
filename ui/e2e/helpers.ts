@@ -3,7 +3,13 @@ import { expect, type Page } from '@playwright/test';
 /** Sign in as the owner (the fixture isn't on the device's loopback port) and land on `to`. */
 export async function signIn(page: Page, to = '/') {
 	await page.goto(`/__fixture/login?to=${encodeURIComponent(to)}`);
-	await expect(page.locator('body')).toBeVisible();
+	await waitForApp(page);
+}
+
+/** The app removes its boot splash once it has loaded and mounted its shell (and its keyboard
+ *  shortcuts); acting before that races the app on slower machines such as CI runners. */
+export async function waitForApp(page: Page) {
+	await page.waitForFunction(() => !document.getElementById('boot'), null, { timeout: 15_000 });
 }
 
 /** Switch the scripted model: grounded | ungrounded | error | chitchat. */
