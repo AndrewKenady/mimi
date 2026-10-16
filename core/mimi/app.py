@@ -49,7 +49,7 @@ class Services:
         self.events = EventBus()
         self.auth = Auth(self.db)
         self.pairing = PairingService(self.auth, self.events)
-        self.guard = FailureGuard()  # wrong PIN/password lockouts
+        self.guard = FailureGuard(self.db)  # wrong PIN/password lockouts (kept across restarts)
         self.catalog = Catalog(paths)
         self.hw = hardware.detect(paths, use_cache=True, max_age=10**9) if (paths.data / "hardware.json").exists() else {
             "profile": "standard", "backend": "vulkan", "cores": os.cpu_count() or 4, "gpus": [], "battery": hardware.battery()}
