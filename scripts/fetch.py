@@ -892,9 +892,9 @@ def pack_problem(pack_id: str, region: dict) -> str | None:
     if p.get("requires_region") and not region.get(p["requires_region"]):
         return f"{p['title']} is only available for regions with that data (US and Canada)"
     if pack_id == "routing" and not region.get("geofabrik"):
-        return "routing needs OpenStreetMap extracts for the region (named regions only, or pass --geofabrik)"
+        return "routing needs OpenStreetMap extracts, which are set up for named regions only (content.py regions)"
     if pack_id == "places" and not region.get("countries"):
-        return "the places database needs country codes for the region (named regions only, or pass --countries)"
+        return "the places database is built per country, for named regions only (content.py regions)"
     return None
 
 
