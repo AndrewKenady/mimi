@@ -11,8 +11,13 @@ Editions (see docs/PLAN.md, section 11.3):
             routing. Books are dropped largest-first if the drive is too small.
   full      Everything installed here.
 
-The copy is restartable (robocopy): run the same command again to resume. Your personal
-data (data/: accounts, chats, memories) is left behind unless --include-my-data is given.
+The copy is restartable (robocopy on Windows; elsewhere files already copied with the
+same size are skipped): run the same command again to resume. Your personal data (data/:
+accounts, chats, memories) is left behind unless --include-my-data is given.
+
+On Linux and macOS this copies the content and engines the same way, but the Python
+environment (python/) is not relocatable there: on the target machine run
+scripts/install.sh --tier none from the drive to recreate it (no downloads besides Python).
 """
 
 from __future__ import annotations
@@ -29,6 +34,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GB = 1024**3
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import fetch  # noqa: E402  (platform-aware tool lookup)
 
 CODE = ["core", "config", "scripts", "manifests", "docs", "tools", "shell", "LICENSE", "README.md"]
 EXCLUDE_DIRS = ["__pycache__", ".pytest_cache", "node_modules", ".svelte-kit", "obj", "bin\\Debug", "tests"]
@@ -81,8 +88,43 @@ def gb(n: int) -> str:
     return f"{n / GB:,.1f} GB"
 
 
+SKIP_SUFFIXES = (".aria2", ".part", ".tmp", ".pyc")
+
+
+def _copy_posix(src: Path, dst: Path, files: list[str] | None, exclude_dirs: list[str] | None, dry: bool) -> None:
+    """robocopy's job without robocopy: copy what's missing or differs in size; never delete."""
+    names = [src / f for f in files] if files else [src]
+    excl = {d.replace("\\", "/").split("/")[-1] for d in exclude_dirs or []}
+    if dry:
+        print("   would copy:", src, "->", dst, f"({len(files)} file(s))" if files else "")
+        return
+    for top in names:
+        walk = [(top.parent, [], [top.name])] if top.is_file() else os.walk(top)
+        for dirpath, dirnames, filenames in walk:
+            dirnames[:] = [d for d in dirnames if d not in excl]
+            for fn in filenames:
+                if fn.endswith(SKIP_SUFFIXES):
+                    continue
+                s = Path(dirpath) / fn
+                rel = s.relative_to(src)
+                d = dst / rel
+                if d.exists() and d.stat().st_size == s.stat().st_size:
+                    continue
+                d.parent.mkdir(parents=True, exist_ok=True)
+                if s.is_symlink():
+                    d.unlink(missing_ok=True)
+                    os.symlink(os.readlink(s), d)
+                else:
+                    tmp = d.with_name(d.name + ".tmp")
+                    shutil.copy2(s, tmp)
+                    os.replace(tmp, d)
+
+
 def robocopy(src: Path, dst: Path, files: list[str] | None = None, exclude_dirs: list[str] | None = None, dry: bool = False) -> None:
     """Copy a directory tree (or named files from it). Never deletes anything at the target."""
+    if os.name != "nt":
+        _copy_posix(src, dst, files, exclude_dirs, dry)
+        return
     cmd = ["robocopy", str(src), str(dst)] + (files or []) + ([] if files else ["/E"]) + ["/R:2", "/W:2", "/MT:8", "/J", "/NP", "/NDL", "/NFL", "/NJH"]
     if exclude_dirs:
         cmd += ["/XD", *exclude_dirs]
@@ -240,7 +282,10 @@ def main() -> None:
             out = d / "tiles.pmtiles"
             d.mkdir(parents=True, exist_ok=True)
             print(f"[{i}/{len(jobs)}] extracting map region {files[0]} ...", flush=True)
-            subprocess.run([str(ROOT / "bin/win-x64/pmtiles.exe"), "extract", str(ROOT / "maps/tiles.pmtiles"), str(out),
+            pmtiles = fetch.tool("pmtiles")
+            if not pmtiles:
+                raise SystemExit("pmtiles isn't installed: run python scripts/fetch.py --only runtimes")
+            subprocess.run([str(pmtiles), "extract", str(fetch.content_root() / "maps/tiles.pmtiles"), str(out),
                             f"--bbox={files[0]}"], check=True)
             continue
         label = src.relative_to(ROOT) if src != ROOT else ", ".join(files or [])[:70]
@@ -253,7 +298,11 @@ def main() -> None:
         "edition": args.edition, "created": time.strftime("%Y-%m-%d %H:%M"), "source": str(ROOT),
         "note": "Run MIMI.exe from this drive. Settings and chats are stored in data\\ on the drive.",
     }, indent=2), encoding="utf-8")
-    print(f"Done in {(time.time() - t0) / 60:.0f} min. Plug the drive into any Windows 10/11 PC and run {dst / 'MIMI.exe'}.")
+    if os.name == "nt":
+        print(f"Done in {(time.time() - t0) / 60:.0f} min. Plug the drive into any Windows 10/11 PC and run {dst / 'MIMI.exe'}.")
+    else:
+        print(f"Done in {(time.time() - t0) / 60:.0f} min. On the target machine run {dst / 'scripts/install.sh'} --tier none "
+              f"(recreates the Python environment), then {dst / 'python/bin/python'} -m mimi serve.")
 
 
 if __name__ == "__main__":

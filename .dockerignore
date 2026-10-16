@@ -1,0 +1,28 @@
+# Keep the build context small: runtimes and content are fetched inside the build or
+# live in the /data volume, never copied from the host.
+.git
+.github
+.claude
+.tools
+bin
+python
+models
+zim
+maps
+data
+logs
+site
+shell
+docs
+MIMI.exe
+*.dll
+ui/node_modules
+ui/build
+ui/.svelte-kit
+core/tests
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/*.egg-info
+Dockerfile
+docker-compose.yml
