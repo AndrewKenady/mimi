@@ -243,3 +243,25 @@ def test_attached_file_reaches_the_model_as_untrusted_data(svc):
     mems = svc.memory.list(svc.ctx.user["id"])
     assert any("1234" in m["text"] for m in mems), "the model's remember call should have produced a suggestion"
     assert not any("1234" in m["text"] for m in mems if m["status"] == "active")
+
+
+def test_citations_are_checked_against_what_the_model_read(svc):
+    """A cited sentence its source doesn't support is flagged (advisory: the answer is unchanged)."""
+    answer = {"text_pieces": ["Give warm drinks and warm clothing [1]. ", "Rewarm the person at 45 °C for 3 hours [1]."]}
+    evs = run_turn(svc, [SEARCH, answer], content="How do you treat hypothermia?", mode="everyday")
+    names = [e["event"] for e in evs]
+    assert names.index("grounding") < names.index("done")
+    flags = next(e["data"] for e in evs if e["event"] == "grounding")["flags"]
+    assert [f["n"] for f in flags] == [1] and flags[0]["verdict"] in ("weak", "unsupported")
+    assert "45" in flags[0]["sentence"] and any("number" in r for r in flags[0]["reasons"])
+    done = evs[-1]["data"]["message"]
+    assert done["content"].startswith("Give warm drinks") and "45 °C" in done["content"]  # never rewritten
+    g = done["meta"]["grounding"]
+    assert g["supported"] == 1 and g["flags"] == flags
+
+
+def test_a_well_supported_answer_raises_no_flags(svc):
+    good = {"text": "Mild hypothermia is treated with warm drinks, warm clothing and physical activity [1]."}
+    evs = run_turn(svc, [SEARCH, good], content="How do you treat hypothermia?", mode="everyday")
+    assert "grounding" not in [e["event"] for e in evs]
+    assert evs[-1]["data"]["message"]["meta"]["grounding"]["citations"] >= 1

@@ -250,3 +250,22 @@ def test_fast_on_long_sources():
     t0 = time.perf_counter()
     g.check_answer(ans, {1: long, 2: long})
     assert time.perf_counter() - t0 < 2.0
+
+
+def test_a_capitalised_word_opening_a_second_sentence_is_not_a_name():
+    # A list item's bold lead-in makes one claim of two sentences: "Rough" is just a first word.
+    assert "Rough" not in g.extract_entities("Don't rub the skin. Rough movement can trigger a dangerous heart rhythm.")
+    assert "Tenzing Norgay" in g.extract_entities("It was climbed in 1953. Then Tenzing Norgay came down.") or \
+        "Norgay" in g.extract_entities("It was climbed in 1953. Then Tenzing Norgay came down.")
+
+
+def test_ui_flags_only_interrupt_for_unsupported_citations():
+    src = {1: "Treatment of mild hypothermia involves warm drinks, warm clothing, and voluntary physical activity.",
+           2: "Frostbite is a skin injury caused by freezing."}
+    # an honest paraphrase (weak overlap) is not worth a warning in the chat; an invented number is
+    r = g.check_answer("Give them something warm to drink and dry layers to wear [1]. Keep them in a 45 °C bath for 3 hours [1].", src)
+    assert [f["n"] for f in r.ui_flags()] == [1] and "45" in r.ui_flags()[0]["sentence"]
+    assert len(r.flags()) >= len(r.ui_flags())  # the eval still sees everything short of supported
+    # a claim carried by one of its citations isn't flagged for the other
+    r = g.check_answer("Mild hypothermia is treated with warm drinks and warm clothing [1][2].", src)
+    assert r.ui_flags() == []

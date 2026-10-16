@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { app } from '$lib/app.svelte';
 	import { del, post } from '$lib/api';
@@ -10,7 +10,7 @@
 	import TurnProgress, { type Progress } from './TurnProgress.svelte';
 	import {
 		Search, BookOpen, Image, FileText, Brain, MapPin, Compass, Calculator, Check, Copy, Volume2, VolumeX, RotateCcw,
-		ChevronLeft, ChevronRight, Pencil, Loader, CircleAlert, X, BookMarked, Route, Map as MapIcon, CircleStop
+		ChevronLeft, ChevronRight, Pencil, Loader, CircleAlert, X, BookMarked, Route, Map as MapIcon, CircleStop, TriangleAlert
 	} from '@lucide/svelte';
 
 	let {
@@ -56,6 +56,35 @@
 	$effect(() => {
 		suggestions = (meta.memory_suggested || []).filter((x: any) => x && x.status === 'suggested');
 	});
+
+	// Citation check (core/mimi/grounding.py): cited sentences whose source doesn't seem to say
+	// that. Advisory only; the answer is never changed, the reader is pointed at what to verify.
+	const flags = $derived<any[]>(live ? [] : meta.grounding?.flags || []);
+	let prose: HTMLDivElement | undefined = $state();
+	const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+	$effect(() => {
+		const el = prose;
+		const fl = flags;
+		void blocks;
+		if (!el) return;
+		tick().then(() => {
+			for (const b of el.querySelectorAll<HTMLElement>('.cite')) {
+				const n = Number(b.dataset.cite);
+				const block = squash(b.closest('p, li, td, blockquote, h1, h2, h3, h4')?.textContent || '');
+				const hit = fl.find((f) => f.n === n && block.includes(squash(f.sentence).slice(0, 28)));
+				b.classList.toggle('cite-check', !!hit);
+				b.setAttribute('aria-label', hit ? `Source ${n}. This source may not say this; check it.` : `Source ${n}`);
+				if (hit) b.title = 'This source may not say this. Check it.';
+				else b.removeAttribute('title');
+			}
+		});
+	});
+
+	function sourceName(n: number): string {
+		const s = sources.find((x) => x.n === n);
+		return s ? `${s.title}${s.book_title ? ` (${s.book_title})` : ''}` : `source ${n}`;
+	}
 
 	function openSource(s: any) {
 		if (!s?.url) return;
@@ -180,10 +209,31 @@
 			{#if hasText}
 				<!-- Delegated clicks for citation pills and links: both are real buttons/anchors, so keyboard users reach them directly. -->
 				<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-				<div class="prose answer" class:streaming={live} onclick={onProseClick}>
+				<div class="prose answer" class:streaming={live} onclick={onProseClick} bind:this={prose}>
 					{#each blocks as b (b.key)}{@html b.html}{/each}
 				</div>
 				{#if live && progress}<TurnProgress {progress} compact />{/if}
+			{/if}
+
+			{#if flags.length}
+				<details class="checkcite">
+					<summary>
+						<TriangleAlert size={14} aria-hidden="true" />
+						{flags.length === 1 ? '1 cited claim' : `${flags.length} cited claims`} couldn't be matched to {flags.length === 1 ? 'its source' : 'their sources'}. Check before relying on {flags.length === 1 ? 'it' : 'them'}.
+					</summary>
+					<ul>
+						{#each flags as f (f.n + ':' + f.start)}
+							<li>
+								<q>{f.sentence}</q>
+								<span class="why">
+									<button class="linkish" onclick={() => openSource(sources.find((x) => x.n === f.n))}>{sourceName(f.n)}</button>
+									{#if f.reasons?.length} · {f.reasons.join('; ')}{/if}
+									{#if f.better_source} · source {f.better_source} may fit better{/if}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				</details>
 			{/if}
 
 			{#if meta.preview && hasText}
@@ -449,6 +499,41 @@
 		color: var(--text);
 		background: var(--surface);
 		border: 1px solid var(--line-2);
+	}
+	.checkcite {
+		margin-top: var(--space-2);
+		font-size: var(--fs-sm);
+		color: var(--text-2);
+	}
+	.checkcite summary {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1-5);
+		cursor: pointer;
+		color: var(--warn);
+		list-style: none;
+		min-height: 32px;
+	}
+	.checkcite summary::-webkit-details-marker {
+		display: none;
+	}
+	.checkcite ul {
+		margin: var(--space-1) 0 0;
+		padding-left: var(--space-5);
+		display: grid;
+		gap: var(--space-1-5);
+	}
+	.checkcite q {
+		color: var(--text);
+	}
+	.checkcite .why {
+		display: block;
+		color: var(--text-3);
+	}
+	.linkish {
+		color: var(--accent);
+		text-decoration: underline;
+		text-underline-offset: 2px;
 	}
 	.stopped {
 		display: inline-flex;

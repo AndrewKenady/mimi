@@ -29,6 +29,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+          activate-environment: true
           enable-cache: true
           cache-dependency-glob: core/pyproject.toml
       - name: Install
@@ -46,6 +47,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+          activate-environment: true
           enable-cache: true
           cache-dependency-glob: core/pyproject.toml
       - run: uv pip install -e "core[dev]"
@@ -69,19 +71,24 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
       - run: npm ci
-      - name: Type-check
+      - name: Type-check and contrast audit (WCAG AA, every theme)
         run: npm run check
-      - name: Contrast (WCAG AA for every theme)
-        run: if npm run | grep -q " contrast"; then npm run contrast; else echo "no contrast script yet"; fi
       - name: Build
         run: npm run build
-      - name: End-to-end and visual tests
-        run: |
-          if npm run | grep -q " test:e2e"; then
-            npx playwright --version && npm run test:e2e
-          else
-            echo "no e2e suite yet"
-          fi
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: core/pyproject.toml
+      - name: Core for the end-to-end fixture
+        working-directory: core
+        run: uv venv && uv pip install -e .
+      - name: Browser
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end, accessibility (axe, both themes) and visual tests
+        env:
+          MIMI_PYTHON: ${{ github.workspace }}/core/.venv/bin/python
+        run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

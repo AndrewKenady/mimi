@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 from . import db as dbm
-from . import log, persona, tools
+from . import grounding, log, persona, tools
 from .auth import Ctx
 from .llm import ModelError
 
@@ -130,12 +130,22 @@ _PASSAGE_HEAD = re.compile(r"(?m)^\[(\d+)\] [^\n]*\n")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9“\"(])")
 
 
+_UNTRUSTED_BODY = re.compile(r"<<<BEGIN UNTRUSTED[^\n]*>>>\n(.*?)\n<<<END UNTRUSTED>>>", re.S)
+
+
 def tool_passages(text: str) -> dict[int, str]:
-    """The passage under each numbered "[n] Title — Book" header of a tool result."""
+    """The source's own words under each numbered "[n] Title — Book" header of a tool result.
+
+    Passages are wrapped in UNTRUSTED markers for the model (tools.untrusted); only the text
+    between them is returned, so neither the markers nor the trailing instructions can end
+    up quoted in the "From the source" card or checked as if they were the source.
+    """
     parts = _PASSAGE_HEAD.split(text or "")
     out: dict[int, str] = {}
     for i in range(1, len(parts) - 1, 2):
-        body = parts[i + 1].replace("Cite these as [n].", "").strip()
+        chunk = parts[i + 1]
+        m = _UNTRUSTED_BODY.search(chunk)
+        body = (m.group(1) if m else chunk.split("\n\nCite these as [n].", 1)[0]).strip()
         if body:
             out[int(parts[i])] = body
     return out
@@ -494,6 +504,7 @@ class ChatService:
         base_messages: list[dict] = []  # the prompt as the next turn will replay it (for the title call)
         first_tools: list[dict] | None = None
         preview: dict | None = None  # the "From the source" excerpt, sent once per turn
+        read_passages: dict[int, str] = {}  # source number -> full passage text (not stored)
         try:
             # --- context: memories, location, system prompt, history
             if not chat["temporary"]:
@@ -618,6 +629,7 @@ class ChatService:
                         trail.append(entry)
                         yield {"event": "tool", "data": entry}
                         if res.sources:
+                            read_passages.update(tool_passages(res.text))  # what the model actually read, for the citation check
                             yield {"event": "sources", "data": {"sources": state.sources}}
                             if preview is None:
                                 preview = self._preview(res, state.query)
@@ -663,6 +675,9 @@ class ChatService:
         }
         if preview:
             meta["preview"] = preview
+        grounding_flags = self._grounding(answer, read_passages, meta) if answer and read_passages and not error else []
+        if grounding_flags:
+            yield {"event": "grounding", "data": {"message_id": asst_id, "flags": grounding_flags}}
         if reasoning and svc.settings.device("models").think_harder:
             meta["reasoning"] = reasoning[-4000:]
         asst_parent = user_msg["id"]
@@ -681,6 +696,25 @@ class ChatService:
         if error:
             yield {"event": "error", "data": {"message": error, "message_id": asst_id}}
         yield {"event": "done", "data": {"message": final, "chat": {"id": chat_id, "title": title}}}
+
+    @staticmethod
+    def _grounding(answer: str, passages: dict[int, str], meta: dict) -> list[dict]:
+        """Check each cited sentence against the passage it cites (mimi.grounding, a few ms).
+
+        Advisory only: the answer is never changed. The summary and any weak or unsupported
+        citations are stored in the message meta so the UI can mark them, now and on reload.
+        """
+        try:
+            report = grounding.check_answer(answer, passages)
+        except Exception as e:  # a checker bug must never cost the user their answer
+            L.warning("grounding check failed: %s", e)
+            return []
+        meta["grounding"] = report.summary()
+        flags = [{k: f[k] for k in ("n", "verdict", "score", "sentence", "start", "end", "reasons", "better_source") if k in f}
+                 for f in report.ui_flags()]
+        if flags:
+            meta["grounding"]["flags"] = flags
+        return flags
 
     @staticmethod
     def _preview(res: tools.ToolResult, query: str) -> dict | None:

@@ -253,6 +253,26 @@ class GroundingReport:
                         "start": claim.start, "end": claim.end, "reasons": k.reasons, "better_source": k.better_source})
         return out
 
+    def ui_flags(self) -> list[dict]:
+        """The citations worth interrupting a reader for: high precision, low noise.
+
+        `flags()` lists everything short of "supported", which suits the eval scoreboard.
+        A warning in the chat has to be right nearly every time or people learn to ignore it,
+        so this keeps only citations that are unsupported or invalid (a missing number or
+        name, a contradiction, or no real overlap), and skips any claim that another of its
+        citations does support ("… [1][2]" where [1] carries it). "Weak" usually means an
+        honest paraphrase that shares few words with the source.
+        """
+        out = []
+        for c in self.claims:
+            if c.verdict == SUPPORTED:
+                continue
+            for k in c.checks:
+                if k.verdict in (UNSUPPORTED, INVALID):
+                    out.append({"n": k.n, "verdict": k.verdict, "score": round(k.score, 3), "sentence": c.claim.text,
+                                "start": c.claim.start, "end": c.claim.end, "reasons": k.reasons, "better_source": k.better_source})
+        return out
+
     def to_dict(self) -> dict:
         d = self.summary()
         d["claims"] = []
@@ -505,11 +525,15 @@ def extract_entities(s: str) -> list[str]:
     tokens = list(re.finditer(r"[A-Za-z][\w'’.-]*[A-Za-z0-9]|[A-Za-z]", s))
     runs: list[list[tuple[int, str]]] = []
     cur: list[tuple[int, str]] = []
+    starts = {0}  # token indexes that open a sentence (a claim can hold two: "**Don't rub.** Rough handling…")
     for i, m in enumerate(tokens):
         w = m.group(0).rstrip(".")
-        if cur and i > 0:  # punctuation, or a full stop after a non-abbreviation, ends a name
+        if i > 0:
             prev = tokens[i - 1].group(0)
             gap = s[tokens[i - 1].end():m.start()]
+            if re.search(r"[!?]", gap) or ("." in gap + prev[-1:] and len(prev.rstrip(".")) > 3):
+                starts.add(i)
+        if cur and i > 0:  # punctuation, or a full stop after a non-abbreviation, ends a name
             if re.search(r"[;:!?()\"“”]", gap) or ("." in gap + prev[-1:] and len(prev.rstrip(".")) > 3):
                 runs.append(cur)
                 cur = []
@@ -526,7 +550,7 @@ def extract_entities(s: str) -> list[str]:
     out = []
     for run in runs:
         # the sentence's first word is capitalised anyway; drop it unless it's an acronym
-        if run[0][0] == 0 and not (len(run[0][1]) >= 2 and run[0][1].isupper()):
+        if run[0][0] in starts and not (len(run[0][1]) >= 2 and run[0][1].isupper()):
             run = run[1:]
         while run and run[0][1].lower() in STOPWORDS:
             run = run[1:]

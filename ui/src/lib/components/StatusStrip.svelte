@@ -19,7 +19,7 @@
 
 <!-- Not a live region as a whole: the clock and battery change constantly. Only the model's
      state (waking, ready, unavailable) is worth announcing. -->
-<div class="strip" role="group" aria-label="Device status">
+<div class="strip" role="region" aria-label="Device status">
 	<span class="pill offline" title="Mimi runs entirely on this device">
 		<WifiOff size={13} strokeWidth={2} aria-hidden="true" />
 		<span class="txt">Offline · all local</span>

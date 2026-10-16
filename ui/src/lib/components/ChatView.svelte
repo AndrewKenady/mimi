@@ -263,6 +263,7 @@
 						m.meta.tools = tools;
 					});
 				} else if (ev.event === 'sources') update((m) => (m.meta.sources = d.sources));
+				else if (ev.event === 'grounding') update((m) => (m.meta.grounding = { ...(m.meta.grounding || {}), flags: d.flags }));
 				else if (ev.event === 'memory') {
 					update((m) => {
 						if (d.used) m.meta.memories_used = d.used;
@@ -498,7 +499,7 @@
 	<section class="thread">
 		<header class="thead">
 			{#if !sideOpen}<button class="icon-btn" onclick={() => (sideOpen = true)} aria-label="Show chat list"><PanelLeft size={18} /></button>{/if}
-			<h1 class="ttl">{chat?.title || (messages.length ? 'New chat' : '')}</h1>
+			<h1 class="ttl">{chat?.title || (messages.length ? 'New chat' : '')}{#if !chat?.title && !messages.length}<span class="sr-only">New chat</span>{/if}</h1>
 			{#if !sideOpen && messages.length}<button class="icon-btn" onclick={newChat} aria-label="New chat"><SquarePen size={18} /></button>{/if}
 		</header>
 

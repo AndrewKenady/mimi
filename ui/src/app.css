@@ -959,3 +959,9 @@ ol.steps-list {
 	background: color-mix(in oklab, var(--accent) 26%, transparent);
 	transform: translateY(-1px);
 }
+/* A citation the grounding check couldn't match to its source: still clickable, visibly "verify me". */
+.cite.cite-check {
+	color: var(--warn);
+	background: color-mix(in oklab, var(--warn) 12%, transparent);
+	border: 1px dashed var(--warn);
+}
