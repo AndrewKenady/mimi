@@ -2,7 +2,10 @@
 
     python scripts/build_routing.py                       # US + Canada (default)
     python scripts/build_routing.py --regions us/wyoming  # a single state, for testing
+    python scripts/build_routing.py --regions europe/germany australia-oceania/new-zealand
     python scripts/build_routing.py --skip-download
+
+Regions are Geofabrik paths; a bare name (us, canada, us/wyoming) means north-america/<name>.
 
 Data: OpenStreetMap contributors (ODbL) via Geofabrik extracts. Engine: Valhalla
 (MIT) from the `pyvalhalla` wheel. Output: maps/routing/{tiles/, config.json,
@@ -24,7 +27,16 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-GEOFABRIK = "https://download.geofabrik.de/north-america/{}-latest.osm.pbf"
+GEOFABRIK = "https://download.geofabrik.de/{}-latest.osm.pbf"
+CONTINENTS = ("africa", "antarctica", "asia", "australia-oceania", "central-america", "europe", "north-america", "russia", "south-america")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import fetch  # noqa: E402  (verified, resumable downloads)
+
+
+def geofabrik_url(region: str) -> str:
+    """us -> north-america/us; europe/germany stays as is."""
+    path = region if region.split("/")[0] in CONTINENTS else f"north-america/{region}"
+    return GEOFABRIK.format(path)
 
 
 def valhalla_dirs() -> tuple[Path, Path]:
@@ -36,24 +48,27 @@ def valhalla_dirs() -> tuple[Path, Path]:
 
 
 def download(regions: list[str], dest: Path) -> list[Path]:
+    """Fetch each extract (resumable, via <name>.part) and check it against Geofabrik's .md5."""
+    import hashlib
+
     dest.mkdir(parents=True, exist_ok=True)
-    aria2 = ROOT / "bin" / "win-x64" / "aria2c.exe"
     files = []
     for r in regions:
-        url = GEOFABRIK.format(r)
+        url = geofabrik_url(r)
         out = dest / Path(url).name
         files.append(out)
         if out.exists() and not out.with_name(out.name + ".aria2").exists():
             print(f"✓ {out.name} already downloaded")
             continue
-        print(f"↓ {url}")
-        if aria2.exists():
-            subprocess.run([str(aria2), "-x8", "-s8", "-k8M", "--continue=true", "--max-tries=0", "--retry-wait=15",
-                            "--file-allocation=none", "-q", "-d", str(dest), "-o", out.name, url], check=True)
-        else:
-            import urllib.request
-
-            urllib.request.urlretrieve(url, out)
+        md5 = fetch.fetch_bytes(url + ".md5").decode().split()[0]
+        fetch.download(url, out)
+        h = hashlib.md5()
+        with open(out, "rb") as f:
+            while b := f.read(1 << 22):
+                h.update(b)
+        if h.hexdigest() != md5:
+            out.unlink()
+            sys.exit(f"{out.name} doesn't match Geofabrik's checksum (a new extract may have been published mid-download); run again")
     return files
 
 
@@ -203,7 +218,7 @@ def main() -> None:
         except Exception:
             pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--regions", nargs="+", default=["us", "canada"], help="Geofabrik north-america paths, e.g. us canada us/wyoming")
+    ap.add_argument("--regions", nargs="+", default=["us", "canada"], help="Geofabrik paths, e.g. us canada us/wyoming europe/germany")
     ap.add_argument("--out", default=str(ROOT / "maps" / "routing"))
     ap.add_argument("--concurrency", type=int, default=max(2, (os.cpu_count() or 4) // 2))
     ap.add_argument("--skip-download", action="store_true")
@@ -212,18 +227,21 @@ def main() -> None:
     ap.add_argument("--no-filter", action="store_true", help="build from the raw extracts (needs ~5x their size in temp space)")
     ap.add_argument("--full-roads", action="store_true", help="keep driveways, parking aisles and unnamed tracks (much more scratch space)")
     ap.add_argument("--work", help="folder for the build's scratch files (default: next to --out); e.g. a roomier drive")
+    ap.add_argument("--download-dir", help="where the .osm.pbf extracts go (default: .tools/dl/osm)")
     args = ap.parse_args()
 
     out = Path(args.out)
     work = (Path(args.work) / (out.name + ".building")) if args.work else out.with_name(out.name + ".building")
-    dl = ROOT / ".tools" / "dl" / "osm"
+    dl = Path(args.download_dir) if args.download_dir else ROOT / ".tools" / "dl" / "osm"
     pkg, libs = valhalla_dirs()
     env = dict(os.environ, PATH=f"{libs}{os.pathsep}{os.environ.get('PATH', '')}")
+    for var in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):  # the wheel's bundled libraries (Linux/macOS)
+        env[var] = f"{libs}{os.pathsep}{os.environ.get(var, '')}".rstrip(os.pathsep)
 
     if args.pbf:
         raw = [Path(p) for p in args.pbf]
     elif args.skip_download:
-        raw = [dl / Path(GEOFABRIK.format(r)).name for r in args.regions]
+        raw = [dl / Path(geofabrik_url(r)).name for r in args.regions]
     else:
         raw = download(args.regions, dl)
     missing = [p for p in raw if not p.exists()]
@@ -265,13 +283,16 @@ def main() -> None:
 
     t0 = time.time()
     print(f"⚙ building routing tiles from {', '.join(p.name for p in pbfs)} (concurrency {args.concurrency}) …")
+    build_tiles = pkg / "bin" / ("valhalla_build_tiles.exe" if os.name == "nt" else "valhalla_build_tiles")
+    (ROOT / "logs").mkdir(exist_ok=True)
     with open(ROOT / "logs" / "valhalla-build.log", "w", encoding="utf-8") as log:
-        rc = subprocess.run([str(pkg / "bin" / "valhalla_build_tiles.exe"), "-c", str(work / "config.json"), *map(str, pbfs)],
+        rc = subprocess.run([str(build_tiles), "-c", str(work / "config.json"), *map(str, pbfs)],
                             env=env, stdout=log, stderr=subprocess.STDOUT).returncode
     if rc != 0:
         sys.exit(f"valhalla_build_tiles failed (exit {rc}); see logs/valhalla-build.log")
     size = sum(f.stat().st_size for f in (work / "tiles").rglob("*") if f.is_file())
-    meta = {"region": " + ".join(r.split("/")[-1].title() if r != "us" else "United States" for r in args.regions),
+    meta = {"region": " + ".join(r.split("/")[-1].replace("-", " ").title() if r.split("/")[-1] != "us" else "United States"
+                                 for r in args.regions),
             "built": time.strftime("%Y-%m-%d"), "source": "OpenStreetMap via Geofabrik (ODbL)", "tiles_bytes": size,
             "build_seconds": int(time.time() - t0)}
     (work / "meta.json").write_text(json.dumps(meta, indent=1), "utf-8")
