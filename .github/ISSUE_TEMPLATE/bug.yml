@@ -1,0 +1,42 @@
+name: Bug report
+description: Something in Mimi doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time. Mimi runs offline, so the details below are the only way we can see what you saw.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      placeholder: "I opened Library → Medical Library and the page was blank. I expected a list of books."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. …\n2. …\n3. …"
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Windows 10/11, Linux, macOS, Docker, Steam Deck / SteamOS, Phone or tablet over the network, Other]
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device, RAM and GPU
+      placeholder: "ONEXPLAYER F1, 16 GB, Radeon 780M"
+  - type: input
+    id: version
+    attributes:
+      label: Mimi version or commit
+      placeholder: "Settings → About, or `git rev-parse --short HEAD`"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "Relevant lines from data/logs/core.log (and an engine log such as llama.log if a model was involved). Remove anything personal."
+      render: text

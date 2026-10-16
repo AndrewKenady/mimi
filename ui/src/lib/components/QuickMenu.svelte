@@ -4,9 +4,13 @@
 	import { app } from '$lib/app.svelte';
 	import { post } from '$lib/api';
 	import { hostPost, inShell, toggleFullscreen } from '$lib/host';
-	import { Mic, ScanText, AudioLines, Map, MessageSquarePlus, QrCode, Moon, Sun, Maximize, LogOut, MonitorDown, Search, UserCog, NotebookPen, Brain, Settings } from '@lucide/svelte';
+	import { dialog } from '$lib/dialog';
+	import { motion } from '$lib/motion';
+	import { inkOn } from '$lib/color';
+	import { DEFAULT_ACCENT } from '$lib/accents';
+	import { ScanText, AudioLines, Map, MessageSquarePlus, QrCode, Moon, Sun, Maximize, LogOut, MonitorDown, Search, UserCog, NotebookPen, Brain, Settings } from '@lucide/svelte';
 
-	const light = $derived(app.settings.user?.appearance?.theme === 'light');
+	const light = $derived(document.documentElement.dataset.theme === 'light' || app.settings.user?.appearance?.theme === 'light');
 	const tiles = $derived(
 		[
 			{ label: 'Talk', icon: AudioLines, run: () => (app.voice = true), primary: true },
@@ -33,41 +37,31 @@
 		].filter((t) => !t.hide)
 	);
 
+	const close = () => (app.quick = false);
 	function run(t: { run: () => void }) {
-		app.quick = false;
+		close();
 		t.run();
 	}
-
-	$effect(() => {
-		if (!app.quick) return;
-		const back = (e: Event) => {
-			e.preventDefault();
-			app.quick = false;
-		};
-		addEventListener('mimi:back', back);
-		setTimeout(() => (document.querySelector('.qm .tile') as HTMLElement)?.focus(), 60);
-		return () => removeEventListener('mimi:back', back);
-	});
 </script>
 
 {#if app.quick}
-	<div class="scrim" transition:fade={{ duration: 160 }} onclick={() => (app.quick = false)} role="presentation"></div>
-	<div class="qm" data-layer role="dialog" aria-label="Quick menu" transition:fly={{ y: 30, duration: 260 }}>
+	<div class="scrim" style="z-index: var(--z-sheet)" transition:fade={motion({ duration: 'fast' })} onclick={close} role="presentation"></div>
+	<div class="qm sheet" use:dialog={{ label: 'Quick menu', onclose: close, initialFocus: '.tile' }} transition:fly={motion({ y: 30, duration: 'slow' })}>
 		<div class="who">
-			<span class="av" style="--c:{app.me?.color}">{app.me?.name?.charAt(0).toUpperCase()}</span>
+			<span class="av" style="--c:{app.me?.color}; --ink:{inkOn(app.me?.color || DEFAULT_ACCENT)}" aria-hidden="true">{app.me?.name?.charAt(0).toUpperCase()}</span>
 			<div>
 				<b>{app.me?.name}</b>
 				<small>{app.me?.role === 'owner' ? 'Owner' : app.me?.role === 'guest' ? 'Guest' : 'Member'}{app.boot?.local ? '' : ' · connected over the network'}</small>
 			</div>
 			{#if !app.isGuest}
-				<button class="btn btn-sm btn-ghost acct" onclick={() => run({ run: () => goto('/settings/accounts') })}><UserCog size={15} /> Account</button>
+				<button class="btn btn-sm btn-ghost acct" onclick={() => run({ run: () => goto('/settings/accounts') })}><UserCog size={15} aria-hidden="true" /> Account</button>
 			{/if}
 		</div>
 		<div class="grid">
 			{#each tiles as t (t.label)}
 				{@const Icon = t.icon}
 				<button class="tile" class:primary={t.primary} onclick={() => run(t)}>
-					<Icon size={26} strokeWidth={1.7} />
+					<Icon size={26} strokeWidth={1.7} aria-hidden="true" />
 					<span>{t.label}</span>
 				</button>
 			{/each}
@@ -76,86 +70,77 @@
 {/if}
 
 <style>
-	.scrim {
-		position: fixed;
-		inset: 0;
-		background: rgba(3, 6, 10, 0.55);
-		backdrop-filter: blur(6px);
-		z-index: 70;
-	}
 	.qm {
 		position: fixed;
 		left: 50%;
 		bottom: 6vh;
 		transform: translateX(-50%);
-		width: min(720px, calc(100vw - 24px));
-		background: var(--surface);
-		border: 1px solid var(--line-2);
-		border-radius: 28px;
-		box-shadow: var(--shadow-2);
-		padding: 20px;
-		z-index: 71;
+		width: min(720px, calc(100vw - 2 * var(--space-3)));
+		padding: var(--space-5);
+		z-index: var(--z-sheet);
 		max-height: calc(100dvh - 12vh);
 		overflow-y: auto;
 		overscroll-behavior: contain;
 	}
 	@media (max-width: 760px) {
 		.qm {
-			bottom: calc(76px + env(safe-area-inset-bottom));
-			max-height: calc(100dvh - 96px - env(safe-area-inset-bottom));
-			padding: 16px;
+			bottom: calc(var(--tabbar-h) + var(--space-2));
+			max-height: calc(100dvh - var(--tabbar-h) - var(--space-8));
+			padding: var(--space-4);
 		}
 		.tile {
-			height: 84px !important;
+			height: 5.25rem !important;
 		}
 	}
 	.who {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding: 0 4px 16px;
+		gap: var(--space-3);
+		padding: 0 var(--space-1) var(--space-4);
 	}
 	.who .acct {
 		margin-left: auto;
 	}
 	.who b {
 		display: block;
+		font-weight: var(--fw-semibold);
 	}
 	.who small {
 		color: var(--text-3);
+		font-size: var(--fs-sm);
 	}
 	.av {
-		width: 42px;
-		height: 42px;
-		border-radius: 50%;
+		width: 2.625rem;
+		height: 2.625rem;
+		border-radius: var(--radius-round);
 		display: grid;
 		place-items: center;
-		font-weight: 650;
+		font-weight: var(--fw-bold);
 		background: var(--c);
-		color: #06131a;
+		color: var(--ink);
 	}
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-		gap: 10px;
+		gap: var(--space-3);
 	}
 	.tile {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 10px;
-		height: 104px;
-		border-radius: 20px;
+		gap: var(--space-3);
+		height: 6.5rem;
+		border-radius: var(--radius-xl);
 		background: var(--surface-2);
 		border: 1px solid var(--line);
 		color: var(--text-2);
-		font-size: 0.86rem;
-		font-weight: 550;
+		font-size: var(--fs-md);
+		font-weight: var(--fw-medium);
 		transition:
-			background 0.15s,
-			color 0.15s,
-			transform 0.12s;
+			background var(--dur-fast) var(--ease-standard),
+			color var(--dur-fast) var(--ease-standard),
+			transform var(--dur-instant) var(--ease-standard);
 	}
 	.tile:hover,
 	.tile:focus {

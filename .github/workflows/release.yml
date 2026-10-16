@@ -1,0 +1,88 @@
+name: Release
+
+# Push a tag like v0.2.0 to publish a release: the native shell, the built UI
+# and the source, with SHA-256 checksums and a signed build-provenance
+# attestation (verify with `gh attestation verify <file> -R AndrewKenady/mimi`).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Build the UI
+        working-directory: ui
+        run: npm ci && npm run build
+      - name: Build MIMI.exe
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File shell\build.ps1
+      - name: Package
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}"
+          New-Item -ItemType Directory dist | Out-Null
+          git archive --format=zip --prefix="mimi-$v/" -o "dist/mimi-$v-source.zip" HEAD
+          Compress-Archive -Path ui/build/* -DestinationPath "dist/mimi-$v-ui.zip"
+          Compress-Archive -Path MIMI.exe, Microsoft.Web.WebView2.*.dll, WebView2Loader.dll -DestinationPath "dist/mimi-$v-windows-shell.zip"
+          Get-ChildItem dist | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          } | Set-Content dist/SHA256SUMS.txt
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*.zip"
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $notes = "See CHANGELOG.md for what changed."
+          if (Test-Path CHANGELOG.md) {
+            $notes = (Get-Content CHANGELOG.md -Raw) -split "(?m)^## " | Select-Object -Index 1
+            $notes = "## " + $notes
+          }
+          gh release create "${{ github.ref_name }}" dist/* --title "Mimi ${{ github.ref_name }}" --notes $notes
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip when there is no Dockerfile
+        id: has
+        run: if [ -f Dockerfile ]; then echo "yes=1" >> "$GITHUB_OUTPUT"; fi
+      - uses: docker/setup-buildx-action@v3
+        if: steps.has.outputs.yes
+      - uses: docker/login-action@v3
+        if: steps.has.outputs.yes
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: push
+        if: steps.has.outputs.yes
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/andrewkenady/mimi:${{ github.ref_name }}
+            ghcr.io/andrewkenady/mimi:latest
+      - uses: actions/attest-build-provenance@v2
+        if: steps.has.outputs.yes
+        with:
+          subject-name: ghcr.io/andrewkenady/mimi
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

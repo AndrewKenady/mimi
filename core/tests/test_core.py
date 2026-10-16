@@ -1,6 +1,5 @@
 """Unit and API tests for Mimi Core (no model or network needed)."""
 
-import json
 
 import pytest
 
@@ -173,13 +172,13 @@ def test_chat_crud_and_guest_restrictions(client):
 
 def test_owner_gets_full_access_from_another_device(client):
     """Network access: a phone/laptop on the LAN signs in as the owner with a PIN."""
-    client.post("/api/auth/setup", json={"name": "Ada", "pin": "2468"})
+    client.post("/api/auth/setup", json={"name": "Ada", "pin": "246813"})
     from fastapi.testclient import TestClient
 
     phone = TestClient(client.app, base_url="https://phone")
     assert phone.get("/api/chats").status_code == 401
-    assert phone.post("/api/auth/login", json={"name": "ada", "secret": "0000"}).status_code == 401
-    r = phone.post("/api/auth/login", json={"name": "ada", "secret": "2468"})
+    assert phone.post("/api/auth/login", json={"name": "ada", "secret": "000000"}).status_code == 401
+    r = phone.post("/api/auth/login", json={"name": "ada", "secret": "246813"})
     assert r.status_code == 200 and r.json()["user"]["role"] == "owner"
     b = phone.get("/api/bootstrap").json()
     assert b["me"]["name"] == "Ada" and b["local"] is False
@@ -188,6 +187,18 @@ def test_owner_gets_full_access_from_another_device(client):
     assert phone.get("/api/memories").status_code == 200
     # device-only actions stay on the device
     assert phone.post("/api/system/shutdown").status_code == 403
+
+
+def test_short_pin_is_refused_from_another_device(client):
+    """A 4-digit PIN unlocks the device's own screen, but phones need 6+ digits: 10,000 guesses is too few on a LAN."""
+    client.post("/api/auth/setup", json={"name": "Ada", "pin": "2468"})
+    from fastapi.testclient import TestClient
+
+    phone = TestClient(client.app, base_url="https://phone")
+    r = phone.post("/api/auth/login", json={"name": "ada", "secret": "2468"})
+    assert r.status_code == 403 and "6" in r.json()["detail"]
+    # the same answer for a name that doesn't exist, so the refusal reveals nothing about accounts
+    assert phone.post("/api/auth/login", json={"name": "nobody", "secret": "2468"}).json() == r.json()
 
 
 def test_unauthenticated_remote_is_rejected(client):
@@ -218,7 +229,8 @@ def test_community_tool_plugins(client, tmp_path):
     (folder / "broken.py").write_text("raise RuntimeError('nope')\n", encoding="utf-8")
     (folder / "clash.py").write_text('NAME = "calculate"\ndef run(a, c):\n    return ""\n', encoding="utf-8")
     info = {p["file"]: p for p in tools.load_plugins(folder)}
-    assert info["shout.py"]["error"] == "" and "nope" in info["broken.py"]["error"] and "already used" in info["clash.py"]["error"]
+    # discovery reads manifests without running plugin code, so broken.py is reported (no run()) without raising
+    assert info["shout.py"]["error"] == "" and "run(" in info["broken.py"]["error"] and "already used" in info["clash.py"]["error"]
 
     client.post("/api/auth/setup", json={"name": "Ada"})
     svc = client.app.state.svc
@@ -240,7 +252,7 @@ def test_community_tool_plugins(client, tmp_path):
 
 def test_example_tools():
     import importlib.util
-    from datetime import date, datetime
+    from datetime import date
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[2] / "tools"
@@ -388,7 +400,7 @@ def test_no_pin_sign_in_explains_what_is_missing(client, monkeypatch):
     from mimi import pairing
 
     monkeypatch.setattr(pairing, "ATTEMPTS_PER_MIN", 100)
-    owner = client.post("/api/auth/setup", json={"name": "Ada", "pin": "2468"}).json()["user"]
+    owner = client.post("/api/auth/setup", json={"name": "Ada", "pin": "246813"}).json()["user"]
     phone = TestClient(client.app, base_url="https://phone")
     r = phone.post("/api/auth/login", json={"name": "Ada", "secret": ""})
     assert r.status_code == 401 and "reload" in r.json()["detail"]
@@ -400,7 +412,7 @@ def test_no_pin_sign_in_explains_what_is_missing(client, monkeypatch):
         return phone.get(f"/api/auth/pair/{req['id']}?poll={req['poll']}").json()["device_screen"]
 
     laptop = TestClient(client.app, base_url="https://laptop")
-    assert laptop.post("/api/auth/login", json={"name": "Ada", "secret": "2468"}).status_code == 200
+    assert laptop.post("/api/auth/login", json={"name": "Ada", "secret": "246813"}).status_code == 200
     with laptop.websocket_connect("wss://laptop/api/events"):  # the owner elsewhere on the network can't approve
         assert _eventually(lambda: client.app.state.svc.events.watching(owner["id"]))
         assert not screen()
@@ -431,7 +443,7 @@ def test_security_hardening(client):
 
     from mimi.app import is_local
 
-    client.post("/api/auth/setup", json={"name": "Ada", "pin": "2468"})
+    client.post("/api/auth/setup", json={"name": "Ada", "pin": "246813"})
 
     # a page whose domain resolves to 127.0.0.1 is not the device
     class Req:
@@ -454,8 +466,8 @@ def test_security_hardening(client):
     phone = TestClient(client.app, base_url="https://phone")
     assert phone.post("/api/auth/unlock", json={"pin": "2468"}).status_code == 403  # device-only
     for _ in range(5):
-        assert phone.post("/api/auth/login", json={"name": "Ada", "secret": "0000"}).status_code == 401
-    r = phone.post("/api/auth/login", json={"name": "Ada", "secret": "2468"})
+        assert phone.post("/api/auth/login", json={"name": "Ada", "secret": "000000"}).status_code == 401
+    r = phone.post("/api/auth/login", json={"name": "Ada", "secret": "246813"})
     assert r.status_code == 429  # locked out for a while even with the right PIN
 
     # event sockets: no session -> refused; a foreign page -> refused
@@ -463,7 +475,7 @@ def test_security_hardening(client):
         with phone.websocket_connect("wss://phone/api/events") as ws:
             ws.receive_text()
     other = TestClient(client.app, base_url="https://phone2")
-    other.post("/api/auth/login", json={"name": "Ada", "secret": "2468"})
+    other.post("/api/auth/login", json={"name": "Ada", "secret": "246813"})
     with pytest.raises(WebSocketDisconnect):
         with other.websocket_connect("wss://phone2/api/events", headers={"origin": "https://evil.example"}) as ws:
             ws.receive_text()

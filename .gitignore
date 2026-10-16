@@ -39,3 +39,7 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+.venv/
+.claude/worktrees/
+ui/test-results/
+ui/playwright-report/

@@ -10,16 +10,44 @@
 		<link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
 		<link rel="apple-touch-icon" href="%sveltekit.assets%/icon-192.png" />
 		<title>Mimi</title>
+		<script>
+			// Paint the user's own look before anything else loads (no dark flash for
+			// Daylight users). $lib/theme saves this snapshot from the real tokens each
+			// time appearance is applied; the literals below are only the first-run look.
+			(function () {
+				var r = document.documentElement, s = {};
+				try { s = JSON.parse(localStorage.getItem('mimi.boot') || '{}') || {}; } catch (e) {}
+				var theme = s.pref === 'auto' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : s.theme;
+				if (theme) r.dataset.theme = theme;
+				if (s.pref) r.dataset.themePref = s.pref;
+				['contrast', 'motion', 'density', 'well', 'reading'].forEach(function (k) { if (s[k]) r.dataset[k] = s[k]; });
+				if (s.scale) r.style.setProperty('--font-scale', s.scale);
+				if (s.raw) r.style.setProperty('--accent-raw', s.raw);
+				// Theme-specific accents are only valid for the theme they were computed for.
+				if (s.accent && theme === s.theme) { r.style.setProperty('--accent', s.accent); r.style.setProperty('--accent-ink', s.ink); }
+				var fresh = theme === s.theme;
+				var set = function (k, v, d) { r.style.setProperty(k, fresh && v ? v : d); };
+				var light = theme === 'light';
+				set('--boot-bg', s.bg, light ? '#f4f6f9' : '#070b12');
+				set('--boot-wa', s.wa, s.raw || '#6ee7d2');
+				set('--boot-wb', s.wb, light ? '#3aa6b3' : '#1e7f8f');
+				set('--boot-wc', s.wc, light ? '#d8eef2' : '#0b2432');
+				var m = document.querySelector('meta[name="theme-color"]');
+				if (m) m.setAttribute('content', r.style.getPropertyValue('--boot-bg'));
+			})();
+		</script>
 		<style>
-			html,body{margin:0;background:#070b12;color:#e7edf6}
+			html,body{margin:0;background:var(--boot-bg,#070b12)}
 			#boot{position:fixed;inset:0;display:grid;place-items:center}
-			#boot i{width:84px;height:84px;border-radius:50%;background:radial-gradient(circle at 38% 34%,#d9fff8 0,#6ee7d2 22%,#1e8f8a 48%,#0b2f3c 72%,transparent 74%);box-shadow:0 0 70px rgba(110,231,210,.35);animation:b 2.4s ease-in-out infinite}
-			@keyframes b{50%{transform:scale(1.06);box-shadow:0 0 110px rgba(110,231,210,.5)}}
+			#boot i{width:84px;height:84px;border-radius:50%;background:radial-gradient(circle at 36% 32%,color-mix(in oklab,var(--boot-wa) 18%,white) 0,var(--boot-wa) 25%,var(--boot-wb) 54%,var(--boot-wc) 78%);box-shadow:0 0 70px color-mix(in oklab,var(--boot-wa) 35%,transparent);animation:b 2.4s ease-in-out infinite}
+			@keyframes b{50%{transform:scale(1.06)}}
+			@media (prefers-reduced-motion:reduce){#boot i{animation:none}}
+			[data-motion=reduced] #boot i{animation:none}
 		</style>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
-		<div id="boot"><i></i></div>
+		<div id="boot" role="status" aria-label="Mimi is starting"><i></i></div>
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>

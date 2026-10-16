@@ -58,9 +58,11 @@
 	const metric = $derived(app.settings.device?.general?.units === 'metric');
 	const fmtDist = (km: number) => (metric ? `${km.toFixed(1)} km` : `${(km * 0.621371).toFixed(1)} mi`);
 
-	// The world map (zoom 0-11) is drawn under the detailed regions. Where a region fully
-	// covers a world tile, that tile is served empty so the handheld doesn't draw both;
-	// abroad, MapLibre stretches the zoom-11 world tiles when you zoom in further.
+	// The world map is drawn under the detailed regions. Where a region fully covers a world
+	// tile, that tile is served empty so the handheld doesn't draw both; abroad, MapLibre
+	// stretches the world map's deepest tiles when you zoom in further. How deep that is depends
+	// on the pack (zoom 7 in Lite, 11 in Standard), so it is read from the file's header.
+	let worldMaxZoom = 11;
 	const EMPTY = new Uint8Array(0);
 	function coveredByRegion(z: number, x: number, y: number): boolean {
 		const n = 2 ** z;
@@ -87,7 +89,7 @@
 		const sources: Record<string, any> = {};
 		let all: any[] = [];
 		if (info.world_url) {
-			sources.world = { type: 'vector', tiles: ['mimiworld://{z}/{x}/{y}'], minzoom: 0, maxzoom: 11, attribution: '© OpenStreetMap contributors · Protomaps' };
+			sources.world = { type: 'vector', tiles: ['mimiworld://{z}/{x}/{y}'], minzoom: 0, maxzoom: worldMaxZoom, attribution: '© OpenStreetMap contributors · Protomaps' };
 			all = (layers('world', flavor, { lang: 'en' }) as any[]).map((l) => ({ ...l, id: `world-${l.id}` }));
 		}
 		if (info.tiles_url) {
@@ -114,7 +116,12 @@
 		maplibregl.setWorkerUrl(workerUrl);
 		const protocol = new Protocol();
 		maplibregl.addProtocol('pmtiles', protocol.tile);
-		if (info.world_url) maplibregl.addProtocol('mimiworld', worldTiles(new PMTiles(`${location.origin}${info.world_url}`)) as any);
+		if (info.world_url) {
+			const world = new PMTiles(`${location.origin}${info.world_url}`);
+			// a source's maxzoom past the file's own would ask for tiles that don't exist: blank map abroad
+			worldMaxZoom = await world.getHeader().then((h) => h.maxZoom).catch(() => 11);
+			maplibregl.addProtocol('mimiworld', worldTiles(world) as any);
+		}
 		const start = loc ? [loc.lon, loc.lat] : [-98.5, 39.8];
 		map = new maplibregl.Map({
 			container: el,
@@ -192,7 +199,7 @@
 		if (src) src.setData(data);
 		else {
 			map.addSource('route', { type: 'geojson', data });
-			map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#04121a', 'line-width': 10, 'line-opacity': 0.75 } });
+			map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': getComputedStyle(document.documentElement).getPropertyValue('--map-route-casing').trim() || '#04121a', 'line-width': 10, 'line-opacity': 0.75 } });
 			map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': accent, 'line-width': 5 } });
 		}
 		if (!destMarker) {
@@ -687,15 +694,15 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 8px;
+		gap: var(--space-2);
 		color: var(--text-3);
-		z-index: 1;
+		z-index: var(--z-raised);
 		text-align: center;
-		padding: 24px;
+		padding: var(--space-6);
 	}
 	.nomap h2 {
 		color: var(--text);
-		margin: 4px 0 0;
+		margin: var(--space-1) 0 0;
 	}
 	.panel {
 		position: absolute;
@@ -705,21 +712,21 @@
 		width: 340px;
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
-		padding: 14px;
-		border-radius: 22px;
+		gap: var(--space-3);
+		padding: var(--space-3);
+		border-radius: var(--radius-xl);
 		border: 1px solid var(--line-2);
 		box-shadow: var(--shadow-2);
-		z-index: 2;
+		z-index: var(--z-raised);
 		overflow: hidden;
 	}
 	.search {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: var(--space-2);
 		height: 44px;
-		padding: 0 10px 0 14px;
-		border-radius: 14px;
+		padding: 0 var(--space-2) 0 var(--space-3);
+		border-radius: var(--radius-md);
 		background: var(--surface-2);
 		border: 1px solid var(--line);
 		color: var(--text-3);
@@ -741,11 +748,11 @@
 	}
 	.res {
 		display: flex;
-		gap: 10px;
+		gap: var(--space-2);
 		align-items: flex-start;
 		text-align: left;
-		padding: 8px 10px;
-		border-radius: 10px;
+		padding: var(--space-2) var(--space-2);
+		border-radius: var(--radius-sm);
 		color: var(--text-2);
 	}
 	.res:hover,
@@ -754,7 +761,7 @@
 	}
 	.res :global(svg) {
 		flex: none;
-		margin-top: 2px;
+		margin-top: var(--space-0-5);
 	}
 	.res.hi :global(svg) {
 		color: var(--accent);
@@ -765,7 +772,7 @@
 	.res b {
 		display: block;
 		color: var(--text);
-		font-weight: 550;
+		font-weight: var(--fw-medium);
 	}
 	.res small {
 		display: block;
@@ -779,12 +786,12 @@
 	}
 	.ptag {
 		display: inline-block;
-		margin-top: 4px;
-		padding: 1px 7px;
-		border-radius: 999px;
+		margin-top: var(--space-1);
+		padding: 1px var(--space-1-5);
+		border-radius: var(--radius-pill);
 		font-style: normal;
-		font-size: 0.68rem;
-		font-weight: 550;
+		font-size: var(--fs-2xs);
+		font-weight: var(--fw-medium);
 		color: var(--text-2);
 		background: var(--surface-3);
 		border: 1px solid var(--line);
@@ -804,51 +811,51 @@
 	}
 	.empty {
 		flex: none;
-		padding: 10px 12px;
-		border-radius: 12px;
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-md);
 		background: var(--surface-2);
 		border: 1px solid var(--line);
-		font-size: 0.84rem;
+		font-size: var(--fs-sm);
 		color: var(--text-2);
 	}
 	.empty b {
 		display: block;
 		color: var(--text);
-		font-weight: 550;
+		font-weight: var(--fw-medium);
 		overflow-wrap: anywhere;
 	}
 	.empty p {
-		margin: 4px 0 0;
+		margin: var(--space-1) 0 0;
 		line-height: 1.45;
 	}
 	.empty .note {
 		display: flex;
-		gap: 6px;
+		gap: var(--space-1-5);
 		align-items: flex-start;
-		margin-top: 8px;
+		margin-top: var(--space-2);
 		color: var(--text-3);
 	}
 	.empty .note :global(svg) {
 		flex: none;
-		margin-top: 2px;
+		margin-top: var(--space-0-5);
 	}
 	.empty .btn {
-		margin-top: 10px;
+		margin-top: var(--space-2);
 	}
 	.partial {
 		flex: none;
 		display: flex;
-		gap: 6px;
+		gap: var(--space-1-5);
 		align-items: flex-start;
-		margin: -4px 0 0;
-		padding: 0 10px;
-		font-size: 0.78rem;
+		margin: calc(var(--space-1) * -1) 0 0;
+		padding: 0 var(--space-2);
+		font-size: var(--fs-xs);
 		line-height: 1.4;
 		color: var(--text-3);
 	}
 	.partial :global(svg) {
 		flex: none;
-		margin-top: 2px;
+		margin-top: var(--space-0-5);
 	}
 	.empty :global(.spin) {
 		animation: spin 1s linear infinite;
@@ -858,10 +865,10 @@
 	}
 	.where {
 		display: flex;
-		gap: 8px;
+		gap: var(--space-2);
 		align-items: center;
-		margin: 8px 0 2px;
-		font-weight: 550;
+		margin: var(--space-2) 0 var(--space-0-5);
+		font-weight: var(--fw-medium);
 	}
 	.where :global(svg) {
 		color: var(--accent);
@@ -870,17 +877,17 @@
 	.acts {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 6px;
-		margin-top: 10px;
+		gap: var(--space-1-5);
+		margin-top: var(--space-2);
 	}
 	.sel {
-		padding: 12px 14px;
+		padding: var(--space-3) var(--space-3);
 		flex: none;
 	}
 	.selh {
 		display: flex;
 		justify-content: space-between;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.selh b {
 		display: block;
@@ -902,42 +909,42 @@
 		align-items: center;
 	}
 	.small {
-		font-size: 0.8rem;
+		font-size: var(--fs-sm);
 	}
 	.kinds {
 		display: flex;
-		gap: 6px;
+		gap: var(--space-1-5);
 		flex-wrap: wrap;
-		margin: 8px 0;
+		margin: var(--space-2) 0;
 	}
 	.kinds .chip {
 		height: 1.7rem;
-		padding: 0 0.6rem;
-		font-size: 0.75rem;
+		padding: 0 var(--space-2);
+		font-size: var(--fs-xs);
 	}
 	.plist {
 		flex: 1;
 		overflow-y: auto;
-		margin: 0 -6px;
+		margin: 0 calc(var(--space-1-5) * -1);
 	}
 	.place {
 		display: flex;
 		flex-direction: column;
 		width: 100%;
 		text-align: left;
-		padding: 8px 10px;
-		border-radius: 12px;
+		padding: var(--space-2) var(--space-2);
+		border-radius: var(--radius-md);
 	}
 	.place:hover,
 	.place.on {
 		background: var(--surface-3);
 	}
 	.pn {
-		font-weight: 550;
-		font-size: 0.9rem;
+		font-weight: var(--fw-medium);
+		font-size: var(--fs-md);
 	}
 	.pk {
-		font-size: 0.76rem;
+		font-size: var(--fs-xs);
 		color: var(--text-3);
 		text-transform: capitalize;
 	}
@@ -946,48 +953,48 @@
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
-		padding: 14px 12px 8px 16px;
+		padding: var(--space-3) var(--space-3) var(--space-2) var(--space-4);
 	}
 	.rh {
 		display: flex;
 		justify-content: space-between;
-		gap: 8px;
-		margin-bottom: 10px;
+		gap: var(--space-2);
+		margin-bottom: var(--space-2);
 	}
 	.rh > div {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: var(--space-0-5);
 	}
 	.rtime {
-		font-size: 1.6rem;
-		font-weight: 650;
+		font-size: var(--fs-2xl);
+		font-weight: var(--fw-bold);
 		letter-spacing: -0.02em;
 		color: var(--accent);
 	}
 	.rdist {
-		font-weight: 550;
-		font-size: 0.92rem;
+		font-weight: var(--fw-medium);
+		font-size: var(--fs-md);
 	}
 	.rh small {
-		font-size: 0.76rem;
+		font-size: var(--fs-xs);
 	}
 	.steps {
 		list-style: none;
-		margin: 0 -6px 0 -10px;
+		margin: 0 calc(var(--space-1-5) * -1) 0 calc(var(--space-2) * -1);
 		padding: 0;
 		overflow-y: auto;
 		flex: 1;
 	}
 	.steps button {
 		display: flex;
-		gap: 10px;
+		gap: var(--space-2);
 		align-items: flex-start;
 		width: 100%;
 		text-align: left;
-		padding: 8px 10px;
-		border-radius: 10px;
-		font-size: 0.86rem;
+		padding: var(--space-2) var(--space-2);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-md);
 		line-height: 1.4;
 	}
 	.steps button:hover {
@@ -997,11 +1004,11 @@
 		flex: none;
 		width: 22px;
 		height: 22px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		display: grid;
 		place-items: center;
-		font-size: 0.7rem;
-		font-weight: 650;
+		font-size: var(--fs-2xs);
+		font-weight: var(--fw-bold);
 		background: var(--surface-3);
 		color: var(--text-2);
 	}
@@ -1010,7 +1017,7 @@
 	}
 	.steps .sd {
 		color: var(--text-3);
-		font-size: 0.78rem;
+		font-size: var(--fs-xs);
 		white-space: nowrap;
 	}
 	.acts :global(.spin) {
@@ -1026,14 +1033,14 @@
 		height: 30px;
 		background: var(--accent);
 		clip-path: path('M11 0C4.9 0 0 4.9 0 11c0 8.2 11 19 11 19s11-10.8 11-19C22 4.9 17.1 0 11 0z');
-		filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+		filter: drop-shadow(0 2px 6px var(--media-scrim));
 	}
 	:global(.me-dot) {
 		width: 18px;
 		height: 18px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		background: var(--accent);
-		border: 3px solid white;
+		border: 3px solid var(--media-fg);
 		box-shadow: 0 0 0 6px var(--accent-soft), 0 0 20px var(--accent);
 		animation: medot 2s ease-in-out infinite;
 	}
@@ -1045,12 +1052,12 @@
 	:global(.poi) {
 		width: 14px;
 		height: 14px;
-		border-radius: 50%;
+		border-radius: var(--radius-round);
 		background: var(--accent-2);
 		border: 2px solid var(--bg);
-		box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+		box-shadow: 0 1px 6px var(--media-scrim);
 		cursor: pointer;
-		transition: transform 0.15s;
+		transition: transform var(--dur-fast);
 	}
 	:global(.poi:hover) {
 		transform: scale(1.4);
@@ -1058,7 +1065,7 @@
 	:global(.maplibregl-ctrl-group) {
 		background: var(--surface) !important;
 		border: 1px solid var(--line-2);
-		border-radius: 12px !important;
+		border-radius: var(--radius-md) !important;
 		overflow: hidden;
 	}
 	:global(.maplibregl-ctrl-group button + button) {

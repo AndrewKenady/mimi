@@ -30,6 +30,7 @@
 	} = $props();
 
 	const ICONS: Record<string, any> = { sparkles: Sparkles, car: Car, 'heart-pulse': HeartPulse, wrench: Wrench, 'graduation-cap': GraduationCap, 'book-open': BookOpen };
+	const uid = $props.id();
 	let ta: HTMLTextAreaElement | undefined = $state();
 	let fileInput: HTMLInputElement | undefined = $state();
 	let uploading = $state(0);
@@ -212,14 +213,28 @@
 		</div>
 	{/if}
 	{#if cmdMatches.length}
-		<div class="menu cmds glass" role="listbox" aria-label="Commands">
-			{#each cmdMatches as c, i (c.cmd)}
-				<button role="option" aria-selected={i === cmdIndex} class="mi cmd" class:on={i === cmdIndex} onmouseenter={() => (cmdIndex = i)} onclick={() => pickCommand(i)}>
-					<span class="slash"><Slash size={13} /></span>
-					<span><b>/{c.cmd} <em>{c.hint}</em></b><small>{c.label}</small></span>
-				</button>
-			{/each}
-			<p class="cmdtip">Tab to pick · Esc to type a plain “/”</p>
+		<div class="menu cmds glass">
+			<div id="{uid}-cmds" role="listbox" aria-label="Commands">
+				{#each cmdMatches as c, i (c.cmd)}
+					<!-- Driven from the message box (aria-activedescendant); a click picks it, the keyboard uses Tab/Enter. -->
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<div
+						id="{uid}-cmd-{i}"
+						role="option"
+						tabindex="-1"
+						aria-selected={i === cmdIndex}
+						class="mi cmd"
+						class:on={i === cmdIndex}
+						onmouseenter={() => (cmdIndex = i)}
+						onmousedown={(e) => e.preventDefault()}
+						onclick={() => pickCommand(i)}
+					>
+						<span class="slash" aria-hidden="true"><Slash size={13} /></span>
+						<span><b>/{c.cmd} <em>{c.hint}</em></b><small>{c.label}</small></span>
+					</div>
+				{/each}
+			</div>
+			<p class="cmdtip" aria-hidden="true">Tab to pick · Esc to type a plain “/”</p>
 		</div>
 	{/if}
 	{#if cmdActive}
@@ -233,6 +248,9 @@
 		rows="1"
 		placeholder={dictating ? 'Listening… tap the mic when you’re done' : transcribing ? 'Transcribing…' : placeholder}
 		aria-label="Message"
+		aria-autocomplete={cmdMatches.length ? 'list' : undefined}
+		aria-controls={cmdMatches.length ? `${uid}-cmds` : undefined}
+		aria-activedescendant={cmdMatches.length ? `${uid}-cmd-${cmdIndex}` : undefined}
 	></textarea>
 	<div class="bar">
 		<button class="icon-btn sm" onclick={() => fileInput?.click()} title="Attach a photo or file" aria-label="Attach"><Paperclip size={18} /></button>
@@ -371,6 +389,9 @@
 	}
 	.mi span {
 		flex: 1;
+	}
+	.cmd {
+		cursor: pointer;
 	}
 	.cmds {
 		left: 10px;

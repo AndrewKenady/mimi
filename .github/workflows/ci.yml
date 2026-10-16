@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core · ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          activate-environment: true
+          enable-cache: true
+          cache-dependency-glob: core/pyproject.toml
+      - name: Install
+        run: uv pip install -e ".[dev,build]"
+      - name: Lint
+        run: ruff check . ../scripts ../tools ../eval ../ui/e2e  # the venv setup-uv activated is on PATH
+      - name: Test
+        run: python -m pytest -q
+
+  eval:
+    name: Evaluation pipeline (fixtures)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          activate-environment: true
+          enable-cache: true
+          cache-dependency-glob: core/pyproject.toml
+      - run: uv pip install -e "core[dev]"
+      - name: Score the fixture runs (A/B scoreboard)
+        run: |
+          python eval/score.py eval/fixtures/results-a.jsonl \
+            --compare eval/fixtures/results-b.jsonl --out-dir "$RUNNER_TEMP/eval" --name fixtures
+          cat "$RUNNER_TEMP/eval/fixtures.md" >> "$GITHUB_STEP_SUMMARY"
+
+  ui:
+    name: UI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - name: Type-check and contrast audit (WCAG AA, every theme)
+        run: npm run check
+      - name: Build
+        run: npm run build
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: core/pyproject.toml
+      - name: Core for the end-to-end fixture
+        working-directory: core
+        run: uv venv && uv pip install -e .
+      - name: Browser
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end, accessibility (axe, both themes) and visual tests
+        env:
+          MIMI_PYTHON: ${{ github.workspace }}/core/.venv/bin/python
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: ui/playwright-report
+          if-no-files-found: ignore
+
+  shell:
+    name: Native shell (MIMI.exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with the in-box C# compiler
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File shell\build.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MIMI.exe
+          path: MIMI.exe

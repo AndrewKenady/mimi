@@ -2,9 +2,10 @@
 
 Mimi's own code (everything in this repository) is under the [MIT License](../LICENSE).
 
-The repository contains no models, engines, maps or library content. `scripts/setup.ps1` and
-`scripts/fetch.py` download them from their original publishers (pinned in
-[`manifests/standard.json`](../manifests/standard.json) and [`config/models.json`](../config/models.json)),
+The repository contains no models, engines, maps or library content. The installers
+(`scripts/install.py`, `scripts/setup.ps1`) and the content manager (`scripts/content.py`) download them
+from their original publishers, pinned with checksums in [`manifests/`](../manifests/) (`runtimes.json`,
+`packs.json`, the `lite.json` and `standard.json` tiers) and [`config/models.json`](../config/models.json),
 and each keeps its own licence. The licences below are as published upstream when these
 versions were pinned; check the upstream project for current terms before redistributing.
 

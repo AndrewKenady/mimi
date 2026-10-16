@@ -2,7 +2,6 @@
 name = "mimi"
 version = "0.1.0"
 description = "Mimi — Machine Intelligence, Minus the Internet. The offline AI field station."
-readme = "../README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Andrew Kenady and Mimi contributors" }]
@@ -17,7 +16,7 @@ dependencies = [
   "orjson",
   "pypdf",
   "python-docx",
-  "selectolax",
+  "selectolax>=0.3.21,<1.0",  # 1.0 removed the Modest backend we import
   "zeroconf",
   "cryptography",
   "qrcode",
@@ -30,7 +29,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "huggingface_hub"]
+dev = ["pytest", "huggingface_hub", "ruff"]
+build = ["osmium"]  # scripts/build_routing.py, scripts/build_addresses.py
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

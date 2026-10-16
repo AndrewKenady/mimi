@@ -64,3 +64,20 @@ def test_gives_up_after_the_cpu_attempt(monkeypatch):
     with pytest.raises(llm.ModelError):
         asyncio.run(m.ensure(Spec(context=8192)))
     assert len(m.calls) == 4 and m.states[-1] == "error"
+
+
+@pytest.mark.parametrize("backend, installed, expected", [
+    ("metal", {"llama-metal", "llama-cpu"}, "llama-metal"),   # Apple silicon uses the GPU build
+    ("metal", {"llama-cpu"}, "llama-cpu"),                    # ...and still runs without it
+    ("cuda", {"llama-vulkan", "llama-cpu"}, "llama-vulkan"),
+    ("cpu", {"llama-metal", "llama-cpu"}, "llama-cpu"),
+])
+def test_build_dir_follows_the_detected_backend(tmp_path, backend, installed, expected):
+    m = llm.ModelManager.__new__(llm.ModelManager)
+    m.hw = {"backend": backend}
+    m.paths = SimpleNamespace(exe=lambda build, name: tmp_path / build / name)
+    for b in installed:
+        (tmp_path / b).mkdir()
+        (tmp_path / b / "llama-server").write_text("")
+    assert m._build_dir() == expected
+    assert m._build_dir(cpu_only=True) == "llama-cpu"

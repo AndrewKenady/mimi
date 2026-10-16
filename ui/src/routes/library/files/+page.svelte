@@ -88,7 +88,7 @@
 						<span class="fi">{#if f.kind === 'note'}<NotebookPen size={18} />{:else}<FileText size={18} />{/if}</span>
 						<span class="info">
 							<b>{f.title}</b>
-							<small>{f.source === 'scribe' ? 'Scribe note' : f.kind.toUpperCase()} · {fmtBytes(f.size)} · {timeAgo(f.created_at)}{#if f.chunks} · {f.chunks} passages{/if}</small>
+							<small>{f.source === 'scribe' ? 'Scribe note' : f.kind.toUpperCase()} · {fmtBytes(f.size)} · {timeAgo(f.created_at)}{f.chunks ? ` · ${f.chunks} passages` : ''}</small>
 						</span>
 						<span class="st" class:err={f.status === 'error'}>
 							{#if f.status === 'ready'}<CircleCheck size={15} /> Ready{:else if f.status === 'error'}<CircleAlert size={15} /> {f.error || 'Error'}{:else}<Loader size={15} class="spin" /> Indexing{/if}

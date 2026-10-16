@@ -186,7 +186,10 @@ def disk_usage(paths: Paths, max_age: float = 600) -> dict:
 
 def open_folder(path: Path) -> None:
     if sys.platform == "win32":
-        os.startfile(str(path))  # type: ignore[attr-defined]
+        try:  # outside Core's kill-on-close job (procs.contain_self), so the window outlives Mimi
+            subprocess.Popen(["explorer.exe", str(path)], creationflags=0x01000000)  # CREATE_BREAKAWAY_FROM_JOB
+        except OSError:
+            os.startfile(str(path))  # type: ignore[attr-defined]
     elif sys.platform == "darwin":
         subprocess.Popen(["open", str(path)])
     else:

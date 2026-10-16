@@ -6,14 +6,13 @@ import asyncio
 import os
 import time
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 
 from . import __version__, hardware, log
 from .awake import KeepAwake
-from .auth import SESSION_COOKIE, Auth, Ctx, FailureGuard
+from .auth import SESSION_COOKIE, Auth, Ctx, FailureGuard, KnownDevices
 from .catalog import Catalog
 from .chat import ChatService
 from .db import Database
@@ -49,7 +48,8 @@ class Services:
         self.events = EventBus()
         self.auth = Auth(self.db)
         self.pairing = PairingService(self.auth, self.events)
-        self.guard = FailureGuard()  # wrong PIN/password lockouts
+        self.guard = FailureGuard(self.db)  # wrong PIN/password lockouts (kept across restarts)
+        self.devices = KnownDevices(self.db)  # browsers that signed in before: exempt from the account-wide budget
         self.catalog = Catalog(paths)
         self.hw = hardware.detect(paths, use_cache=True, max_age=10**9) if (paths.data / "hardware.json").exists() else {
             "profile": "standard", "backend": "vulkan", "cores": os.cpu_count() or 4, "gpus": [], "battery": hardware.battery()}
@@ -158,6 +158,32 @@ class Services:
 LOOPBACK_NAMES = ("127.0.0.1", "localhost", "::1")
 
 
+def _local_peer(client: str) -> bool:
+    """Is `client` listed in MIMI_LOCAL_PEERS (IPs or CIDRs, comma-separated)?
+
+    For containers: a browser on the host reaches Mimi through the bridge gateway, not
+    loopback. docker-compose.yml lists that gateway and publishes the app port on the
+    host's 127.0.0.1 only, so it still means "someone at this machine". Never list an
+    address that other machines' traffic can arrive from. Unset (the default): nothing.
+    """
+    raw = os.environ.get("MIMI_LOCAL_PEERS", "").strip()
+    if not raw or not client:
+        return False
+    import ipaddress
+
+    try:
+        ip = ipaddress.ip_address(client)
+    except ValueError:
+        return False
+    for part in raw.replace(";", ",").split(","):
+        try:
+            if part.strip() and ip in ipaddress.ip_network(part.strip(), strict=False):
+                return True
+        except ValueError:
+            L.warning("MIMI_LOCAL_PEERS: ignoring %r (not an IP address or network)", part.strip())
+    return False
+
+
 def is_local(request: Request) -> bool:
     """The device's own screen: a loopback peer on the app port, addressed by a loopback name.
 
@@ -170,7 +196,7 @@ def is_local(request: Request) -> bool:
     client = request.client.host if request.client else ""
     if client == "testclient":  # Starlette's TestClient: local only when talking to the default test host
         return server[0] == "testserver"
-    if server[1] != MAIN_PORT or client not in LOOPBACK_NAMES:
+    if server[1] != MAIN_PORT or (client not in LOOPBACK_NAMES and not _local_peer(client)):
         return False
     if (request.url.hostname or "").strip("[]").lower() not in LOOPBACK_NAMES:
         return False
@@ -275,4 +301,4 @@ PLACEHOLDER = """<!doctype html><html><head><meta charset=utf-8><title>Mimi</tit
 <style>body{margin:0;height:100vh;display:grid;place-items:center;background:#060a12;color:#dfe8f5;font:16px/1.5 system-ui}
 .o{width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#b8fff2,#39c3b0 45%,#0b3b4a 75%);box-shadow:0 0 80px #2ad3bf66;margin:0 auto 24px}</style>
 </head><body><div><div class=o></div><h1 style="font-weight:300;letter-spacing:.3em;text-align:center">Mimi</h1>
-<p style="opacity:.7;text-align:center">Core is running. The app UI hasn't been built yet — run <code>scripts/build-ui.ps1</code>.</p></div></body></html>"""
+<p style="opacity:.7;text-align:center">Core is running. The app UI hasn't been built yet — run <code>cd ui && npm ci && npm run build</code> (the installers do this for you).</p></div></body></html>"""

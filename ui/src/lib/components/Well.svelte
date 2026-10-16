@@ -5,6 +5,8 @@
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { parseColor } from '$lib/color';
+	import { reducedMotion } from '$lib/motion';
 
 	type WellState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'sleep';
 	let {
@@ -14,7 +16,7 @@
 		getLevel = null as null | (() => number)
 	}: { size?: number; mood?: WellState; level?: number; getLevel?: null | (() => number) } = $props();
 
-	let canvas: HTMLCanvasElement;
+	let canvas = $state<HTMLCanvasElement>() as HTMLCanvasElement;
 	let fallback = $state(false);
 
 	const VERT = `attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
@@ -54,16 +56,19 @@ void main(){
   gl_FragColor = vec4(col * edge + outer, a);
 }`;
 
-	function hexToRgb(v: string): [number, number, number] {
-		v = v.trim();
-		const m = /^#?([0-9a-f]{6})$/i.exec(v);
-		if (m) {
-			const n = parseInt(m[1], 16);
-			return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+	// The three Well colours come from the design tokens (--well-a/b/c), so the orb follows
+	// the theme, the accent and the Well style without knowing about any of them.
+	let seen = { a: '', b: '', c: '' };
+	let rgb = { a: [0, 0, 0], b: [0, 0, 0], c: [0, 0, 0] } as Record<'a' | 'b' | 'c', number[]>;
+	function wellColors(cs: CSSStyleDeclaration) {
+		for (const k of ['a', 'b', 'c'] as const) {
+			const v = cs.getPropertyValue(`--well-${k}`);
+			if (v === seen[k]) continue;
+			seen[k] = v;
+			const c = parseColor(v);
+			if (c) rgb[k] = c.slice(0, 3).map((x) => x / 255);
 		}
-		const rgb = v.match(/\d+(\.\d+)?/g);
-		if (rgb && rgb.length >= 3) return [+rgb[0] / 255, +rgb[1] / 255, +rgb[2] / 255];
-		return [0.43, 0.9, 0.82];
+		return rgb;
 	}
 
 	onMount(() => {
@@ -104,7 +109,6 @@ void main(){
 		let swirl = 0;
 		let last = 0;
 		const t0 = performance.now();
-		const reduced = () => document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 		const frame = (now: number) => {
 			raf = requestAnimationFrame(frame);
@@ -128,15 +132,16 @@ void main(){
 			energy += (eT - energy) * 0.05;
 			swirl += (sT - swirl) * 0.04;
 			const cs = getComputedStyle(canvas);
-			const time = reduced() ? 0 : (now - t0) / 1000;
+			const time = reducedMotion() ? 0 : (now - t0) / 1000; // reduced motion: the water holds still
 			gl.uniform2f(U.res, w, h);
 			gl.uniform1f(U.t, time);
 			gl.uniform1f(U.level, lvl);
 			gl.uniform1f(U.energy, energy);
 			gl.uniform1f(U.swirl, swirl);
-			gl.uniform3fv(U.ca, hexToRgb(cs.getPropertyValue('--well-a') || '#6ee7d2'));
-			gl.uniform3fv(U.cb, hexToRgb(cs.getPropertyValue('--well-b') || '#1e7f8f'));
-			gl.uniform3fv(U.cc, hexToRgb(cs.getPropertyValue('--well-c') || '#0b2432'));
+			const wc = wellColors(cs);
+			gl.uniform3fv(U.ca, wc.a);
+			gl.uniform3fv(U.cb, wc.b);
+			gl.uniform3fv(U.cc, wc.c);
 			gl.clearColor(0, 0, 0, 0);
 			gl.clear(gl.COLOR_BUFFER_BIT);
 			gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -170,10 +175,10 @@ void main(){
 	.fallback {
 		position: absolute;
 		inset: 15%;
-		border-radius: 50%;
-		background: radial-gradient(circle at 36% 32%, #e7fffb 0, var(--well-a) 24%, var(--well-b) 52%, var(--well-c) 76%);
+		border-radius: var(--radius-round);
+		background: var(--orb);
 		box-shadow: 0 0 80px color-mix(in oklab, var(--well-a) 45%, transparent);
-		animation: breathe 3.2s ease-in-out infinite;
+		animation: breathe 3.2s var(--ease-breathe) infinite;
 	}
 	@keyframes breathe {
 		50% {

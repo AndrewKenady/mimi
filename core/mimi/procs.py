@@ -1,17 +1,27 @@
 """Child-process management for bundled native services (llama-server, kiwix-serve).
 
-On Windows every child is placed in a Job Object with KILL_ON_JOB_CLOSE, so if
-Mimi Core exits or crashes, its children die with it — no orphaned servers
-holding GPU memory.
+Children must never outlive Mimi Core: an orphaned llama-server keeps holding
+gigabytes of (graphics) memory and its port.
+
+* Windows: every child is placed in a Job Object with KILL_ON_JOB_CLOSE, so if
+  Core exits or crashes, the kernel kills its children.
+* Linux/macOS: every child starts in its own session (process group), and stop()
+  signals the whole group, so helpers a server spawns go too. On Linux the child
+  also asks the kernel for PR_SET_PDEATHSIG(SIGKILL), so it dies even if Core is
+  killed with SIGKILL. macOS has no equivalent; there an atexit hook covers normal
+  exits and Python exceptions (kiwix-serve also watches Core's pid itself).
 """
 
 from __future__ import annotations
 
+import atexit
 import os
+import signal
 import subprocess
 import sys
 import threading
 import time
+import weakref
 from pathlib import Path
 
 from . import log
@@ -20,6 +30,61 @@ L = log.get("procs")
 
 _job_handle = None
 _job_lock = threading.Lock()
+_live: weakref.WeakSet[ManagedProcess] = weakref.WeakSet()
+
+PR_SET_PDEATHSIG = 1
+
+
+def _linux_prctl():
+    """libc prctl, resolved before fork (the child must not load libraries)."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        import ctypes
+
+        libc = ctypes.CDLL(None, use_errno=True)
+        fn = libc.prctl
+        fn.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong]
+        fn.restype = ctypes.c_int
+        return fn
+    except Exception as e:  # pragma: no cover - exotic libc
+        L.warning("prctl unavailable; children may outlive a killed Core: %s", e)
+        return None
+
+
+_prctl = _linux_prctl()
+
+
+def _child_setup(parent_pid: int):
+    """preexec_fn for POSIX children: die with Core (Linux). Runs in the forked child."""
+    prctl = _prctl
+
+    def setup() -> None:
+        if prctl is not None:
+            prctl(PR_SET_PDEATHSIG, signal.SIGKILL, 0, 0, 0)
+            # Core may have died between fork() and prctl(): then no signal will come.
+            if os.getppid() != parent_pid:
+                os._exit(1)
+
+    return setup
+
+
+def _kill_group(pgid: int, sig: int) -> bool:
+    try:
+        os.killpg(pgid, sig)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
+@atexit.register
+def _cleanup_all() -> None:
+    """Last resort on interpreter exit: no child process survives Core."""
+    for mp in list(_live):
+        try:
+            mp.stop(timeout=2)
+        except Exception:
+            pass
 
 
 def _job():
@@ -66,10 +131,34 @@ def _job():
         if not h:
             return None
         info = EXTENDED()
-        info.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        # KILL_ON_JOB_CLOSE: everything in the job dies with Core. BREAKAWAY_OK: a window Core opens for the
+        # person (a folder in Explorer) may leave the job explicitly (CREATE_BREAKAWAY_FROM_JOB), so it
+        # stays open after Mimi quits.
+        info.BasicLimitInformation.LimitFlags = 0x2000 | 0x0800
         k32.SetInformationJobObject(h, 9, ctypes.byref(info), ctypes.sizeof(info))
         _job_handle = (k32, h)
         return _job_handle
+
+
+def contain_self() -> bool:
+    """Windows: put Core itself in its kill-on-close job, so every process it starts inherits the
+    job, including plugin workers and PDF extractors that aren't ManagedProcesses, and dies with
+    Core even if Core is killed outright. Best effort; returns whether it took effect."""
+    j = _job()
+    if not j:
+        return False
+    k32, h = j
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        k32.GetCurrentProcess.restype = wintypes.HANDLE
+        if k32.AssignProcessToJobObject(h, k32.GetCurrentProcess()):
+            return True
+        L.warning("could not put Core in its job (error %s); helpers may outlive a killed Core", ctypes.get_last_error())
+    except Exception as e:  # pragma: no cover - Windows only, best effort
+        L.warning("could not put Core in its job: %s", e)
+    return False
 
 
 def _assign_to_job(proc: subprocess.Popen) -> None:
@@ -93,6 +182,7 @@ class ManagedProcess:
         self.proc: subprocess.Popen | None = None
         self.started_at: float | None = None
         self._logf = None
+        self._pgid: int | None = None
 
     @property
     def pid(self) -> int | None:
@@ -107,12 +197,15 @@ class ManagedProcess:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._logf = open(self.log_path, "ab", buffering=0)
         self._logf.write(f"\n==== {time.strftime('%Y-%m-%d %H:%M:%S')} starting: {' '.join(self.args)}\n".encode())
-        flags = 0
-        if sys.platform == "win32":
-            flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
         env = dict(os.environ)
         if self.env:
             env.update(self.env)
+        kw: dict = {}
+        if sys.platform == "win32":
+            kw["creationflags"] = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+        else:
+            kw["start_new_session"] = True  # own process group: stop() signals the whole tree
+            kw["preexec_fn"] = _child_setup(os.getpid())
         self.proc = subprocess.Popen(
             self.args,
             cwd=str(self.cwd) if self.cwd else None,
@@ -120,9 +213,13 @@ class ManagedProcess:
             stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
             env=env,
-            creationflags=flags,
+            **kw,
         )
-        _assign_to_job(self.proc)
+        if sys.platform == "win32":
+            _assign_to_job(self.proc)
+        else:
+            self._pgid = self.proc.pid  # start_new_session makes the child its group leader
+        _live.add(self)
         self.started_at = time.time()
         L.info("%s started (pid %s)", self.name, self.proc.pid)
 
@@ -130,7 +227,9 @@ class ManagedProcess:
         p = self.proc
         if p is None:
             return
-        if p.poll() is None:
+        if self._pgid is not None:
+            self._stop_group(p, self._pgid, timeout)
+        elif p.poll() is None:
             try:
                 p.terminate()
                 p.wait(timeout=timeout)
@@ -140,13 +239,32 @@ class ManagedProcess:
             except Exception:
                 pass
         L.info("%s stopped", self.name)
+        _live.discard(self)
         self.proc = None
+        self._pgid = None
         if self._logf:
             try:
                 self._logf.close()
             except Exception:
                 pass
             self._logf = None
+
+    @staticmethod
+    def _stop_group(p: subprocess.Popen, pgid: int, timeout: float) -> None:
+        """SIGTERM the child's process group, then SIGKILL whatever is left of it."""
+        _kill_group(pgid, signal.SIGTERM)
+        try:
+            p.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            pass
+        except Exception:
+            pass
+        # The leader may be gone while helpers it forked linger; SIGKILL the group either way.
+        _kill_group(pgid, signal.SIGKILL)
+        try:
+            p.wait(timeout=5)
+        except Exception:
+            pass
 
     def tail(self, n: int = 40) -> str:
         try:

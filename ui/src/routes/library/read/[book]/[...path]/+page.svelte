@@ -3,14 +3,20 @@
 	import { page } from '$app/state';
 	import { tick } from 'svelte';
 	import { app } from '$lib/app.svelte';
-	import { get } from '$lib/api';
-	import { ArrowLeft, Sparkles, List, BookOpen, Type } from '@lucide/svelte';
+	import { fmtBytes, get } from '$lib/api';
+	import { ArrowLeft, Sparkles, List, BookOpen, Type, Download, ExternalLink, FileText } from '@lucide/svelte';
 
 	let art = $state<any>(null);
 	let error = $state('');
 	let tocOpen = $state(false);
 	let scroller: HTMLDivElement | undefined = $state();
 	let size = $state(Number(localStorage.getItem('mimi.readerSize') || '1'));
+
+	// Documents (PDF, video, audio…) are shown by the browser itself, straight from the ZIM.
+	const isDoc = $derived(!!art && art.kind && !['article', 'collection'].includes(art.kind));
+	// Citations link to "…/book.pdf#page=112"; the browser's PDF viewer understands that fragment.
+	const pageNo = $derived(Number((page.url.hash.match(/^#page=(\d+)/) || [])[1] || 0));
+	const pdfSrc = $derived(art?.kind === 'pdf' ? `${art.src}${pageNo ? `#page=${pageNo}` : ''}` : '');
 
 	$effect(() => {
 		const book = page.params.book;
@@ -23,6 +29,8 @@
 		art = null;
 		try {
 			art = await get(`/api/library/article/${encodeURIComponent(book)}/${path.split('/').map(encodeURIComponent).join('/')}`);
+			if (art.kind === 'collection') return goto(`/library/book/${art.alias}`, { replaceState: true });
+			if (art.kind && art.kind !== 'article') return;
 			await tick();
 			const hash = decodeURIComponent(location.hash.slice(1));
 			if (hash) document.getElementById(hash)?.scrollIntoView();
@@ -49,7 +57,8 @@
 	}
 
 	function ask() {
-		app.ask(`Using the library article “${art.title}” (${art.book_title}), give me the key points.`);
+		if (isDoc) app.ask(`Using “${art.title}” from the ${art.book_title}, give me the key points${pageNo ? ` of page ${pageNo}` : ''}.`);
+		else app.ask(`Using the library article “${art.title}” (${art.book_title}), give me the key points.`);
 		goto('/chat');
 	}
 
@@ -64,14 +73,51 @@
 <div class="reader">
 	<header class="bar glass">
 		<button class="icon-btn" onclick={() => history.back()} aria-label="Back"><ArrowLeft size={19} /></button>
-		<a class="book" href="/library"><BookOpen size={15} /> {art?.book_title || 'Library'}</a>
+		<a class="book" href={art?.alias && isDoc ? `/library/book/${art.alias}` : '/library'}><BookOpen size={15} /> {art?.book_title || 'Library'}</a>
 		<span class="grow"></span>
-		<button class="icon-btn" onclick={() => setSize(size - 0.08)} aria-label="Smaller text"><Type size={14} /></button>
-		<button class="icon-btn" onclick={() => setSize(size + 0.08)} aria-label="Larger text"><Type size={19} /></button>
+		{#if isDoc}
+			<a class="icon-btn" href={pdfSrc || art.src} target="_blank" rel="noopener" aria-label="Open in a new tab" title="Open in a new tab"><ExternalLink size={18} /></a>
+			<a class="icon-btn" href={art.src} download={art.path.split('/').pop()} aria-label="Download" title="Download"><Download size={18} /></a>
+		{:else}
+			<button class="icon-btn" onclick={() => setSize(size - 0.08)} aria-label="Smaller text"><Type size={14} /></button>
+			<button class="icon-btn" onclick={() => setSize(size + 0.08)} aria-label="Larger text"><Type size={19} /></button>
+		{/if}
 		{#if art?.toc?.length}<button class="icon-btn" onclick={() => (tocOpen = !tocOpen)} aria-label="Contents"><List size={19} /></button>{/if}
 		{#if art}<button class="btn btn-sm btn-primary" onclick={ask}><Sparkles size={15} /> Ask Mimi</button>{/if}
 	</header>
 
+	{#if isDoc}
+		<div class="docbar">
+			<FileText size={16} />
+			<b>{art.title}</b>
+			<span>{[art.author, art.pages ? `${art.pages.toLocaleString()} pages` : '', art.size ? fmtBytes(art.size) : '', pageNo ? `page ${pageNo}` : ''].filter(Boolean).join(' · ')}</span>
+		</div>
+	{/if}
+
+	{#if isDoc && art.kind === 'pdf'}
+		<!-- The browser's own PDF viewer, offline, straight from the ZIM (Core allows framing PDFs from itself). -->
+		{#key pdfSrc}<iframe class="pdf" src={pdfSrc} title={art.title}></iframe>{/key}
+	{:else if isDoc}
+		<div class="scroll" data-scroll>
+			<div class="media">
+				{#if art.kind === 'video'}
+					<!-- svelte-ignore a11y_media_has_caption -->
+					<video src={art.src} controls preload="metadata"></video>
+				{:else if art.kind === 'audio'}
+					<audio src={art.src} controls preload="metadata"></audio>
+				{:else if art.kind === 'image'}
+					<img src={art.src} alt={art.title} />
+				{:else}
+					<div class="msg">
+						<h2>Mimi can't show this kind of file</h2>
+						<p>{art.mime || 'This file'} opens in another app. Download it to keep a copy.</p>
+						<a class="btn" href={art.src} download={art.path.split('/').pop()}><Download size={16} /> Download</a>
+					</div>
+				{/if}
+				{#if art.description}<p class="mdesc">{art.description}</p>{/if}
+			</div>
+		</div>
+	{:else}
 	<div class="scroll" bind:this={scroller} data-scroll>
 		{#if error}
 			<div class="msg"><h2>Not in the library</h2><p>{error}</p><a class="btn" href="/library">Back to the library</a></div>
@@ -88,7 +134,7 @@
 						{#each art.toc as t (t.id)}<a href="#{t.id}" onclick={(e) => { e.preventDefault(); tocOpen = false; document.getElementById(t.id)?.scrollIntoView({ behavior: 'smooth' }); }}>{t.title}</a>{/each}
 					</nav>
 				{/if}
-				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+				<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions, a11y_no_noninteractive_element_interactions (link clicks are delegated; links stay keyboard-reachable) -->
 				<article class="article selectable" style="--rs:{size}" onclick={onClick}>
 					<h1 class="atitle">{art.title}</h1>
 					<div class="kiwix">{@html art.html}</div>
@@ -96,6 +142,7 @@
 			</div>
 		{/if}
 	</div>
+	{/if}
 </div>
 
 <style>
@@ -126,6 +173,56 @@
 	}
 	.grow {
 		flex: 1;
+	}
+	.docbar {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 9px 18px;
+		border-bottom: 1px solid var(--line);
+		font-size: 0.85rem;
+		color: var(--text-3);
+		min-width: 0;
+	}
+	.docbar b {
+		color: var(--text);
+		font-weight: 600;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.docbar span {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.pdf {
+		flex: 1;
+		width: 100%;
+		border: 0;
+		background: var(--surface);
+	}
+	.media {
+		width: min(960px, 100%);
+		margin: 0 auto;
+		padding: 28px 24px 80px;
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+	.media video,
+	.media img {
+		width: 100%;
+		border-radius: 14px;
+		background: #000;
+	}
+	.media audio {
+		width: 100%;
+	}
+	.mdesc {
+		color: var(--text-2);
+		line-height: 1.6;
+		margin: 0;
 	}
 	.scroll {
 		flex: 1;

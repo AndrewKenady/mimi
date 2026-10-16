@@ -596,7 +596,7 @@ class GeoData:
                 conn.close()
         self._places = self._wiki = None
 
-    def __enter__(self) -> "GeoData":
+    def __enter__(self) -> GeoData:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -1178,7 +1178,7 @@ class GeoData:
                 ):
                     rows[r[0]] = r
         out = []
-        for gid, name, plat, plon, fclass, fcode, fdesc, cc, adm1, pop in rows.values():
+        for _gid, name, plat, plon, fclass, fcode, fdesc, cc, adm1, pop in rows.values():
             pop = pop or 0
             if fclass == "A":
                 weight = _SEARCH_ADMIN_WEIGHT.get(fcode, 10)

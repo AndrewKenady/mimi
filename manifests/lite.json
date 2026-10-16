@@ -1,0 +1,11 @@
+{
+  "$comment": "MIMI Lite: the quick start. One small model that chats, sees and speaks; the practical references (medicine, repair, survival, travel, the most-read Wikipedia articles); a world overview map plus a detailed map of one region. About 15 GB plus the region's map (0.2-8 GB, see manifests/regions.json). Runs on 8 GB of RAM. Packs are defined in manifests/packs.json; add more any time with scripts/content.py add <pack>.",
+  "edition": "lite",
+  "title": "Lite",
+  "region": "us",
+  "packs": [
+    "llm-lite", "embeddings", "voice",
+    "library-essentials", "travel", "wikipedia-top",
+    "map-assets", "world-overview", "map-region", "places"
+  ]
+}

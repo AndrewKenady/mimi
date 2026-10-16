@@ -6,20 +6,19 @@ import asyncio
 import functools
 import hashlib
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from . import __version__, log, system, tools
 from .app import Services, ctx_or_none, get_ctx, is_local, member_ctx, owner_ctx
-from .auth import SESSION_COOKIE, AuthError, Ctx, public_user
-from .kiwix import COLLECTION_LABELS, book_dict, hit_dict
+from .auth import DEVICE_COOKIE, DEVICE_DAYS, SESSION_COOKIE, AuthError, Ctx, WeakSecretError, public_user, require_network_secret
+from .kiwix import COLLECTION_LABELS, book_dict, doc_dict, hit_dict
 from .settings import DEVICE_SECTIONS, USER_SECTIONS, SettingsError
 
 L = log.get("api")
@@ -31,8 +30,16 @@ def S(request: Request) -> Services:
     return request.app.state.svc
 
 
+def _remember_device(resp: Response, request: Request, svc, account: str) -> None:
+    """After a sign-in from another device: remember this browser for `account`, so a flood of
+    wrong guesses from elsewhere on the network can't lock it out (auth.KnownDevices)."""
+    token = svc.devices.remember(request.cookies.get(DEVICE_COOKIE), account)
+    resp.set_cookie(DEVICE_COOKIE, token, httponly=True, samesite="lax", secure=request.url.scheme == "https",
+                    max_age=DEVICE_DAYS * 86400)
+
+
 def _cookie(resp: Response, token: str, request: Request) -> None:
-    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", secure=request.url.scheme == "https", max_age=60 * 60 * 24 * 180)
+    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", secure=request.url.scheme == "https", max_age=60 * 60 * 24 * 30)  # the server also expires idle sessions (auth.py)
 
 
 @functools.lru_cache(maxsize=4)
@@ -209,7 +216,7 @@ async def setup(body: SetupIn, request: Request):
     try:
         u = svc.auth.create(body.name, "owner", pin=body.pin or None)
     except AuthError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     token = svc.auth.create_session(u["id"], request.headers.get("user-agent", ""), request.client.host if request.client else "")
     resp = JSONResponse({"user": public_user(u)})
     _cookie(resp, token, request)
@@ -223,19 +230,29 @@ async def login(body: LoginIn, request: Request):
         # Today's sign-in page asks the device instead of sending a blank PIN; only a page opened before
         # that update gets here, so say how to get the no-PIN path rather than "doesn't match".
         raise HTTPException(401, "To sign in without a PIN, reload this page, leave the PIN blank and choose “Ask the Mimi device”.")
+    if not is_local(request):
+        # From another device a short PIN is refused before any account is looked at, so the
+        # answer says nothing about which names exist. The device's own screen still takes it.
+        try:
+            require_network_secret(body.secret)
+        except WeakSecretError as e:
+            raise HTTPException(403, str(e)) from None
     src = request.client.host if request.client else ""
-    wait = svc.guard.check(src, body.name)
+    known = svc.devices.knows(request.cookies.get(DEVICE_COOKIE), body.name)
+    wait = svc.guard.check(src, body.name, known)
     if wait:
-        raise HTTPException(429, f"Too many wrong tries. Try again in {int(wait) + 1} seconds.")
+        raise HTTPException(429, f"Too many wrong tries. Try again in {int(wait) + 1} seconds, "
+                                 "or leave the PIN blank and choose “Ask the Mimi device”.")
     u = svc.auth.by_name(body.name)
     if not u or u["role"] == "guest" or not svc.auth.verify(u, body.secret):
-        svc.guard.failed(src, body.name)
+        svc.guard.failed(src, body.name, known)
         await asyncio.sleep(0.8)
         raise HTTPException(401, "That name and password/PIN don't match.")
     svc.guard.succeeded(src, body.name)
     token = svc.auth.create_session(u["id"], request.headers.get("user-agent", ""), src)
     resp = JSONResponse({"user": public_user(u)})
     _cookie(resp, token, request)
+    _remember_device(resp, request, svc, u["name"])
     return resp
 
 
@@ -262,7 +279,7 @@ async def pair_request(body: PairIn, request: Request):
             raise HTTPException(404, "There's no account with that name on this Mimi.")
         r = svc.pairing.request(u, request.headers.get("user-agent", ""), ip)
     except ValueError as e:
-        raise HTTPException(429, str(e))
+        raise HTTPException(429, str(e)) from e
     return {**r, "device_screen": _device_screen(svc)}
 
 
@@ -307,6 +324,7 @@ async def pair_poll(rid: str, request: Request, poll: str = ""):
     token = svc.auth.create_session(user["id"], request.headers.get("user-agent", ""), request.client.host if request.client else "")
     resp = JSONResponse({"status": "approved", "user": public_user(user)})
     _cookie(resp, token, request)
+    _remember_device(resp, request, svc, user["name"])  # approved on the device: this browser is the owner's
     return resp
 
 
@@ -344,7 +362,7 @@ async def guest(body: GuestIn, request: Request):
     try:
         u = svc.auth.create((body.name or "Guest").strip()[:30] or "Guest", "guest")
     except AuthError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     token = svc.auth.create_session(u["id"], request.headers.get("user-agent", ""), request.client.host if request.client else "")
     resp = JSONResponse({"user": public_user(u)})
     _cookie(resp, token, request)
@@ -375,7 +393,7 @@ async def create_user(body: UserIn, request: Request, ctx: Ctx = Depends(owner_c
     try:
         return public_user(S(request).auth.create(body.name, "user", pin=body.pin, password=body.password))
     except AuthError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.patch("/users/{user_id}")
@@ -385,7 +403,7 @@ async def patch_user(user_id: str, body: UserPatch, request: Request, ctx: Ctx =
     try:
         return public_user(S(request).auth.update(user_id, name=body.name, pin=body.pin, password=body.password, color=body.color))
     except AuthError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.delete("/users/{user_id}")
@@ -393,8 +411,11 @@ async def delete_user(user_id: str, request: Request, ctx: Ctx = Depends(owner_c
     svc = S(request)
     if user_id == ctx.id:
         raise HTTPException(400, "The owner account can't be deleted.")
+    u = svc.auth.get(user_id)
     svc.docs.purge_user(user_id)
     svc.auth.delete(user_id)
+    if u:
+        svc.devices.forget_account(u["name"])  # a later account with the same name starts with no known devices
     return {"ok": True}
 
 
@@ -413,7 +434,7 @@ async def patch_settings(scope: str, section: str, body: dict[str, Any], request
         before = svc.settings.device(section).model_dump() if scope == "device" and section in DEVICE_SECTIONS else None
         new = svc.settings.update(scope, section, body, user_id=ctx.id, role=ctx.role)
     except SettingsError as e:
-        raise HTTPException(422, str(e))
+        raise HTTPException(422, str(e)) from e
     await _apply_side_effects(svc, scope, section, before, new)
     svc.events.publish("settings", {"scope": scope, "section": section, "value": new}, user_id=None if scope == "device" else ctx.id)
     return new
@@ -427,7 +448,7 @@ async def _apply_side_effects(svc: Services, scope: str, section: str, before: d
             system.set_autostart(new["launch_at_startup"], svc.paths)
         except Exception as e:
             svc.settings.update("device", "general", {"launch_at_startup": system.autostart_enabled()})
-            raise HTTPException(400, f"Couldn't change startup setting: {e}")
+            raise HTTPException(400, f"Couldn't change startup setting: {e}") from e
     if section == "sharing":
         if new["enabled"] and (not svc.share.running or before.get("https_port") != new["https_port"]):
             await svc.share.stop()
@@ -472,7 +493,7 @@ async def import_settings(body: dict[str, Any], request: Request, ctx: Ctx = Dep
     try:
         S(request).settings.import_(body, ctx.id, ctx.role, include_device=ctx.is_owner)
     except SettingsError as e:
-        raise HTTPException(422, str(e))
+        raise HTTPException(422, str(e)) from e
     return S(request).settings.all_for(ctx.id, ctx.role)
 
 
@@ -622,7 +643,7 @@ def _sse(stream_factory) -> StreamingResponse:
         while True:
             try:
                 ev = await asyncio.wait_for(queue.get(), timeout=15)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 yield ": keep-alive\n\n"
                 continue
             if ev is None:
@@ -683,7 +704,7 @@ async def add_memory(body: MemoryIn, request: Request, ctx: Ctx = Depends(member
     try:
         return await S(request).memory.add(ctx.id, body.text, body.category, "active", pinned=body.pinned)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.patch("/memories/{mem_id}")
@@ -728,7 +749,7 @@ async def upload(request: Request, file: UploadFile = File(...), ctx: Ctx = Depe
     try:
         return await asyncio.to_thread(S(request).uploads.save, ctx, file.filename or "upload", data, file.content_type)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.get("/uploads/{upload_id}")
@@ -755,8 +776,30 @@ async def books(request: Request, all: bool = False, ctx: Ctx = Depends(get_ctx)
     for b in bs:
         d = book_dict(b)
         d["enabled"] = b.name not in disabled and b.alias not in disabled
+        # Can it be opened and searched? (kind, honest item count and a plain-English note)
+        d["health"] = svc.kiwix.health_of(b)
         out.append(d)
-    return {"books": out, "running": svc.kiwix_service.alive(), "collections": COLLECTION_LABELS}
+    return {"books": out, "running": svc.kiwix_service.alive(), "collections": COLLECTION_LABELS, "indexing": svc.kiwix.index_state,
+            # downloads that didn't finish: held back from the library rather than listed and broken
+            "incomplete": list(getattr(svc.kiwix_service, "incomplete", [])) if ctx.is_owner else []}
+
+
+@router.get("/library/collection/{book}")
+async def library_collection(book: str, request: Request, q: str = "", offset: int = 0, limit: int = 120, ctx: Ctx = Depends(get_ctx)):
+    """The items of a collection book (nautilus documents, TED talks, Gutenberg books),
+    whose own home page only works with JavaScript."""
+    svc = S(request)
+    _library_ok(svc, ctx)
+    got = await svc.kiwix.collection(book)
+    if not got:
+        raise HTTPException(404, "That book isn't in the offline library.")
+    b, docs = got
+    if q.strip():
+        words = q.lower().split()
+        docs = [d for d in docs if all(w in f"{d.title} {d.author} {d.description}".lower() for w in words)]
+    limit = max(1, min(limit, 500))
+    return {"book": book_dict(b) | {"health": svc.kiwix.health_of(b)}, "total": len(docs),
+            "items": [doc_dict(b, d) for d in docs[max(0, offset): max(0, offset) + limit]]}
 
 
 @router.get("/library/search")
@@ -797,7 +840,8 @@ async def library_home(book: str, request: Request, ctx: Ctx = Depends(get_ctx))
     r = await svc.kiwix.http.get(f"{svc.kiwix_service.base}/content/{b.name}", follow_redirects=False)
     loc = r.headers.get("location", "")
     path = loc.split(f"/content/{b.name}/", 1)[-1] if loc else ""
-    return {"book": b.alias, "path": path}
+    # kind ≠ "articles": the UI shows the native item list instead of the JS-only home page.
+    return {"book": b.alias, "path": path, "kind": b.kind}
 
 
 # Discover is a friendly Home card, not a search result: skip topics nobody wants
@@ -869,6 +913,22 @@ async def library_random(request: Request, book: str | None = None, near: bool =
     raise HTTPException(404)
 
 
+def _kiwix_frame_headers(ctype: str) -> dict:
+    """How ZIM content may be shown, by type.
+
+    PDFs and media may be framed by Mimi's own reader (the browser's PDF viewer
+    in an <iframe>). Anything that could run script — HTML, SVG, XML, JS — is
+    served with a CSP sandbox, so a ZIM page opened directly can't act as Mimi
+    (same origin, same cookies); the reader shows sanitised HTML instead.
+    """
+    t = ctype.split(";")[0].strip().lower()
+    if t == "application/pdf" or t.startswith(("video/", "audio/")):
+        return {"X-Frame-Options": "SAMEORIGIN", "Content-Security-Policy": "frame-ancestors 'self'", "Content-Disposition": "inline"}
+    if t.startswith("image/") and t != "image/svg+xml":
+        return {}
+    return {"Content-Security-Policy": "sandbox; frame-ancestors 'none'"}
+
+
 @public_router.get("/kiwix/{path:path}", include_in_schema=False)
 async def kiwix_proxy(path: str, request: Request):
     """Media and assets from the offline library (images in articles and citations)."""
@@ -888,6 +948,7 @@ async def kiwix_proxy(path: str, request: Request):
     upstream = await client.send(req, stream=True, follow_redirects=True)
     passthrough = {k: v for k, v in upstream.headers.items() if k.lower() in ("content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified")}
     passthrough["Cache-Control"] = "private, max-age=604800"
+    passthrough.update(_kiwix_frame_headers(upstream.headers.get("content-type", "")))
 
     async def body():
         try:
@@ -910,7 +971,7 @@ async def add_file(request: Request, file: UploadFile = File(...), ctx: Ctx = De
     try:
         return await S(request).docs.add_upload(ctx.id, file.filename or "file", await file.read())
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.delete("/files/{doc_id}")
@@ -1043,7 +1104,7 @@ async def route(body: RouteIn, request: Request, ctx: Ctx = Depends(get_ctx)):
         return await asyncio.to_thread(svc.routing.route, (float(origin["lat"]), float(origin["lon"])),
                                        (float(body.to["lat"]), float(body.to["lon"])), body.mode, units)
     except ValueError as e:
-        raise HTTPException(422, str(e))
+        raise HTTPException(422, str(e)) from e
 
 
 def _range_file(path: Path, request: Request, media_type: str) -> Response:
@@ -1096,7 +1157,7 @@ async def stt(request: Request, file: UploadFile = File(...), language: str | No
         r = await asyncio.to_thread(svc.voice.transcribe, data, model if model == "small" else "small", language)
     except Exception as e:
         L.exception("stt failed")
-        raise HTTPException(500, f"Couldn't transcribe: {e}")
+        raise HTTPException(500, f"Couldn't transcribe: {e}") from e
     return {"text": r["text"], "language": r["language"], "duration": r["duration"]}
 
 
@@ -1189,7 +1250,7 @@ async def lens_ocr(request: Request, file: UploadFile = File(...), ctx: Ctx = De
     try:
         return await asyncio.to_thread(S(request).lens.ocr_bytes, data)
     except Exception as e:
-        raise HTTPException(400, f"Couldn't read that image: {e}")
+        raise HTTPException(400, f"Couldn't read that image: {e}") from e
 
 
 # =========================================================================== sharing
@@ -1212,6 +1273,15 @@ async def share_firewall(request: Request, ctx: Ctx = Depends(owner_ctx)):
 
 class HotspotIn(BaseModel):
     on: bool
+
+
+@router.post("/share/ca/ack")
+async def share_ca_ack(request: Request, ctx: Ctx = Depends(owner_ctx)):
+    """Dismiss the "re-install the certificate on your phones" notice after a CA rotation."""
+    if not is_local(request):
+        raise HTTPException(403, "Dismiss this on the device.")
+    S(request).share.ack_ca_notice()
+    return {"ok": True}
 
 
 @router.post("/share/hotspot")

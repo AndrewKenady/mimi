@@ -2,6 +2,7 @@
 // configurable button actions (see Settings → Controls).
 import { goto } from '$app/navigation';
 import { app } from './app.svelte';
+import { scrollBehavior } from './motion';
 
 const BUTTONS = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'LS', 'RS', 'Up', 'Down', 'Left', 'Right', 'Guide'];
 export const SURFACES = ['/', '/chat', '/library', '/map', '/scribe', '/lens', '/memory', '/settings'];
@@ -60,11 +61,11 @@ export function moveFocus(dir: Dir) {
 	}
 	if (best) {
 		best.focus({ preventScroll: true });
-		best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+		best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollBehavior() });
 	} else {
 		// Nothing further that way: scroll the nearest scroller instead.
 		const scroller = cur.closest('.page, [data-scroll]') as HTMLElement | null;
-		scroller?.scrollBy({ top: dir === 'down' ? 240 : dir === 'up' ? -240 : 0, behavior: 'smooth' });
+		scroller?.scrollBy({ top: dir === 'down' ? 240 : dir === 'up' ? -240 : 0, behavior: scrollBehavior() });
 	}
 }
 
@@ -115,6 +116,7 @@ export function startGamepad() {
 	let prev: boolean[] = [];
 	let repeatAt = 0;
 	let heldDir: Dir | null = null;
+	addEventListener('gamepadconnected', () => (app.gamepad = true));
 
 	const loop = () => {
 		requestAnimationFrame(loop);
@@ -122,6 +124,7 @@ export function startGamepad() {
 		const pads = navigator.getGamepads?.() || [];
 		const gp = [...pads].find((p) => p && p.connected);
 		if (!gp) return;
+		if (!app.gamepad) app.gamepad = true;
 		const now = performance.now();
 		const pressed = gp.buttons.map((b, i) => (i === 6 || i === 7 ? b.value > 0.35 : b.pressed));
 		const mapping: Record<string, string> = app.settings.device?.controls?.mapping || {};

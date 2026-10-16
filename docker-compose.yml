@@ -1,0 +1,58 @@
+# Mimi with Docker Compose.
+#
+#   docker compose up -d                                   # start (CPU); then open http://localhost:7600
+#   docker compose run --rm mimi content add lite          # ~15 GB of models, books and maps into the volume
+#   docker compose run --rm mimi content add lite --region uk
+#   docker compose run --rm mimi content status
+#   docker compose restart mimi                            # load newly added content
+#
+# Full guide, GPU setup and the security notes below: docs/INSTALL.md#docker
+name: mimi
+
+services:
+  mimi:
+    build:
+      context: .
+      target: cpu            # GPU (AMD/Intel, Vulkan): target: vulkan, and uncomment devices/group_add below
+    image: mimi:local
+    restart: unless-stopped
+    ports:
+      # The app port is "the device's own screen": the owner is signed in automatically and can
+      # approve phones. Keep it on 127.0.0.1 so only this machine reaches it.
+      - "127.0.0.1:7600:7600"
+      # Phones/laptops on your network: Settings → Share inside Mimi serves HTTPS on 8443, where
+      # everyone signs in (no automatic owner access). Uncomment to publish it.
+      # - "8443:8443"
+    environment:
+      # A browser on this machine reaches the container through this network's gateway, never
+      # via loopback. Listing the gateway restores "this machine = the device". Do NOT publish
+      # 7600 on all interfaces while this is set: depending on Docker's proxy settings (rootless
+      # Docker, userland-proxy), LAN connections can arrive from the gateway too.
+      MIMI_LOCAL_PEERS: 172.31.76.1
+      # MIMI_NO_PRELOAD: "1"   # don't load the chat model at startup
+    volumes:
+      - mimi-data:/data      # models/, zim/, maps/, user/ (accounts, chats), logs/
+      # - /mnt/bigdisk/mimi:/data   # or a host folder (must be writable by uid 1000)
+    networks:
+      - mimi
+    # --- GPU via Vulkan (AMD/Intel; also NVIDIA with its container toolkit) -----------------
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # group_add:
+    #   - video
+    #   - "${RENDER_GID:-105}"   # getent group render | cut -d: -f3
+    # NVIDIA: install nvidia-container-toolkit, use target: vulkan, and add
+    #   deploy: { resources: { reservations: { devices: [ { driver: nvidia, count: all, capabilities: [gpu, graphics, compute, utility] } ] } } }
+    #   environment: NVIDIA_DRIVER_CAPABILITIES: all
+
+volumes:
+  mimi-data:
+
+networks:
+  mimi:
+    ipam:
+      config:
+        # Fixed so MIMI_LOCAL_PEERS can name the gateway. If it clashes with a network you
+        # already have, change both the subnet/gateway here and MIMI_LOCAL_PEERS above.
+        - subnet: 172.31.76.0/24
+          gateway: 172.31.76.1

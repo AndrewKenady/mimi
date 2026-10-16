@@ -1,0 +1,19 @@
+# Lint gate run by CI (.github/workflows/ci.yml) over core/ and the repo's other Python:
+#   ruff check . ../scripts ../tools ../eval ../ui/e2e Deliberately focused on
+# real bugs rather than style: undefined names, unused imports and
+# variables, syntax errors, and the bugbear checks that catch logic slips.
+line-length = 160
+target-version = "py311"
+
+[lint]
+select = ["E9", "F", "B", "UP0", "RUF100"]
+ignore = [
+  "B008",  # FastAPI's Depends()/Query() in defaults is the framework's idiom
+  "B905",  # zip() without strict= is fine for our same-length pairs
+  "UP006", "UP007", "UP035", "UP045",  # keep the existing annotation style
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["B011", "B017"]
+"../scripts/install.py" = ["UP036"]  # the bootstrap checks for old Pythons on purpose, to say what to do
+"../scripts/build_addresses.py" = ["UP031"]
