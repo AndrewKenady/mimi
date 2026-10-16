@@ -1,5 +1,6 @@
 """Example Mimi community tool: exact unit conversions (no model arithmetic)."""
 
+MIMI_API = 1
 NAME = "convert_units"
 DESCRIPTION = (
     "Convert a quantity between units exactly: length, area, volume, mass, speed, pressure, "
@@ -16,6 +17,8 @@ PARAMETERS = {
     "required": ["value", "from_unit", "to_unit"],
 }
 LABEL = "Converted units"
+SIDE_EFFECTS = False  # pure arithmetic; needs no location or places (no USES)
+TIMEOUT = 5
 
 # Each unit maps to (dimension, factor to the SI base unit).
 _U: dict[str, tuple[str, float]] = {}

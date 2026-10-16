@@ -2,6 +2,8 @@
 
     python -m mimi serve            run the backend (the Mimi app starts this for you)
     python -m mimi doctor           print a diagnostic report
+    python -m mimi mcp              serve Mimi's offline tools to MCP clients over stdio (docs/MCP.md)
+    python -m mimi plugin ...       check or try community tools (tools/README.md)
 """
 
 from __future__ import annotations
@@ -62,6 +64,17 @@ def main() -> None:
     s.add_argument("--host", default=os.environ.get("MIMI_HOST", "127.0.0.1"))
     s.add_argument("--port", type=int, default=None)
     sub.add_parser("doctor", help="diagnostics")
+    # mcp / plugin parse their own options (see mcp_server.main and plugins.cli)
+    sub.add_parser("mcp", help="MCP server over stdio for Claude Desktop and other clients", add_help=False)
+    sub.add_parser("plugin", help="check or test community tools", add_help=False)
+    if len(sys.argv) > 1 and sys.argv[1] in ("mcp", "plugin"):
+        if sys.argv[1] == "mcp":
+            from .mcp_server import main as mcp_main
+
+            sys.exit(mcp_main(sys.argv[2:]))
+        from .plugins import cli
+
+        sys.exit(cli(sys.argv[2:]))
     args = ap.parse_args()
     if args.cmd == "doctor":
         doctor(args)

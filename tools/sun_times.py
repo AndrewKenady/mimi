@@ -7,6 +7,7 @@ regions). Times are shown in the device's time zone.
 import math
 from datetime import date, datetime, timedelta, timezone
 
+MIMI_API = 1
 NAME = "sun_times"
 DESCRIPTION = (
     "Sunrise, sunset, first/last light and day length for a date, at the current location "
@@ -20,6 +21,9 @@ PARAMETERS = {
     },
 }
 LABEL = "Checked sunrise and sunset"
+USES = ["location", "places"]  # reads ctx.location and calls ctx.find_place()
+SIDE_EFFECTS = False           # only computes; changes nothing
+TIMEOUT = 10
 
 
 def _julian_to_dt(j: float) -> datetime:
