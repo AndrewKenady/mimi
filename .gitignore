@@ -22,6 +22,7 @@
 /MIMI.exe
 /*.dll
 /ui/build/
+/ui/build-demo/
 /ui/node_modules/
 /ui/.svelte-kit/
 /shell/obj/
@@ -43,3 +44,5 @@ desktop.ini
 .claude/worktrees/
 ui/test-results/
 ui/playwright-report/
+/ui/test-results-demo/
+/ui/playwright-report-demo/

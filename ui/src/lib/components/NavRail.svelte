@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { base } from '$app/paths';
 	import { page } from '$app/state';
 	import { app } from '$lib/app.svelte';
 	import { inkOn } from '$lib/color';
@@ -15,7 +16,9 @@
 		{ href: '/memory', label: 'Memory', icon: Brain, feature: 'memory' }
 	];
 	const shown = $derived(items.filter((i) => !i.feature || app.features[i.feature] !== false || i.feature === 'library'));
-	const active = (href: string) => (href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href));
+	// The browser demo is served under a base path; the app's own routes are what matter here.
+	const path = $derived(__MIMI_DEMO__ ? page.url.pathname.slice(base.length) || '/' : page.url.pathname);
+	const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 	const initial = $derived((app.me?.name || '?').trim().charAt(0).toUpperCase());
 	// The brand mark doubles as Mimi's presence: it breathes while a model wakes up and
 	// greys out when Core can't be reached. It is the only orb in the rail.

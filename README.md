@@ -6,6 +6,8 @@
 
 *An open-source, fully offline AI field station. The name nods to **Mímir**, the Norse keeper of wisdom whose counsel Odin carried.*
 
+**[Try the live demo](https://andrewkenady.github.io/mimi/demo/)**: the real interface in your browser, on recorded answers · **[Read the design case study](https://andrewkenady.github.io/mimi/case-study.html)**
+
 ![Mimi home screen on the ONEXPLAYER F1](docs/screenshots/home.png)
 
 Mimi turns a small PC into an assistant that works with **zero internet**: a local open-weights model grounded in an offline library of medicine, repair, travel and survival guides, with maps, driving directions, voice and photo reading. The reference device is a handheld ONEXPLAYER F1 (Ryzen 7 7840U, 16 GB). It also runs on Linux, macOS and Docker.

@@ -66,6 +66,10 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - **`SECURITY.md` and a threat model.**
 
 ### Ecosystem
+- **A live demo in the browser** at https://andrewkenady.github.io/mimi/demo/: the real Mimi interface, built with a recorded Core.
+  - It replays answers captured from the real API at the handheld's speed, with a "Skip the wait" switch, a guided tour and an honest reply to questions it has no recording of.
+  - It includes a small offline map of Yellowstone with a recorded route.
+  - Demo code is compiled out of the normal build.
 - **MCP server:** `python -m mimi mcp` exposes the offline library, places, directions and location to Claude Desktop and other MCP clients.
 - **CI:**
   - Core tests and lint on Linux, Windows and macOS;

@@ -7,11 +7,13 @@
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
+		"build:demo": "node demo/build.mjs",
 		"preview": "vite preview",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && npm run --silent contrast",
 		"contrast": "node --disable-warning=ExperimentalWarning scripts/contrast.mjs",
 		"test:e2e": "playwright test",
-		"test:e2e:update": "playwright test --update-snapshots"
+		"test:e2e:update": "playwright test --update-snapshots",
+		"test:demo": "playwright test -c e2e-demo/playwright.config.ts"
 	},
 	"devDependencies": {
 		"@axe-core/playwright": "^4.14.0",

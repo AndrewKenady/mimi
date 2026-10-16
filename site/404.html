@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found · Mimi</title>
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<script>
+  // GitHub Pages answers every unknown path with this page. The live demo is a single-page
+  // app, so a reload or a shared link like /mimi/demo/library/... lands here: send it to
+  // the demo's entry with the path kept, and the demo puts it back before its router starts.
+  (function () {
+    var p = location.pathname, i = p.indexOf('/demo/');
+    if (i >= 0 && p.length > i + 6) {
+      var rest = p.slice(i + 5) + location.search + location.hash;
+      location.replace(p.slice(0, i + 6) + '?_path=' + encodeURIComponent(rest));
+    }
+  })();
+</script>
+<link rel="icon" href="/mimi/favicon.svg" type="image/svg+xml">
+<style>
+:root { --paper: #eef0ea; --ink: #0d1a22; --ink-2: #33434d; --accent: #0a6e66; --rule: rgba(13, 26, 34, .16); color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root { --paper: #070b12; --ink: #e8eef7; --ink-2: #b3bfd0; --accent: #6ee7d2; --rule: rgba(150, 180, 220, .15); color-scheme: dark; } }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--paper); color: var(--ink);
+  font: 400 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 34rem; padding: 32px 24px; }
+h1 { font-size: 28px; line-height: 1.2; margin: 0 0 12px; letter-spacing: -.01em; }
+p { color: var(--ink-2); margin: 0 0 20px; }
+a { color: var(--accent); text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+nav { display: flex; gap: 20px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid var(--rule); }
+</style>
+</head>
+<body>
+<main>
+  <h1>That page isn’t here.</h1>
+  <p>It may have moved, or the link has a typo.</p>
+  <nav aria-label="Mimi">
+    <a href="/mimi/">Mimi home</a>
+    <a href="/mimi/demo/">Try the live demo</a>
+    <a href="/mimi/case-study.html">Case study</a>
+  </nav>
+</main>
+</body>
+</html>
