@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from . import __version__, log, system, tools
 from .app import Services, ctx_or_none, get_ctx, is_local, member_ctx, owner_ctx
-from .auth import SESSION_COOKIE, AuthError, Ctx, public_user
+from .auth import SESSION_COOKIE, AuthError, Ctx, WeakSecretError, public_user, require_network_secret
 from .kiwix import COLLECTION_LABELS, book_dict, doc_dict, hit_dict
 from .settings import DEVICE_SECTIONS, USER_SECTIONS, SettingsError
 
@@ -32,7 +32,7 @@ def S(request: Request) -> Services:
 
 
 def _cookie(resp: Response, token: str, request: Request) -> None:
-    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", secure=request.url.scheme == "https", max_age=60 * 60 * 24 * 180)
+    resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", secure=request.url.scheme == "https", max_age=60 * 60 * 24 * 30)  # the server also expires idle sessions (auth.py)
 
 
 @functools.lru_cache(maxsize=4)
@@ -223,6 +223,13 @@ async def login(body: LoginIn, request: Request):
         # Today's sign-in page asks the device instead of sending a blank PIN; only a page opened before
         # that update gets here, so say how to get the no-PIN path rather than "doesn't match".
         raise HTTPException(401, "To sign in without a PIN, reload this page, leave the PIN blank and choose “Ask the Mimi device”.")
+    if not is_local(request):
+        # From another device a short PIN is refused before any account is looked at, so the
+        # answer says nothing about which names exist. The device's own screen still takes it.
+        try:
+            require_network_secret(body.secret)
+        except WeakSecretError as e:
+            raise HTTPException(403, str(e)) from None
     src = request.client.host if request.client else ""
     wait = svc.guard.check(src, body.name)
     if wait:
@@ -1250,6 +1257,15 @@ async def share_firewall(request: Request, ctx: Ctx = Depends(owner_ctx)):
 
 class HotspotIn(BaseModel):
     on: bool
+
+
+@router.post("/share/ca/ack")
+async def share_ca_ack(request: Request, ctx: Ctx = Depends(owner_ctx)):
+    """Dismiss the "re-install the certificate on your phones" notice after a CA rotation."""
+    if not is_local(request):
+        raise HTTPException(403, "Dismiss this on the device.")
+    S(request).share.ack_ca_notice()
+    return {"ok": True}
 
 
 @router.post("/share/hotspot")

@@ -481,7 +481,9 @@ class ChatService:
                                           "model": spec.id, "model_name": spec.name, "mode": mode_id, "title": chat.get("title") or ""}}
 
         state = tools.TurnState(ctx=ctx, chat_id=chat_id, message_id=asst_id, query=content, mode=mode_cfg,
-                                vision=spec.vision, temporary=bool(chat["temporary"]), voice=voice)
+                                vision=spec.vision, temporary=bool(chat["temporary"]), voice=voice,
+                                # an attached file or photo is outside text: from the first step, tools that act need the user to ask
+                                tainted=bool(attachments))
         t_start = time.time()
         answer = ""
         reasoning = ""
@@ -520,12 +522,12 @@ class ChatService:
                             image_parts.append(part)
                     else:
                         ocr = await asyncio.to_thread(svc.lens.ocr_path, Path(a["path"]))
-                        extra_text.append(f"[Text read from the attached image “{a['name']}”]\n{ocr.get('text','')[:3000]}")
+                        extra_text.append(tools.untrusted(ocr.get("text", "")[:3000], f"text read from the attached image “{a['name']}”"))
                 else:
                     text = a.get("text") or ""
-                    extra_text.append(f"[Attached file “{a['name']}”]\n{text[:6000]}")
+                    extra_text.append(tools.untrusted(text[:6000], f"attached file “{a['name']}”"))
             if extra_text:
-                user_parts = f"{user_parts}\n\n" + "\n\n".join(extra_text)
+                user_parts = f"{user_parts}\n\n" + "\n\n".join(extra_text) + f"\n\n{tools.UNTRUSTED_NOTE}"
             if image_parts:
                 user_parts = [{"type": "text", "text": user_parts}] + image_parts
 

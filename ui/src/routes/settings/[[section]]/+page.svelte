@@ -151,6 +151,19 @@
 			onDone: async () => (users = await get('/api/users'))
 		});
 	}
+	/** What a community tool declares it does, so the owner can judge it before turning it on. */
+	function toolCaps(t: any): string {
+		const caps = [t.side_effects ? 'changes things' : 'read-only'];
+		if (t.uses?.length) caps.push('uses ' + t.uses.join(', '));
+		caps.push(t.api ? `plugin API v${t.api}` : 'older plugin, treated as changing things');
+		return caps.join(' · ');
+	}
+
+	async function ackCaNotice() {
+		await post('/api/share/ca/ack', {}).catch(() => null);
+		share = await get('/api/share').catch(() => share);
+	}
+
 	async function savePin() {
 		const hadPin = !!app.me?.has_pin; // read before saving: afterwards it is always true
 		try {
@@ -512,7 +525,7 @@
 						<h4 class="label sub">Community tools</h4>
 						<div class="group card">
 							{#each toolList.tools.filter((t: any) => !t.builtin) as t (t.file)}
-								<Row label={toolTitle(t.name)} hint={t.error ? `Couldn't load ${t.file}: ${t.error}` : `${t.description} (${t.file})`}>
+								<Row label={toolTitle(t.name)} hint={t.error ? `Couldn't load ${t.file}: ${t.error}` : `${t.description} (${t.file} · ${toolCaps(t)})`}>
 									{#if t.error}<span class="tag err"><TriangleAlert size={12} aria-hidden="true" /> Error</span>{:else}<Toggle checked={t.enabled} onchange={(v) => toggleTool(t, v)} />{/if}
 								</Row>
 							{:else}
@@ -555,6 +568,12 @@
 						<Row label="Access from other devices" hint="Open Mimi in the web browser of any phone, tablet or laptop on the same network (your home Wi-Fi, a router, or Mimi's own hotspot).">
 							<Toggle checked={D.sharing.enabled} onchange={(v) => dev('sharing', { enabled: v })} />
 						</Row>
+						{#if share?.ca?.notice}
+							<div class="ca-notice" role="status">
+								<p class="warn-line"><TriangleAlert size={14} style="vertical-align:-2px" aria-hidden="true" /> Mimi replaced its local certificate with one that can only vouch for this device on your network. On each phone or laptop that installed the old one, remove “Mimi Local Authority”, then install the <a href="/cert" download>new certificate</a>.</p>
+								{#if app.boot?.local}<button class="btn btn-sm" onclick={ackCaNotice}>Done</button>{/if}
+							</div>
+						{/if}
 						{#if D.sharing.enabled && share}
 							{#if share.error}
 								<Row label="Couldn't start" hint={share.error}><span class="tag err">Error</span></Row>
@@ -660,10 +679,13 @@
 							<span class="avatar" style="--c:{app.me?.color}; --ink:{inkOn(app.me?.color || DEFAULT_ACCENT)}" aria-hidden="true">{app.me?.name?.charAt(0)}</span><b>{app.me?.name}</b>
 						</Row>
 						{#if !app.isGuest}
-							<Row label={app.me?.has_pin ? 'Change PIN' : 'Set a PIN'} hint="4–8 digits. Used to unlock Mimi and to sign in from phones.">
+							<Row label={app.me?.has_pin ? 'Change PIN' : 'Set a PIN'} hint="4–8 digits unlock this device. Signing in from a phone or laptop needs at least 6.">
 								<input class="input sel" type="password" inputmode="numeric" maxlength="8" bind:value={myPin} autocomplete="new-password" />
 								<button class="btn btn-sm" disabled={!/^\d{4,8}$/.test(myPin)} onclick={savePin}>Save</button>
 							</Row>
+							{#if (app.me as any)?.pin_network_ok === false}
+								<p class="warn-line"><Info size={14} style="vertical-align:-2px" aria-hidden="true" /> Your PIN is shorter than 6 digits, so it only works on this device. Choose a longer one to sign in from phones, or use “Ask the Mimi device” there.</p>
+							{/if}
 						{/if}
 					</div>
 				</section>
@@ -1159,6 +1181,17 @@
 		color: var(--warn);
 		font-size: var(--fs-sm);
 		margin: var(--space-1) 0 0;
+	}
+	.ca-notice {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-4);
+		border-bottom: 1px solid var(--line);
+	}
+	.ca-notice .warn-line {
+		margin: 0;
+		flex: 1;
 	}
 	.qrbox {
 		display: flex;
