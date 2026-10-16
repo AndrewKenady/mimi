@@ -218,7 +218,8 @@ def test_community_tool_plugins(client, tmp_path):
     (folder / "broken.py").write_text("raise RuntimeError('nope')\n", encoding="utf-8")
     (folder / "clash.py").write_text('NAME = "calculate"\ndef run(a, c):\n    return ""\n', encoding="utf-8")
     info = {p["file"]: p for p in tools.load_plugins(folder)}
-    assert info["shout.py"]["error"] == "" and "nope" in info["broken.py"]["error"] and "already used" in info["clash.py"]["error"]
+    # discovery reads manifests without running plugin code, so broken.py is reported (no run()) without raising
+    assert info["shout.py"]["error"] == "" and "run(" in info["broken.py"]["error"] and "already used" in info["clash.py"]["error"]
 
     client.post("/api/auth/setup", json={"name": "Ada"})
     svc = client.app.state.svc
