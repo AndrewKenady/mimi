@@ -42,3 +42,23 @@ Measured from the request to the first streamed word and the first complete sent
 | Library lookup (2 passages × 600 chars) | 8.3 s | 11 s | "Let me look that up" is spoken at ~4.6 s when the search starts |
 
 What made the difference: the system prompt and tool schemas (~1.7k tokens) are identical for text and voice turns and for every chat. The chat-title request continues the conversation instead of evicting that prefix from llama-server's single slot. And the prefix is pre-filled right after the model loads (12 s, in the background).
+
+## Answer quality (eval harness)
+Measured with `eval/run.py` + `eval/score.py` on the 166-question golden set; methodology in [EVALUATION.md](EVALUATION.md). **Awaiting the first run on the reference device.** No numbers below are real yet, and none should be quoted until a scoreboard from `eval/reports/` replaces this template.
+
+| Metric | Gemma 4 12B | Qwen3.5-9B | Qwen3.5-4B |
+|---|---|---|---|
+| Pass rate (all checks) | awaiting run | awaiting run | awaiting run |
+| Key-fact recall | awaiting run | awaiting run | awaiting run |
+| Forbidden claims (answers) | awaiting run | awaiting run | awaiting run |
+| Behavior correct (adversarial) | awaiting run | awaiting run | awaiting run |
+| Citation faithfulness | awaiting run | awaiting run | awaiting run |
+| Unsupported / invalid citations | awaiting run | awaiting run | awaiting run |
+| Expected article read | awaiting run | awaiting run | awaiting run |
+| Time to first token p50 / p90 | awaiting run | awaiting run | awaiting run |
+| Total time p50 / p90 | awaiting run | awaiting run | awaiting run |
+
+| Retrieval (`--retrieval-only`) | Recall@1 | Recall@5 | MRR |
+|---|---|---|---|
+| Library search, keyword queries | awaiting run | awaiting run | awaiting run |
+| Library search, raw questions (`--query-field question`) | awaiting run | awaiting run | awaiting run |

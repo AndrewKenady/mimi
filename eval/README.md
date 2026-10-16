@@ -15,7 +15,7 @@ eval/
 
 ## Running it on the device
 
-Run these on the Mimi device itself, with Mimi running. On loopback Mimi signs you in as the owner when "Sign in automatically on this device" is on and no PIN is required. Otherwise add `--user <name> --pin <pin>`. Paths below are for the Windows reference device; on other systems use any Python 3.11+ that has `httpx` installed (`pip install httpx selectolax`).
+Run these on the Mimi device itself, with Mimi running. By default Mimi signs requests from the device itself (loopback, port 7600) in as the owner. This is the device setting `general.local_auto_login`, and it doesn't apply when `general.require_pin` is on. Otherwise add `--user <name> --pin <pin>`. Paths below are for the Windows reference device; on other systems use any Python 3.11+ that has `httpx` installed (`pip install httpx selectolax`).
 
 ```powershell
 # 1. Retrieval only: is the right article in the search results? (~1 minute, no model needed)

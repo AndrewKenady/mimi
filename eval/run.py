@@ -11,8 +11,8 @@ offline), the tool calls, and timings. Runs are resumable: rerunning skips quest
 already answered without an error; pass --fresh to start over.
 
 Authentication: on the device itself, Mimi signs loopback requests in as the owner
-(Settings → General → "Sign in automatically on this device", without a PIN). Otherwise
-pass --user NAME --pin PIN, or --token with a session token.
+(device settings general.local_auto_login, on by default, unless general.require_pin).
+Otherwise pass --user NAME --pin PIN, or --token with a session token.
 Chats are created as temporary and deleted afterwards, so the run leaves no history.
 """
 
