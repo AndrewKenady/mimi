@@ -4,14 +4,18 @@
 	import { app } from '$lib/app.svelte';
 	import { get } from '$lib/api';
 	import { toggleFullscreen } from '$lib/host';
-	import { Search, House, MessageSquarePlus, Library, Map, AudioLines, ScanText, Brain, Settings, Mic, Moon, Maximize, QrCode, MessagesSquare, CornerDownLeft, NotebookPen } from '@lucide/svelte';
+	import { SETTINGS_SECTIONS } from '$lib/settings-sections';
+	import { Search, House, MessageSquarePlus, Library, Map, AudioLines, ScanText, Brain, Settings, Moon, Maximize, QrCode, MessagesSquare, CornerDownLeft, NotebookPen } from '@lucide/svelte';
 
-	type Item = { id: string; label: string; hint?: string; icon: any; run: () => void; group: string };
+	type Item = { id: string; label: string; hint?: string; icon: any; run: () => void; group: string; keys?: string; owner?: boolean };
 	let q = $state('');
 	let sel = $state(0);
 	let chats = $state<any[]>([]);
 	let input: HTMLInputElement | undefined = $state();
 	let timer: ReturnType<typeof setTimeout>;
+	let opener: HTMLElement | null = null;
+	const uid = $props.id();
+	const optId = (i: number) => `${uid}-opt-${i}`;
 
 	const base: Item[] = [
 		{ id: 'new', label: 'New chat', icon: MessageSquarePlus, run: () => goto('/chat'), group: 'Go' },
@@ -23,12 +27,14 @@
 		{ id: 'lens', label: 'Lens — read a photo', icon: ScanText, run: () => goto('/lens'), group: 'Go' },
 		{ id: 'memory', label: 'Memory', icon: Brain, run: () => goto('/memory'), group: 'Go' },
 		{ id: 'settings', label: 'Settings', icon: Settings, run: () => goto('/settings'), group: 'Go' },
-		...['general', 'appearance', 'assistant', 'models', 'voice', 'library', 'location', 'sharing', 'accounts', 'controls', 'power', 'system'].map((s) => ({
-			id: 'set-' + s,
-			label: `Settings: ${s[0].toUpperCase() + s.slice(1)}`,
-			icon: Settings,
-			run: () => goto('/settings/' + s),
-			group: 'Settings'
+		...SETTINGS_SECTIONS.map((s) => ({
+			id: 'set-' + s.id,
+			label: `Settings: ${s.label}`,
+			icon: s.icon,
+			run: () => goto('/settings/' + s.id),
+			group: 'Settings',
+			keys: s.keys,
+			owner: s.owner
 		})),
 		{
 			id: 'theme',
@@ -43,20 +49,49 @@
 
 	const items = $derived.by(() => {
 		const needle = q.trim().toLowerCase();
-		const list = base.filter((i) => !needle || i.label.toLowerCase().includes(needle));
+		const list = base.filter(
+			(i) => (!i.owner || app.isOwner) && (!needle || i.label.toLowerCase().includes(needle) || (needle.length > 2 && !!i.keys?.includes(needle)))
+		);
 		const chatItems: Item[] = chats.map((c) => ({ id: c.id, label: c.title || 'Untitled chat', hint: 'Chat', icon: MessagesSquare, run: () => goto('/chat/' + c.id), group: 'Chats' }));
 		if (needle.length > 1)
 			list.push({ id: 'ask', label: `Ask Mimi: “${q.trim()}”`, icon: Search, run: () => { app.ask(q.trim()); goto('/chat'); }, group: 'Ask' });
 		return [...list, ...chatItems];
 	});
 
+	const groups = $derived.by(() => {
+		const out: { name: string; items: { it: Item; i: number }[] }[] = [];
+		items.forEach((it, i) => {
+			if (!out.length || out[out.length - 1].name !== it.group) out.push({ name: it.group, items: [] });
+			out[out.length - 1].items.push({ it, i });
+		});
+		return out;
+	});
+
+	let wasOpen = false;
 	$effect(() => {
-		if (app.palette) {
+		const open = app.palette;
+		if (open && !wasOpen) {
+			// Remember what had focus, to give it back when the dialog closes.
+			opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
 			q = '';
 			sel = 0;
 			setTimeout(() => input?.focus(), 30);
 			get('/api/chats').then((r) => (chats = r.chats.slice(0, 6))).catch(() => {});
+		} else if (!open && wasOpen) {
+			const back = opener;
+			opener = null;
+			// A command that navigated moves focus itself; otherwise return to where the user was.
+			setTimeout(() => {
+				if (back?.isConnected && (document.activeElement === document.body || !document.activeElement)) back.focus({ preventScroll: true });
+			}, 40);
 		}
+		wasOpen = open;
+	});
+
+	// Keep the active option in view as the arrow keys move through the list.
+	$effect(() => {
+		if (!app.palette) return;
+		document.getElementById(optId(sel))?.scrollIntoView({ block: 'nearest' });
 	});
 
 	function onInput() {
@@ -84,31 +119,86 @@
 		} else if (e.key === 'ArrowUp') {
 			e.preventDefault();
 			sel = Math.max(0, sel - 1);
+		} else if (e.key === 'Home' && e.ctrlKey) {
+			e.preventDefault();
+			sel = 0;
+		} else if (e.key === 'End' && e.ctrlKey) {
+			e.preventDefault();
+			sel = Math.max(0, items.length - 1);
 		} else if (e.key === 'Enter' && items[sel]) {
 			e.preventDefault();
 			run(items[sel]);
+		}
+	}
+
+	// A modal dialog keeps focus inside: the search box is its only tab stop
+	// (options are reached with the arrow keys, as in any combobox).
+	function trap(e: KeyboardEvent) {
+		if (e.key === 'Tab') {
+			e.preventDefault();
+			input?.focus();
 		}
 	}
 </script>
 
 {#if app.palette}
 	<div class="scrim" transition:fade={{ duration: 140 }} onclick={() => (app.palette = false)} role="presentation"></div>
-	<div class="pal glass" data-layer role="dialog" aria-label="Command palette" transition:scale={{ start: 0.97, duration: 180 }}>
+	<div
+		class="pal glass"
+		data-layer
+		role="dialog"
+		aria-modal="true"
+		aria-label="Command palette"
+		tabindex="-1"
+		onkeydown={trap}
+		transition:scale={{ start: 0.97, duration: 180 }}
+	>
 		<div class="search">
-			<Search size={18} />
-			<input bind:this={input} bind:value={q} oninput={onInput} onkeydown={onKey} placeholder="Search chats, go anywhere, or ask…" />
-			<kbd>Esc</kbd>
+			<Search size={18} aria-hidden="true" />
+			<input
+				bind:this={input}
+				bind:value={q}
+				oninput={onInput}
+				onkeydown={onKey}
+				placeholder="Search chats, go anywhere, or ask…"
+				role="combobox"
+				aria-label="Search chats, places and commands"
+				aria-expanded="true"
+				aria-controls="{uid}-list"
+				aria-autocomplete="list"
+				aria-activedescendant={items[sel] ? optId(sel) : undefined}
+				autocomplete="off"
+				spellcheck="false"
+			/>
+			<kbd aria-hidden="true">Esc</kbd>
 		</div>
-		<div class="list">
-			{#each items as it, i (it.id)}
-				{#if i === 0 || items[i - 1].group !== it.group}<div class="group">{it.group}</div>{/if}
-				{@const Icon = it.icon}
-				<button class="row" class:sel={i === sel} onmouseenter={() => (sel = i)} onclick={() => run(it)}>
-					<Icon size={17} strokeWidth={1.8} />
-					<span class="lbl">{it.label}</span>
-					{#if it.hint}<span class="hint">{it.hint}</span>{/if}
-					{#if i === sel}<CornerDownLeft size={14} class="enter" />{/if}
-				</button>
+		<div class="list" id="{uid}-list" role="listbox" aria-label="Results">
+			{#each groups as g (g.name)}
+				<div role="group" aria-labelledby="{uid}-g-{g.name}">
+					<div class="group" id="{uid}-g-{g.name}" role="presentation">{g.name}</div>
+					{#each g.items as { it, i } (it.id)}
+						{@const Icon = it.icon}
+						<!-- Options are driven from the combobox (aria-activedescendant), so they are not tab stops. -->
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<div
+							class="row"
+							id={optId(i)}
+							role="option"
+							tabindex="-1"
+							aria-selected={i === sel}
+							class:sel={i === sel}
+							onmouseenter={() => (sel = i)}
+							onclick={() => run(it)}
+						>
+							<Icon size={17} strokeWidth={1.8} aria-hidden="true" />
+							<span class="lbl">{it.label}</span>
+							{#if it.hint}<span class="hint">{it.hint}</span>{/if}
+							{#if i === sel}<CornerDownLeft size={14} class="enter" aria-hidden="true" />{/if}
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<div class="none" role="presentation">Nothing matches “{q}”.</div>
 			{/each}
 		</div>
 	</div>
@@ -183,9 +273,17 @@
 		color: var(--text-2);
 		text-align: left;
 	}
+	.row {
+		cursor: pointer;
+	}
 	.row.sel {
 		background: var(--surface-3);
 		color: var(--text);
+	}
+	.none {
+		padding: 18px 12px;
+		color: var(--text-3);
+		font-size: 0.9rem;
 	}
 	.lbl {
 		flex: 1;
