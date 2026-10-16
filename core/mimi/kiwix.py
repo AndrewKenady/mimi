@@ -411,6 +411,14 @@ class KiwixClient:
         return s
 
     async def _detect(self, b: Book) -> tuple[str, list[Doc], str, str]:
+        kind, docs, main, html = await self._detect_kind(b)
+        if kind in ("videos", "books") and not docs:
+            text, links = _page_substance(html, b.name, main)
+            if len(text) >= 200 or links >= 8:  # an older layout whose home page works without JavaScript
+                return "articles", [], main, html
+        return kind, docs, main, html
+
+    async def _detect_kind(self, b: Book) -> tuple[str, list[Doc], str, str]:
         main = await self._main_path(b.name)
         page = await self._fetch(b.name, main, want_text=True) if main else None
         html = (page.text or "") if page and page.status == 200 else ""
@@ -431,7 +439,7 @@ class KiwixClient:
                 if docs:
                     return "videos", docs, main, html
             return "videos", [], main, html
-        if "full_by_popularity.js" in html or (n.startswith("gutenberg_") and "datatable" in html.lower()):
+        if "full_by_popularity.js" in html or 'id="books_table"' in html or (n.startswith("gutenberg_") and "datatable" in html.lower()):
             f = await self._fetch(b.name, "full_by_popularity.js", want_text=True, any_type=True)
             data = parse_js_data(f.text or "") if f and f.status == 200 else None
             docs = gutenberg_docs(data)
@@ -524,7 +532,10 @@ class KiwixClient:
         if not b:
             return None
         if b.name not in self._docs:
-            await self.survey(b)
+            try:
+                await self.survey(b)
+            except httpx.HTTPError as e:
+                L.warning("survey of %s failed: %s", b.name, e)
         docs = self._docs.get(b.name, [])
         statuses = await asyncio.to_thread(self.index.doc_statuses, b.name)
         for d in docs:
@@ -537,7 +548,10 @@ class KiwixClient:
         if book not in self._docs:
             b = await self.book(book)
             if b and b.kind != "articles":
-                await self.survey(b)
+                try:
+                    await self.survey(b)
+                except httpx.HTTPError as e:
+                    L.warning("survey of %s failed: %s", b.name, e)
         return next((d for d in self._docs.get(book, []) if d.path == path), None)
 
     # --- document text index ------------------------------------------------------

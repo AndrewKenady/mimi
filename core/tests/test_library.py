@@ -467,7 +467,10 @@ def test_health_flags_js_only_and_unsearchable_books(tmp_path):
     jsonly = book("something_en_all_2025-01", "Some App ZIM", articles=10)
     fake.mains[jsonly.name] = "index"
     fake.add(jsonly.name, "index", "<html><body><div id='app'></div><script src='app.js'></script></body></html>")
-    c = make_client(tmp_path, fake, [ted, blank, jsonly])
+    old_ted = book("ted_en_science_2019-01", "TED Science (old layout)", articles=80)
+    fake.mains[old_ted.name] = "index"
+    fake.add(old_ted.name, "index", "<html><body><h1>TED Science</h1>" + "".join(f'<p><a href="talk_{i}">Talk number {i}</a></p>' for i in range(12)) + "</body></html>")
+    c = make_client(tmp_path, fake, [ted, blank, jsonly, old_ted])
 
     async def go():
         await c._refresh(0)
@@ -479,6 +482,8 @@ def test_health_flags_js_only_and_unsearchable_books(tmp_path):
         assert blank.kind == "books" and g["status"] == "unreadable" and "JavaScript" in g["note"]
         j = c.health_of(jsonly)
         assert jsonly.kind == "articles" and j["status"] == "unreadable" and "JavaScript" in j["note"]
+        # A TED ZIM whose home page works without JavaScript stays a normal, readable book.
+        assert old_ted.kind == "articles" and c.health_of(old_ted)["readable"]
         # Their JS-driven home pages never come back as search hits.
         assert all(h.path != "index" for h in await c.search("vulnerability", collections=["talks"]))
 
