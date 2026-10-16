@@ -87,7 +87,7 @@ class ModelManager:
             "vulkan": ["llama-vulkan", "llama-cpu"],
             "metal": ["llama-metal", "llama-cpu"],  # Apple silicon (hardware.py reports "metal")
         }.get(self.hw.get("backend", "cpu"), ["llama-cpu"])
-        for b in order + ["llama-vulkan", "llama-cpu"]:
+        for b in order + ["llama-metal", "llama-vulkan", "llama-cpu"]:
             if self.paths.exe(b, "llama-server").exists():
                 return b
         raise ModelError("No llama.cpp build found in bin/. Run scripts/setup.ps1.")
@@ -143,7 +143,7 @@ class ModelManager:
         ]
         if spec.vision and spec.mmproj:
             args += ["--mmproj", str(spec.mmproj)]
-        if build == "llama-cpu":
+        if cpu_only or build == "llama-cpu":
             args += ["-ngl", "0"]
         return args
 

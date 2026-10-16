@@ -81,3 +81,32 @@ def test_build_dir_follows_the_detected_backend(tmp_path, backend, installed, ex
         (tmp_path / b / "llama-server").write_text("")
     assert m._build_dir() == expected
     assert m._build_dir(cpu_only=True) == "llama-cpu"
+
+
+def test_apple_silicon_offloads_to_metal_and_the_cpu_retry_does_not(tmp_path):
+    bin_dir = tmp_path / "bin" / "macos-arm64"
+    for b in ("llama-metal", "llama-cpu"):
+        (bin_dir / b).mkdir(parents=True)
+        (bin_dir / b / "llama-server").write_text("")
+    m = llm.ModelManager.__new__(llm.ModelManager)
+    m.hw = {"backend": "metal", "cores": 8}
+    m.paths = SimpleNamespace(exe=lambda *parts: bin_dir.joinpath(*parts))
+
+    gpu = m._chat_args(Spec(), 8192)
+    assert gpu[0] == str(bin_dir / "llama-metal" / "llama-server")
+    assert "-ngl" not in gpu and gpu[gpu.index("--fit") + 1] == "on"
+
+    cpu = m._chat_args(Spec(), 4096, 0, cpu_only=True)
+    assert cpu[0] == str(bin_dir / "llama-cpu" / "llama-server")
+    assert cpu[cpu.index("-ngl") + 1] == "0"
+
+
+def test_cpu_retry_stays_on_the_cpu_when_only_the_metal_build_is_installed(tmp_path):
+    (tmp_path / "llama-metal").mkdir()
+    (tmp_path / "llama-metal" / "llama-server").write_text("")
+    m = llm.ModelManager.__new__(llm.ModelManager)
+    m.hw = {"backend": "cpu", "cores": 8}
+    m.paths = SimpleNamespace(exe=lambda *parts: tmp_path.joinpath(*parts))
+    assert m._build_dir() == "llama-metal"
+    args = m._chat_args(Spec(), 4096, 0, cpu_only=True)
+    assert args[args.index("-ngl") + 1] == "0"
