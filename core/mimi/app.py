@@ -300,4 +300,4 @@ PLACEHOLDER = """<!doctype html><html><head><meta charset=utf-8><title>Mimi</tit
 <style>body{margin:0;height:100vh;display:grid;place-items:center;background:#060a12;color:#dfe8f5;font:16px/1.5 system-ui}
 .o{width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#b8fff2,#39c3b0 45%,#0b3b4a 75%);box-shadow:0 0 80px #2ad3bf66;margin:0 auto 24px}</style>
 </head><body><div><div class=o></div><h1 style="font-weight:300;letter-spacing:.3em;text-align:center">Mimi</h1>
-<p style="opacity:.7;text-align:center">Core is running. The app UI hasn't been built yet — run <code>scripts/build-ui.ps1</code>.</p></div></body></html>"""
+<p style="opacity:.7;text-align:center">Core is running. The app UI hasn't been built yet — run <code>cd ui && npm ci && npm run build</code> (the installers do this for you).</p></div></body></html>"""
