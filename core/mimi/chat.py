@@ -147,23 +147,28 @@ def best_excerpt(passage: str, query: str, title: str = "", max_chars: int = 420
     Returns (excerpt, section heading or None). Purely extractive: the words are the source's
     own, so the UI can show them as a quote while the model is still reading.
     """
-    from .kiwix import _hits, _terms
+    from .retrieval import bm25_scores, query_terms, stem, tokens
 
-    terms = _terms(query)
-    title_words = set(re.findall(r"[a-z0-9]+", title.lower()))
-    weights = {t: (0.25 if any(w.startswith(t) for w in title_words) else 1.0) for t in terms}
-    best: tuple[float, str, str | None] | None = None
+    terms = query_terms(query)
+    title_stems = {stem(w) for w in tokens(title)}
+    weights = {t: (0.25 if t in title_stems else 1.0) for t in terms}  # the title's own words say little
+    paras: list[tuple[str, str | None]] = []
     section: str | None = None
     for line in (passage or "").split("\n"):
         line = line.strip()
         if line.startswith("## "):
             section = line[3:].strip() or None
             continue
-        if len(line) < 40:
-            continue
-        score = (_hits(line, terms, weights) + 2 * _hits(section or "", terms, weights)) if terms else 0.0
-        if best is None or score > best[0]:  # ties keep the earlier paragraph; the lead is usually clearest
-            best = (score, line, section)
+        if len(line) >= 40:
+            paras.append((line, section))
+    best: tuple[float, str, str | None] | None = None
+    if paras:
+        body = bm25_scores([t for t, _ in paras], terms, weights=weights)
+        heads = bm25_scores([h or "" for _, h in paras], terms, weights=weights)
+        for (line, sec), b, h in zip(paras, body, heads):
+            score = b + 2 * h
+            if best is None or score > best[0]:  # ties keep the earlier paragraph; the lead is usually clearest
+                best = (score, line, sec)
     if not best:
         return "", None
     text = re.sub(r"\s*…$", "", best[1]).strip()
