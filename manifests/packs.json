@@ -1,0 +1,216 @@
+{
+  "$comment": "Mimi's content catalog: every pack scripts/content.py can add. Tiers (lite.json, standard.json) are lists of these packs. Paths are relative to the content root (the Mimi folder, or MIMI_CONTENT). Static files are pinned (Hugging Face commit revisions, release tags) with sha256 and exact size; ZIM files resolve to the newest release of each name in the Kiwix catalog and are checked against the sha-256 in Kiwix's metalink; map tiles are extracted from a pinned Protomaps build. size_mb values are decimal megabytes; ZIM sizes as of 2026-10.",
+  "packs": {
+    "llm-lite": {
+      "title": "Qwen3.5 4B (chat + vision)", "group": "models",
+      "description": "The small model: chat, tool use and reading photos. Runs on 8 GB of RAM.",
+      "items": [
+        { "type": "file", "path": "models/llm/qwen3.5-4b/Qwen3.5-4B-Q4_K_M.gguf", "size": 2740937888, "sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "url": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf" },
+        { "type": "file", "path": "models/llm/qwen3.5-4b/mmproj-F16.gguf", "size": 672423616, "sha256": "cd88edcf8d031894960bb0c9c5b9b7e1fea6ebee02b9f7ce925a00d12891f864",
+          "url": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/e87f176479d0855a907a41277aca2f8ee7a09523/mmproj-F16.gguf" }
+      ]
+    },
+    "embeddings": {
+      "title": "BGE-M3 embeddings", "group": "models",
+      "description": "Searches your files, notes and memories by meaning.",
+      "items": [
+        { "type": "file", "path": "models/llm/bge-m3/bge-m3-Q8_0.gguf", "size": 634553760, "sha256": "950f4a8e5e19477a6d3c26d2f162233c20002c601f75e4b002e3239997821167",
+          "url": "https://huggingface.co/gpustack/bge-m3-GGUF/resolve/2d48f1737679ad900d5c26c5aad5410e9c70fdca/bge-m3-Q8_0.gguf" }
+      ]
+    },
+    "llm-standard": {
+      "title": "Gemma 4 12B + Qwen3.5 9B", "group": "models",
+      "description": "The reference device's main models (16 GB of RAM or a GPU with 8 GB+).",
+      "items": [
+        { "type": "file", "path": "models/llm/gemma-4-12b/gemma-4-12b-it-qat-q4_0.gguf", "size": 6975879296, "sha256": "93567e57a8fe10b23569b9d9ec38cd005deedf71e29477c421a4b83f418a538b",
+          "url": "https://huggingface.co/google/gemma-4-12B-it-qat-q4_0-gguf/resolve/29d097773436b69ff9feafd636ab4cf873786537/gemma-4-12b-it-qat-q4_0.gguf" },
+        { "type": "file", "path": "models/llm/gemma-4-12b/mmproj-gemma-4-12b-it-qat-q4_0.gguf", "size": 175115616, "sha256": "cb018338a7538a9814d994bfe54644c71eb7ed54e31eae2f721e45fd3c260da7",
+          "url": "https://huggingface.co/google/gemma-4-12B-it-qat-q4_0-gguf/resolve/29d097773436b69ff9feafd636ab4cf873786537/mmproj-gemma-4-12b-it-qat-q4_0.gguf" },
+        { "type": "file", "path": "models/llm/qwen3.5-9b/Qwen3.5-9B-Q4_K_M.gguf", "size": 5680522464, "sha256": "03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8",
+          "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q4_K_M.gguf" },
+        { "type": "file", "path": "models/llm/qwen3.5-9b/mmproj-F16.gguf", "size": 918166080, "sha256": "f70dc3509053962b0d0d3ee8a7eacebf5d60aa560cad78254ae8698516ae029f",
+          "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/mmproj-F16.gguf" }
+      ]
+    },
+    "voice": {
+      "title": "Voice: Whisper small + Kokoro", "group": "models",
+      "description": "Speech recognition (Whisper small) and natural speech (Kokoro) for talking with Mimi and Scribe.",
+      "items": [
+        { "type": "file", "path": "models/whisper/small/config.json", "size": 2370, "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828",
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/config.json" },
+        { "type": "file", "path": "models/whisper/small/model.bin", "size": 483546902, "sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671",
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin" },
+        { "type": "file", "path": "models/whisper/small/tokenizer.json", "size": 2203239, "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab",
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/tokenizer.json" },
+        { "type": "file", "path": "models/whisper/small/vocabulary.txt", "size": 459861, "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913",
+          "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/vocabulary.txt" },
+        { "type": "file", "path": "models/tts/kokoro-v1.0.onnx", "size": 325532387, "sha256": "7d5df8ecf7d4b1878015a32686053fd0eebe2bc377234608764cc0ef3636a6c5",
+          "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx" },
+        { "type": "file", "path": "models/tts/voices-v1.0.bin", "size": 28214398, "sha256": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
+          "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin" }
+      ]
+    },
+    "voice-turbo": {
+      "title": "Whisper large-v3 turbo", "group": "models",
+      "description": "More accurate transcription for Scribe (slower, 1.6 GB).",
+      "items": [
+        { "type": "file", "path": "models/whisper/turbo/config.json", "size": 2263, "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+          "url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/config.json" },
+        { "type": "file", "path": "models/whisper/turbo/model.bin", "size": 1617884929, "sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+          "url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/model.bin" },
+        { "type": "file", "path": "models/whisper/turbo/preprocessor_config.json", "size": 340, "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+          "url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/preprocessor_config.json" },
+        { "type": "file", "path": "models/whisper/turbo/tokenizer.json", "size": 2710337, "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+          "url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/tokenizer.json" },
+        { "type": "file", "path": "models/whisper/turbo/vocabulary.json", "size": 1068114, "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+          "url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/vocabulary.json" }
+      ]
+    },
+
+    "library-essentials": {
+      "title": "Field references", "group": "zim",
+      "description": "WikiMed medical encyclopedia, iFixit repair guides, and survival guides (post-disaster, first aid, water, food, knots).",
+      "items": [
+        { "type": "zim", "name": "mdwiki_en_all_maxi", "size_mb": 2303 },
+        { "type": "zim", "name": "ifixit_en_all", "size_mb": 3571 },
+        { "type": "zim", "name": "zimgit-post-disaster_en", "size_mb": 645 },
+        { "type": "zim", "name": "zimgit-medicine_en", "size_mb": 70 },
+        { "type": "zim", "name": "zimgit-water_en", "size_mb": 21 },
+        { "type": "zim", "name": "zimgit-food-preparation_en", "size_mb": 98 },
+        { "type": "zim", "name": "zimgit-knots_en", "size_mb": 28 }
+      ]
+    },
+    "travel": {
+      "title": "Wikivoyage", "group": "zim",
+      "description": "The free travel guide, with pictures.",
+      "items": [ { "type": "zim", "name": "wikivoyage_en_all_maxi", "size_mb": 1071 } ]
+    },
+    "wikipedia-top": {
+      "title": "Wikipedia: top articles (no pictures)", "group": "zim",
+      "description": "The most-read English Wikipedia articles in full text. Hidden automatically once full Wikipedia is installed.",
+      "items": [ { "type": "zim", "name": "wikipedia_en_top_nopic", "size_mb": 2746 } ]
+    },
+    "wikipedia-nopic": {
+      "title": "Wikipedia: every article, no pictures", "group": "zim",
+      "description": "All of English Wikipedia as text (fits a 128 GB drive).",
+      "items": [ { "type": "zim", "name": "wikipedia_en_all_nopic", "size_mb": 52691 } ]
+    },
+    "wikipedia-full": {
+      "title": "Wikipedia: everything, with pictures", "group": "zim",
+      "description": "All of English Wikipedia with images.",
+      "items": [ { "type": "zim", "name": "wikipedia_en_all_maxi", "size_mb": 127418 } ]
+    },
+    "wiktionary": {
+      "title": "Wiktionary", "group": "zim",
+      "description": "English dictionary and thesaurus.",
+      "items": [ { "type": "zim", "name": "wiktionary_en_all_nopic", "size_mb": 9156 } ]
+    },
+    "stackexchange": {
+      "title": "Stack Exchange Q&A", "group": "zim",
+      "description": "Home improvement, mechanics, outdoors, cooking, gardening, ham radio, electronics, physics and Super User.",
+      "items": [
+        { "type": "zim", "name": "diy.stackexchange.com_en_all", "size_mb": 2063 },
+        { "type": "zim", "name": "mechanics.stackexchange.com_en_all", "size_mb": 340 },
+        { "type": "zim", "name": "outdoors.stackexchange.com_en_all", "size_mb": 141 },
+        { "type": "zim", "name": "cooking.stackexchange.com_en_all", "size_mb": 237 },
+        { "type": "zim", "name": "gardening.stackexchange.com_en_all", "size_mb": 927 },
+        { "type": "zim", "name": "ham.stackexchange.com_en_all", "size_mb": 76 },
+        { "type": "zim", "name": "electronics.stackexchange.com_en_all", "size_mb": 4214 },
+        { "type": "zim", "name": "physics.stackexchange.com_en_all", "size_mb": 1828 },
+        { "type": "zim", "name": "superuser.com_en_all", "size_mb": 4003 }
+      ]
+    },
+    "ted": {
+      "title": "TED talks", "group": "zim",
+      "description": "Talks on space, physics, the ocean, energy and medicine (video).",
+      "items": [
+        { "type": "zim", "name": "ted_mul_space", "size_mb": 2091 },
+        { "type": "zim", "name": "ted_mul_physics", "size_mb": 1778 },
+        { "type": "zim", "name": "ted_mul_ocean", "size_mb": 1923 },
+        { "type": "zim", "name": "ted_mul_energy", "size_mb": 1919 },
+        { "type": "zim", "name": "ted_mul_medicine", "size_mb": 3607 }
+      ]
+    },
+    "gutenberg": {
+      "title": "Project Gutenberg: literature", "group": "zim",
+      "description": "Classic English and American literature (LCC PN and PA shelves).",
+      "items": [
+        { "type": "zim", "name": "gutenberg_en_lcc-pn", "size_mb": 3248 },
+        { "type": "zim", "name": "gutenberg_en_lcc-pa", "size_mb": 522 }
+      ]
+    },
+    "practical-extras": {
+      "title": "Appropriate technology", "group": "zim",
+      "description": "Appropedia (sustainability, DIY), Energypedia (off-grid energy) and WikEM (emergency medicine).",
+      "items": [
+        { "type": "zim", "name": "appropedia_en_all_maxi", "size_mb": 582 },
+        { "type": "zim", "name": "energypedia_en_all_maxi", "size_mb": 800 },
+        { "type": "zim", "name": "wikem_en_all_maxi", "size_mb": 375 }
+      ]
+    },
+
+    "map-assets": {
+      "title": "Map fonts and icons", "group": "maps",
+      "description": "Labels and symbols the map needs to draw anything.",
+      "items": [
+        { "type": "archive", "path": "maps/assets", "subdirs": ["fonts/", "sprites/"], "size_mb": 19, "sha256": null,
+          "url": "https://github.com/protomaps/basemaps-assets/archive/028c18f713baecad011301ff7a69acc39bcc2ae7.zip",
+          "$comment": "Pinned to a git commit; GitHub generates the zip, so there is no published hash for it." }
+      ]
+    },
+    "world-overview": {
+      "title": "World map (overview)", "group": "maps",
+      "description": "The whole planet down to country and big-city level (zoom 7).",
+      "items": [ { "type": "world", "maxzoom": 7 } ]
+    },
+    "world-detail": {
+      "title": "World map (regional detail)", "group": "maps",
+      "description": "The whole planet down to towns and main roads (zoom 11).",
+      "items": [ { "type": "world", "maxzoom": 11 } ]
+    },
+    "map-region": {
+      "title": "Detailed map of your region", "group": "maps", "regional": true,
+      "description": "Streets and places in your region (zoom 13). Choose it with --region.",
+      "items": [ { "type": "tiles", "maxzoom": 13 } ]
+    },
+    "map-region-detail": {
+      "title": "Detailed map of your region, every street", "group": "maps", "regional": true,
+      "description": "Every street, path and building in your region (zoom 14).",
+      "items": [ { "type": "tiles", "maxzoom": 14 } ]
+    },
+    "places": {
+      "title": "Places database", "group": "geodata", "regional": true,
+      "description": "Towns, parks, peaks and landmarks in your region (GeoNames) for 'where am I' and 'what's nearby'. Built on this machine (~1 min).",
+      "items": [ { "type": "build", "script": "scripts/build_geodata.py", "outputs": ["maps/places.sqlite"], "size_mb": 400, "download_mb": 80,
+                   "args": ["--only", "places", "--countries", "{countries}", "--maps-dir", "{maps}", "--work-dir", "{cache}/geodata"] } ]
+    },
+    "geowiki": {
+      "title": "Wikipedia on the map", "group": "geodata",
+      "description": "Coordinates of every geotagged Wikipedia article worldwide. Downloads 2.4 GB of Wikimedia dumps, builds in ~5 min.",
+      "items": [ { "type": "build", "script": "scripts/build_geodata.py", "outputs": ["maps/geowiki.sqlite"], "size_mb": 350, "download_mb": 2400,
+                   "args": ["--only", "geowiki", "--maps-dir", "{maps}", "--work-dir", "{cache}/geodata"] } ]
+    },
+    "routing": {
+      "title": "Offline driving directions", "group": "routing", "regional": true,
+      "description": "Valhalla routing graph built from OpenStreetMap (Geofabrik) for your region. A US state takes minutes; US + Canada takes hours and ~50 GB of scratch space.",
+      "items": [ { "type": "build", "script": "scripts/build_routing.py", "outputs": ["maps/routing/config.json"], "size_mb": "routing_mb",
+                   "args": ["--regions", "{geofabrik}", "--out", "{maps}/routing", "--download-dir", "{cache}/osm"] } ]
+    },
+    "addresses": {
+      "title": "Street-address search (US and Canada)", "group": "addresses", "regional": true, "requires_region": "addresses",
+      "description": "House-number search from US Census TIGER and the Statistics Canada National Address Register. ~3.3 GB download, ~45 min build.",
+      "items": [
+        { "type": "file", "path": ".tools/dl/tiger/tiger2025-nominatim-preprocessed.csv.tar.gz", "url": "https://nominatim.org/data/tiger2025-nominatim-preprocessed.csv.tar.gz",
+          "size": 1896468161, "sha256": "353c18b6801fef838e269db614ca03905b2198bd05cfed0f523909cec81eea23", "temporary": true, "countries": ["US"], "arg": "--tiger" },
+        { "type": "file", "path": ".tools/dl/tiger/us_postcodes.csv.gz", "url": "https://nominatim.org/data/us_postcodes.csv.gz",
+          "size": 402308, "sha256": "657af178506f5d61ba6e304051ea8f4ef986d463df2cba4c2f66cc564ed1dfc0", "temporary": true, "countries": ["US"], "arg": "--zips" },
+        { "type": "file", "path": ".tools/dl/nar/202606.zip", "url": "https://www150.statcan.gc.ca/n1/pub/46-26-0002/2022001/202606.zip",
+          "size": null, "sha256": null, "temporary": true, "countries": ["CA"], "arg": "--nar",
+          "$comment": "No hash yet: Statistics Canada's server was unreachable when this manifest was pinned. Fill in with python scripts/fetch.py --hash URL." },
+        { "type": "build", "script": "scripts/build_addresses.py", "outputs": ["maps/addresses.sqlite"], "size_mb": 5500,
+          "args": ["{inputs}", "--out", "{maps}/addresses.sqlite"] }
+      ]
+    }
+  }
+}
