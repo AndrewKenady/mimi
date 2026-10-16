@@ -4,11 +4,11 @@
   "platforms": {
     "win-x64": [
       { "id": "llama-vulkan", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-win-vulkan-x64.zip",
-        "sha256": "f3d08e7e342e2cb96ccddd1a208320c188d0a394844553a40a32c5e9903af563", "size": 33061695, "unzip_to": "bin/win-x64/llama-vulkan" },
+        "sha256": "f3d08e7e342e2cb96ccddd1a208320c188d0a394844553a40a32c5e9903af563", "size": 33061695, "unzip_to": "bin/win-x64/llama-vulkan", "exe": "llama-server" },
       { "id": "llama-cpu", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-win-cpu-x64.zip",
-        "sha256": "2a8bf1ff808e8f6d2329f50f7005419a9930d9ecfbeae5047cfff475e87c2db0", "size": 19155045, "unzip_to": "bin/win-x64/llama-cpu" },
+        "sha256": "2a8bf1ff808e8f6d2329f50f7005419a9930d9ecfbeae5047cfff475e87c2db0", "size": 19155045, "unzip_to": "bin/win-x64/llama-cpu", "exe": "llama-server" },
       { "id": "kiwix-tools", "url": "https://download.kiwix.org/release/kiwix-tools/kiwix-tools_win-x86_64-3.8.1.zip",
-        "sha256": "fcd01ed2b93e9a68632c7863c83b9f66bf64406a66357be1df7b8b75596f3e45", "size": 18301924, "unzip_to": "bin/win-x64/kiwix", "strip_root": true },
+        "sha256": "fcd01ed2b93e9a68632c7863c83b9f66bf64406a66357be1df7b8b75596f3e45", "size": 18301924, "unzip_to": "bin/win-x64/kiwix", "exe": "kiwix-serve" },
       { "id": "aria2", "url": "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip",
         "sha256": "67d015301eef0b612191212d564c5bb0a14b5b9c4796b76454276a4d28d9b288", "size": 2475379, "extract": { "aria2c.exe": "bin/win-x64/aria2c.exe" } },
       { "id": "pmtiles", "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Windows_x86_64.zip",
@@ -16,33 +16,33 @@
     ],
     "linux-x64": [
       { "id": "llama-vulkan", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-ubuntu-vulkan-x64.tar.gz",
-        "sha256": "14bb34d7058693f7679117ec3544a732e0a72405c6a08d60c8961b79393dd309", "size": 31346600, "unzip_to": "bin/linux-x64/llama-vulkan", "strip_root": true,
+        "sha256": "14bb34d7058693f7679117ec3544a732e0a72405c6a08d60c8961b79393dd309", "size": 31346600, "unzip_to": "bin/linux-x64/llama-vulkan", "exe": "llama-server", "strip_root": true,
         "$comment": "needs the Vulkan loader (libvulkan1) and a GPU driver with Vulkan; without them Mimi falls back to llama-cpu" },
       { "id": "llama-cpu", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-ubuntu-x64.tar.gz",
-        "sha256": "730ea8e54b97735abb46e46747999249719251f29753fcda97b5e2f2f3ea6912", "size": 17403637, "unzip_to": "bin/linux-x64/llama-cpu", "strip_root": true },
+        "sha256": "730ea8e54b97735abb46e46747999249719251f29753fcda97b5e2f2f3ea6912", "size": 17403637, "unzip_to": "bin/linux-x64/llama-cpu", "exe": "llama-server", "strip_root": true },
       { "id": "kiwix-tools", "url": "https://download.kiwix.org/release/kiwix-tools/kiwix-tools_linux-x86_64-3.8.1.tar.gz",
-        "sha256": "46557f9a3c3eaada2556a957cf5bc662c07dc6286e8924e04fa3a173f83ff6dd", "size": 21503420, "unzip_to": "bin/linux-x64/kiwix", "strip_root": true },
+        "sha256": "46557f9a3c3eaada2556a957cf5bc662c07dc6286e8924e04fa3a173f83ff6dd", "size": 21503420, "unzip_to": "bin/linux-x64/kiwix", "exe": "kiwix-serve", "strip_root": true },
       { "id": "pmtiles", "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_x86_64.tar.gz",
         "sha256": "3ed7dbf4ec2e6dfe5e25b6f70d1ffc932729f93c86db353bf514dd71010a312f", "size": 17444324, "extract": { "pmtiles": "bin/linux-x64/pmtiles" } }
     ],
     "linux-arm64": [
       { "id": "llama-vulkan", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-ubuntu-vulkan-arm64.tar.gz",
-        "sha256": "7e3b0ac3fd0822e45d865939698b1fa99e3f81cd38ffc3ee85a2bd56f8026ffe", "size": 24668769, "unzip_to": "bin/linux-arm64/llama-vulkan", "strip_root": true },
+        "sha256": "7e3b0ac3fd0822e45d865939698b1fa99e3f81cd38ffc3ee85a2bd56f8026ffe", "size": 24668769, "unzip_to": "bin/linux-arm64/llama-vulkan", "exe": "llama-server", "strip_root": true },
       { "id": "llama-cpu", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-ubuntu-arm64.tar.gz",
-        "sha256": "9106753bff55e43c78ff595bf169a6bf01175f3d38f707866a1142553d4c437a", "size": 13500061, "unzip_to": "bin/linux-arm64/llama-cpu", "strip_root": true },
+        "sha256": "9106753bff55e43c78ff595bf169a6bf01175f3d38f707866a1142553d4c437a", "size": 13500061, "unzip_to": "bin/linux-arm64/llama-cpu", "exe": "llama-server", "strip_root": true },
       { "id": "kiwix-tools", "url": "https://download.kiwix.org/release/kiwix-tools/kiwix-tools_linux-aarch64-3.8.1.tar.gz",
-        "sha256": "7b00940e1f5e4642e4ef6e7262543893e105b20e9e97be5352e129c591fa29da", "size": 20430528, "unzip_to": "bin/linux-arm64/kiwix", "strip_root": true },
+        "sha256": "7b00940e1f5e4642e4ef6e7262543893e105b20e9e97be5352e129c591fa29da", "size": 20430528, "unzip_to": "bin/linux-arm64/kiwix", "exe": "kiwix-serve", "strip_root": true },
       { "id": "pmtiles", "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles_1.31.2_Linux_arm64.tar.gz",
         "sha256": "f8bd47e7ea866863489cad588fbaf2f31f42e5821f7a03f009b3769f05801cb1", "size": 15779781, "extract": { "pmtiles": "bin/linux-arm64/pmtiles" } }
     ],
     "macos-arm64": [
       { "id": "llama-metal", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-macos-arm64.tar.gz",
-        "sha256": "97b06f59ad15e2b4b6044ba7338c4e3f40354c6dc2b9c5cda234e2bd6b9fd65e", "size": 11755672, "unzip_to": "bin/macos-arm64/llama-metal", "strip_root": true,
+        "sha256": "97b06f59ad15e2b4b6044ba7338c4e3f40354c6dc2b9c5cda234e2bd6b9fd65e", "size": 11755672, "unzip_to": "bin/macos-arm64/llama-metal", "exe": "llama-server", "strip_root": true,
         "$comment": "Metal (GPU) build, picked on Apple silicon; llama-cpu (the same build, run with -ngl 0) is the fallback." },
       { "id": "llama-cpu", "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-macos-arm64.tar.gz",
-        "sha256": "97b06f59ad15e2b4b6044ba7338c4e3f40354c6dc2b9c5cda234e2bd6b9fd65e", "size": 11755672, "unzip_to": "bin/macos-arm64/llama-cpu", "strip_root": true },
+        "sha256": "97b06f59ad15e2b4b6044ba7338c4e3f40354c6dc2b9c5cda234e2bd6b9fd65e", "size": 11755672, "unzip_to": "bin/macos-arm64/llama-cpu", "exe": "llama-server", "strip_root": true },
       { "id": "kiwix-tools", "url": "https://download.kiwix.org/release/kiwix-tools/kiwix-tools_macos-arm64-3.8.1.tar.gz",
-        "sha256": "222e8398ca50ac005a7e92cf0116e0c83e3c44c79cab0bb7f6537943d517e8d3", "size": 10254751, "unzip_to": "bin/macos-arm64/kiwix", "strip_root": true },
+        "sha256": "222e8398ca50ac005a7e92cf0116e0c83e3c44c79cab0bb7f6537943d517e8d3", "size": 10254751, "unzip_to": "bin/macos-arm64/kiwix", "exe": "kiwix-serve", "strip_root": true },
       { "id": "pmtiles", "url": "https://github.com/protomaps/go-pmtiles/releases/download/v1.31.2/go-pmtiles-1.31.2_Darwin_arm64.zip",
         "sha256": "40528f7f616fcbf91207cd48c8fc023d213f6d86c0cbf1f748732803d1880f3d", "size": 15963714, "extract": { "pmtiles": "bin/macos-arm64/pmtiles" } }
     ]

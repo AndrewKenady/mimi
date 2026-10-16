@@ -353,8 +353,41 @@ def test_platform_keys_agree_with_core():
         assert fetch.platform_key(system, machine) == platform_key(system, machine)
     assert fetch.platform_key("linux", "aarch64") == "linux-arm64"
     assert fetch.platform_key("win32", "AMD64") == "win-x64"
+    assert fetch.platform_key("win32", "ARM64") == platform_key("win32", "ARM64") == "win-x64"  # x64 engines under emulation
     runtimes = fetch.load_json("runtimes.json")["platforms"]
     for plat, rs in runtimes.items():
         for r in rs:
             for t in fetch.runtime_targets(r):
                 assert t.relative_to(fetch.ROOT).parts[:2] == ("bin", plat)
+
+
+def _zip(tmp_path: Path, names: list[str]) -> Path:
+    z = tmp_path / "a.zip"
+    with zipfile.ZipFile(z, "w") as zf:
+        for n in names:
+            zf.writestr(n, b"x")
+    return z
+
+
+def test_extract_strips_only_a_top_folder_every_member_shares(tmp_path):
+    # kiwix-tools for Windows ships its files at the zip's root: "strip_root" must not empty it
+    flat = _zip(tmp_path, ["kiwix-serve.exe", "icudt74.dll", "kiwix-manage.exe"])
+    fetch.extract_tree(flat, tmp_path / "flat", strip_root=True)
+    assert sorted(p.name for p in (tmp_path / "flat").iterdir()) == ["icudt74.dll", "kiwix-manage.exe", "kiwix-serve.exe"]
+    rooted = tmp_path / "r.tar.gz"
+    with tarfile.open(rooted, "w:gz") as tf:
+        for n in ("kiwix-tools_linux-x86_64-3.8.1/kiwix-serve", "kiwix-tools_linux-x86_64-3.8.1/lib/libz.so"):
+            ti = tarfile.TarInfo(n)
+            ti.size = 1
+            tf.addfile(ti, io.BytesIO(b"x"))
+    fetch.extract_tree(rooted, tmp_path / "rooted", strip_root=True)
+    assert (tmp_path / "rooted" / "kiwix-serve").exists() and (tmp_path / "rooted" / "lib" / "libz.so").exists()
+
+
+def test_an_engine_that_did_not_unpack_is_never_marked_installed(tmp_path, monkeypatch):
+    monkeypatch.setattr(fetch, "ROOT", tmp_path)
+    r = {"id": "kiwix-tools", "unzip_to": "bin/x/kiwix", "exe": "kiwix-serve"}
+    (tmp_path / "bin/x/kiwix").mkdir(parents=True)
+    assert not fetch.runtime_ready(r)  # an empty folder is not an installed engine
+    (tmp_path / "bin/x/kiwix/kiwix-serve.exe").write_text("")
+    assert fetch.runtime_ready(r)

@@ -239,11 +239,21 @@ def cmd_remove(args) -> int:
             return 1
         if input("Delete these files? [y/N] ").strip().lower() not in ("y", "yes"):
             return 1
+    in_use: list[Path] = []
     for t in targets:
-        shutil.rmtree(t) if t.is_dir() else t.unlink()
+        try:
+            shutil.rmtree(t) if t.is_dir() else t.unlink()
+        except OSError:  # Windows won't delete a book kiwix-serve has open or a model llama-server maps
+            in_use.append(t)
+    gone = [pid for pid in pids if not any(t.exists() for t in removal_targets(pid, region))]
     state = fetch.load_state()
-    state["added"] = [p for p in state.get("added") or [] if p not in pids]
+    state["added"] = [p for p in state.get("added") or [] if p not in gone]
     fetch.save_state(state)
+    if in_use:
+        say("Couldn't delete these while Mimi is using them. Close Mimi and run the same command again:")
+        for t in in_use:
+            say(f"  {fetch._rel(t)}")
+        return 1
     say("Removed. Restart Mimi to stop serving them.")
     return 0
 

@@ -105,6 +105,10 @@ def platform_key(system: str | None = None, machine: str | None = None) -> str:
     machine = (machine or platform.machine() or "").lower()
     os_name = "win" if system.startswith("win") else ("macos" if system == "darwin" else "linux")
     arch = "arm64" if machine in ("arm64", "aarch64", "armv8", "armv8l") else "x64"
+    if os_name == "win":
+        # Windows on ARM runs the x64 engines under emulation, and no ARM builds are pinned yet
+        # (platform.machine() reports the native CPU there, even for an x64 Python).
+        arch = "x64"
     return f"{os_name}-{arch}"
 
 
@@ -399,6 +403,12 @@ def extract_tree(archive: Path, dest: Path, strip_root: bool = False, only: list
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir(parents=True)
     links: list[tuple[Path, str, str]] = []
+    if strip_root:
+        # Only strip a top folder that every member really shares: some releases (kiwix-tools for
+        # Windows) put their files at the root, and stripping those would unpack nothing at all.
+        tops = {parts[0] for parts, kind, *_ in _members(archive) if parts and (len(parts) > 1 or kind == "dir")}
+        flat = any(len(parts) == 1 and kind != "dir" for parts, kind, *_ in _members(archive))
+        strip_root = len(tops) == 1 and not flat
     for parts, kind, data, mode, link in _members(archive):
         if strip_root:
             parts = parts[1:]
@@ -429,10 +439,28 @@ def extract_tree(archive: Path, dest: Path, strip_root: bool = False, only: list
                 shutil.copy2(src, out)
     old = dest.with_name(f".{dest.name}.old")
     shutil.rmtree(old, ignore_errors=True)
-    if dest.exists():
-        dest.rename(old)
-    tmp.rename(dest)
+    try:
+        if dest.exists():
+            _retry_rename(dest, old)
+        _retry_rename(tmp, dest)
+    except OSError as e:
+        if old.exists() and not dest.exists():
+            old.rename(dest)  # put the working engine back
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise DownloadError(f"couldn't replace {_rel(dest)} ({e.strerror or e}): if Mimi is running, close it and run this again") from e
     shutil.rmtree(old, ignore_errors=True)
+
+
+def _retry_rename(src: Path, dst: Path, tries: int = 5) -> None:
+    """Rename, waiting out the brief locks Windows Defender or the search indexer put on fresh files."""
+    for i in range(tries):
+        try:
+            src.rename(dst)
+            return
+        except PermissionError:
+            if os.name != "nt" or i == tries - 1:
+                raise
+            time.sleep(0.4 * (i + 1))
 
 
 def extract_files(archive: Path, mapping: dict[str, Path]) -> None:
@@ -461,6 +489,17 @@ def runtime_targets(r: dict) -> list[Path]:
     return [ROOT / r["unzip_to"]] if r.get("unzip_to") else [ROOT / o for o in r["extract"].values()]
 
 
+def runtime_ready(r: dict) -> bool:
+    """Installed means the engine's program is there, not merely its folder."""
+    if r.get("unzip_to"):
+        d = ROOT / r["unzip_to"]
+        exe = r.get("exe")
+        if exe:
+            return (d / exe).exists() or (d / f"{exe}.exe").exists() or any(d.rglob(exe)) or any(d.rglob(f"{exe}.exe"))
+        return d.is_dir() and any(d.iterdir())
+    return all(t.exists() for t in runtime_targets(r))
+
+
 def install_runtimes(plat: str | None = None, dry: bool = False, force: bool = False) -> None:
     plat = plat or platform_key()
     stamps_file = bin_dir(plat) / ".installed.json"
@@ -471,7 +510,7 @@ def install_runtimes(plat: str | None = None, dry: bool = False, force: bool = F
     used: set[Path] = set()
     for r in runtimes_for(plat):
         targets = runtime_targets(r)
-        present = all(t.exists() for t in targets)
+        present = runtime_ready(r)
         stamp = stamps.get(r["id"])
         if present and not force and (stamp == r["sha256"] or stamp is None):
             # An unstamped engine was installed by an older setup; keep it (see --force).
@@ -485,6 +524,8 @@ def install_runtimes(plat: str | None = None, dry: bool = False, force: bool = F
             extract_tree(archive, ROOT / r["unzip_to"], strip_root=bool(r.get("strip_root")))
         else:
             extract_files(archive, {k: ROOT / v for k, v in r["extract"].items()})
+        if not runtime_ready(r):  # never stamp an engine that didn't actually unpack
+            raise DownloadError(f"{r['id']}: unpacked {archive.name}, but {r.get('exe') or 'its files'} isn't there")
         stamps[r["id"]] = r["sha256"]
         stamps_file.parent.mkdir(parents=True, exist_ok=True)
         stamps_file.write_text(json.dumps(stamps, indent=1), "utf-8")

@@ -52,6 +52,10 @@ def platform_key(system: str | None = None, machine: str | None = None) -> str:
     machine = (machine or platform.machine() or "").lower()
     os_name = "win" if system.startswith("win") else ("macos" if system == "darwin" else "linux")
     arch = "arm64" if machine in ("arm64", "aarch64", "armv8", "armv8l") else "x64"
+    if os_name == "win":
+        # Windows on ARM runs the x64 engines under emulation, and no ARM builds are pinned yet
+        # (platform.machine() reports the native CPU there, even for an x64 Python).
+        arch = "x64"
     return f"{os_name}-{arch}"
 
 

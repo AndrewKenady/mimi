@@ -90,6 +90,10 @@ def _name_constraints(cert):
     return ext if ext.critical else None
 
 
+# The key is sealed to another computer (Windows DPAPI): the CA is fine, just not usable here.
+KEY_ELSEWHERE = "its key can't be read on this computer (was the drive moved?)"
+
+
 def ca_problem(ca_pem: Path, ca_key: Path) -> str | None:
     """Why an existing CA must be replaced, or None when it's fine to keep."""
     from cryptography import x509
@@ -113,7 +117,7 @@ def ca_problem(ca_pem: Path, ca_key: Path) -> str | None:
     try:
         key = serialization.load_pem_private_key(unprotect_key(ca_key.read_bytes()), None)
     except Exception:
-        return "its key can't be read on this computer (was the drive moved?)"
+        return KEY_ELSEWHERE
     if key.public_key().public_numbers() != cert.public_key().public_numbers():
         return "its key didn't match"
     return None
@@ -274,13 +278,59 @@ class ShareService:
 
     def _migrate_ca(self) -> None:
         """At startup: retire a CA that phones shouldn't keep trusting (made before name
-        constraints, expiring, or whose key can't be read on this computer)."""
+        constraints, or expiring), and swap in the right CA when a portable Mimi changes computers.
+
+        On Windows the CA key is sealed to one computer's account, so a Mimi on a USB drive can't
+        use it on another PC. That CA isn't destroyed: it is parked, and restored when the drive
+        comes back, so phones paired on each computer keep working there.
+        """
         ca_pem, ca_key = self.ca_paths()
         if not ca_pem.exists() and not ca_key.exists():
+            self._unpark_ca()
             return
         reason = ca_problem(ca_pem, ca_key)
-        if reason:
+        if reason == KEY_ELSEWHERE:
+            self._park_ca()
+            if not self._unpark_ca():
+                self._write_notice("Mimi is on a different computer, so it made a certificate for this one", None)
+        elif reason:
             self._rotate_ca(reason)
+
+    def _parked(self) -> Path:
+        return self.cdir / "other-computers"
+
+    def _park_ca(self) -> None:
+        """Move this CA set aside, keyed by its fingerprint, for the computer it belongs to."""
+        from cryptography import x509
+
+        ca_pem, ca_key = self.ca_paths()
+        fp = fingerprint(x509.load_pem_x509_certificate(ca_pem.read_bytes())).replace(":", "")[:16]
+        dest = self._parked() / fp
+        dest.mkdir(parents=True, exist_ok=True)
+        _restrict_dir(self._parked())
+        for f in (ca_pem, ca_key, self.cdir / "server.pem", self.cdir / "server.key"):
+            if f.exists():
+                os.replace(f, dest / f.name)
+        self._ca_info_cache = None
+        L.info("parked the certificate authority of another computer (%s)", fp)
+
+    def _unpark_ca(self) -> bool:
+        """Restore a parked CA whose key this computer can read (the drive is home again)."""
+        ca_pem, ca_key = self.ca_paths()
+        for d in sorted(self._parked().glob("*")) if self._parked().is_dir() else []:
+            if (d / ca_pem.name).exists() and ca_problem(d / ca_pem.name, d / ca_key.name) is None:
+                for f in d.iterdir():
+                    os.replace(f, self.cdir / f.name)
+                with contextlib.suppress(OSError):
+                    d.rmdir()
+                self._ca_info_cache = None
+                L.info("restored this computer's certificate authority")
+                return True
+        return False
+
+    def _write_notice(self, reason: str, old_fp: str | None) -> None:
+        _write_private(self._notice_path(), json.dumps({"rotated_at": time.time(), "reason": reason, "old_fingerprint": old_fp,
+                                                        "acknowledged": False}).encode())
 
     def _rotate_ca(self, reason: str) -> None:
         """Destroy the old CA (and the server certificate it signed) and leave a notice: phones
@@ -294,8 +344,7 @@ class ShareService:
         for f in (ca_key, self.cdir / "server.key", ca_pem, self.cdir / "server.pem"):
             _shred(f)
         self._ca_info_cache = None
-        _write_private(self._notice_path(), json.dumps({"rotated_at": time.time(), "reason": reason, "old_fingerprint": old_fp,
-                                                        "acknowledged": False}).encode())
+        self._write_notice(reason, old_fp)
         L.warning("retired the local certificate authority (%s); phones must install the new one from /cert", reason)
 
     def ca_notice(self) -> dict | None:

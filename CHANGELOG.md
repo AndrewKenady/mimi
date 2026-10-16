@@ -31,7 +31,11 @@ The release that makes Mimi checkable, installable anywhere and accessible.
   - every runtime and model is pinned to a fixed revision with SHA-256, and books are checked against Kiwix's own hashes;
   - downloads resume from `.part` files and are verified before use;
   - files left cut short by the old downloader are detected and finished.
-- **Engines stop with Core on Linux and macOS:** they run in their own process groups and are killed even if Core is killed outright.
+- **Engines and helper processes stop with Core:**
+  - on Linux and macOS through process groups;
+  - on Windows, Core puts itself in its kill-on-close job, so plugin and PDF workers can't outlive it either.
+- **A portable Mimi keeps each computer's phone certificate.** On Windows the key is sealed to one PC, so moving the drive parks that certificate, and it comes back when the drive does.
+- **Windows on ARM uses the x64 engines** under emulation.
 
 ### Design system and accessibility
 - **Token scales** for type, space, radius, elevation, layers and motion, documented in `docs/DESIGN_SYSTEM.md` with a living style guide at `/dev/design`.
@@ -73,6 +77,8 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - **Contributor guide, code of conduct, issue forms** (including one for wrong answers, which feed the eval set), and Dependabot.
 
 ### Fixed
+- Setup could unpack Windows' kiwix-tools into an empty folder, and still call it installed. Archives are now only flattened when every file shares one top folder, and an engine counts as installed only when its program is present.
+- Removing content or upgrading an engine while Mimi is running says to close Mimi first, instead of crashing halfway.
 - A fresh install crashed or failed 25 tests: selectolax 1.0 removed a module Core imports.
 - The library showed "21,673,012 articles· 118.7 GB" (missing space).
 - The chat list on phones covered the conversation and never closed.

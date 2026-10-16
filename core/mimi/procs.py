@@ -131,10 +131,34 @@ def _job():
         if not h:
             return None
         info = EXTENDED()
-        info.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        # KILL_ON_JOB_CLOSE: everything in the job dies with Core. BREAKAWAY_OK: a window Core opens for the
+        # person (a folder in Explorer) may leave the job explicitly (CREATE_BREAKAWAY_FROM_JOB), so it
+        # stays open after Mimi quits.
+        info.BasicLimitInformation.LimitFlags = 0x2000 | 0x0800
         k32.SetInformationJobObject(h, 9, ctypes.byref(info), ctypes.sizeof(info))
         _job_handle = (k32, h)
         return _job_handle
+
+
+def contain_self() -> bool:
+    """Windows: put Core itself in its kill-on-close job, so every process it starts inherits the
+    job, including plugin workers and PDF extractors that aren't ManagedProcesses, and dies with
+    Core even if Core is killed outright. Best effort; returns whether it took effect."""
+    j = _job()
+    if not j:
+        return False
+    k32, h = j
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        k32.GetCurrentProcess.restype = wintypes.HANDLE
+        if k32.AssignProcessToJobObject(h, k32.GetCurrentProcess()):
+            return True
+        L.warning("could not put Core in its job (error %s); helpers may outlive a killed Core", ctypes.get_last_error())
+    except Exception as e:  # pragma: no cover - Windows only, best effort
+        L.warning("could not put Core in its job: %s", e)
+    return False
 
 
 def _assign_to_job(proc: subprocess.Popen) -> None:

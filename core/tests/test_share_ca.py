@@ -151,3 +151,43 @@ def test_leaf_names_are_sanitised():
 
     assert leaf_dns_names("My PC!") == ["mimi.local", "localhost", "mypc.local"]
     assert leaf_ips(["127.0.0.1", "10.1.2.3", "172.32.0.1", "172.20.0.1", "not-an-ip"]) == ["127.0.0.1", "10.1.2.3", "172.20.0.1"]
+
+
+def test_a_drive_moving_between_computers_keeps_each_computers_ca(share, monkeypatch):
+    """On Windows the CA key is sealed to one computer. A portable Mimi on another PC parks that
+    CA instead of destroying it, and restores it when the drive comes home, so phones paired
+    with each computer keep working there."""
+    sh, svc, make = share
+    here = {"pc": "A"}
+    monkeypatch.setattr(sh, "protect_key", lambda pem: f"SEALED-{here['pc']}\n".encode() + pem)
+
+    def unprotect(data: bytes) -> bytes:
+        head, _, pem = data.partition(b"\n")
+        if head != f"SEALED-{here['pc']}".encode():
+            raise ValueError("sealed to another computer")
+        return pem
+    monkeypatch.setattr(sh, "unprotect_key", unprotect)
+
+    a = make()
+    a.ensure_certs()
+    fp_a = a.ca_info()["fingerprint_sha256"]
+    assert a.ca_notice() is None
+
+    here["pc"] = "B"  # the drive is plugged into another PC
+    b = make()
+    assert b.ca_notice() and "different computer" in b.ca_notice()["reason"]
+    b.ensure_certs()
+    fp_b = b.ca_info()["fingerprint_sha256"]
+    assert fp_b != fp_a
+    b.ack_ca_notice()
+
+    here["pc"] = "A"  # ...and home again: A's CA comes back, untouched
+    a2 = make()
+    a2.ensure_certs()
+    assert a2.ca_info()["fingerprint_sha256"] == fp_a
+    assert a2.ca_notice() is None  # nothing for A's phones to do
+
+    here["pc"] = "B"
+    b2 = make()
+    b2.ensure_certs()
+    assert b2.ca_info()["fingerprint_sha256"] == fp_b

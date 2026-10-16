@@ -19,9 +19,10 @@ import sys
 def serve(args: argparse.Namespace) -> None:
     import uvicorn
 
-    from . import log
+    from . import log, procs
     from .app import MAIN_PORT, create_app
 
+    procs.contain_self()  # Windows: helpers Core starts die with it, however it ends
     app = create_app()
     if args.host not in ("127.0.0.1", "localhost", "::1") and not os.path.exists("/.dockerenv"):
         # Owner auto-sign-in only ever applies to loopback (and MIMI_LOCAL_PEERS) clients, so

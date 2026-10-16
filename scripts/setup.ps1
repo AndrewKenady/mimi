@@ -21,6 +21,7 @@ param(
   [switch]$NoContent, [switch]$NoRouting, [switch]$NoAddresses
 )
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'   # Windows PowerShell 5.1's progress bar slows Invoke-WebRequest many times over
 $Root = Split-Path -Parent $PSScriptRoot
 $Tools = Join-Path $Root '.tools'
 New-Item -ItemType Directory -Force $Tools, "$Tools\dl", "$Root\logs" | Out-Null
