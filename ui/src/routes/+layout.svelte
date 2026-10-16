@@ -13,6 +13,7 @@
 	import QuickMenu from '$components/QuickMenu.svelte';
 	import VoiceOverlay from '$components/VoiceOverlay.svelte';
 	import PairRequest from '$components/PairRequest.svelte';
+	import ConfirmDialog from '$components/ConfirmDialog.svelte';
 
 	let { children } = $props();
 
@@ -53,9 +54,13 @@
 		const mq = matchMedia('(prefers-color-scheme: light)');
 		const onScheme = () => app.applyAppearance();
 		mq.addEventListener('change', onScheme);
+		// Deletes still showing Undo are carried out if the page goes away.
+		const onHide = () => app.flushDeletes();
+		addEventListener('pagehide', onHide);
 		return () => {
 			removeEventListener('pointerdown', onPointer);
 			removeEventListener('keydown', onKey);
+			removeEventListener('pagehide', onHide);
 			mq.removeEventListener('change', onScheme);
 		};
 	});
@@ -83,8 +88,9 @@
 	{/if}
 {/if}
 {#if app.offline && app.ready}
-	<div class="reconnect glass">Reconnecting to Mimi Core…</div>
+	<div class="reconnect glass" role="status">Reconnecting to Mimi Core…</div>
 {/if}
+<ConfirmDialog />
 <Toasts />
 
 <style>
@@ -110,19 +116,19 @@
 	}
 	.reconnect {
 		position: fixed;
-		top: 12px;
+		top: var(--space-3);
 		left: 50%;
 		transform: translateX(-50%);
-		padding: 8px 16px;
-		border-radius: 999px;
+		padding: var(--space-2) var(--space-4);
+		border-radius: var(--radius-pill);
 		border: 1px solid var(--line-2);
-		font-size: 0.82rem;
+		font-size: var(--fs-sm);
 		color: var(--warn);
-		z-index: 120;
+		z-index: var(--z-system);
 	}
 	@media (max-width: 760px) {
 		.content {
-			padding-bottom: 68px;
+			padding-bottom: var(--tabbar-h);
 		}
 	}
 </style>
