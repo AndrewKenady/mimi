@@ -103,7 +103,7 @@ main() {
     # 3. Python 3.12, managed by uv inside the Mimi folder.
     export UV_PYTHON_INSTALL_DIR="$tools/pythons" UV_CACHE_DIR="$tools/uv-cache"
     say "== Python 3.12"
-    "$uv" python install 3.12
+    "$uv" python install --no-bin 3.12  # stays inside the Mimi folder: nothing added to ~/.local/bin
     py=$("$uv" python find 3.12) || die "uv couldn't provide Python 3.12"
 
     # 4. Everything else: scripts/install.py (engines, UI, content).

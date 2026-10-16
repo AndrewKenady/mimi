@@ -158,6 +158,32 @@ class Services:
 LOOPBACK_NAMES = ("127.0.0.1", "localhost", "::1")
 
 
+def _local_peer(client: str) -> bool:
+    """Is `client` listed in MIMI_LOCAL_PEERS (IPs or CIDRs, comma-separated)?
+
+    For containers: a browser on the host reaches Mimi through the bridge gateway, not
+    loopback. docker-compose.yml lists that gateway and publishes the app port on the
+    host's 127.0.0.1 only, so it still means "someone at this machine". Never list an
+    address that other machines' traffic can arrive from. Unset (the default): nothing.
+    """
+    raw = os.environ.get("MIMI_LOCAL_PEERS", "").strip()
+    if not raw or not client:
+        return False
+    import ipaddress
+
+    try:
+        ip = ipaddress.ip_address(client)
+    except ValueError:
+        return False
+    for part in raw.replace(";", ",").split(","):
+        try:
+            if part.strip() and ip in ipaddress.ip_network(part.strip(), strict=False):
+                return True
+        except ValueError:
+            L.warning("MIMI_LOCAL_PEERS: ignoring %r (not an IP address or network)", part.strip())
+    return False
+
+
 def is_local(request: Request) -> bool:
     """The device's own screen: a loopback peer on the app port, addressed by a loopback name.
 
@@ -170,7 +196,7 @@ def is_local(request: Request) -> bool:
     client = request.client.host if request.client else ""
     if client == "testclient":  # Starlette's TestClient: local only when talking to the default test host
         return server[0] == "testserver"
-    if server[1] != MAIN_PORT or client not in LOOPBACK_NAMES:
+    if server[1] != MAIN_PORT or (client not in LOOPBACK_NAMES and not _local_peer(client)):
         return False
     if (request.url.hostname or "").strip("[]").lower() not in LOOPBACK_NAMES:
         return False

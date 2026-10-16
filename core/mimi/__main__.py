@@ -2,6 +2,7 @@
 
     python -m mimi serve            run the backend (the Mimi app starts this for you)
     python -m mimi doctor           print a diagnostic report
+    python -m mimi content ...      manage models, books and maps (scripts/content.py: list, status, add, remove)
 """
 
 from __future__ import annotations
@@ -16,7 +17,13 @@ import sys
 def serve(args: argparse.Namespace) -> None:
     import uvicorn
 
+    from . import log
     from .app import MAIN_PORT, create_app
+
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        # Owner auto-sign-in only ever applies to loopback (and MIMI_LOCAL_PEERS) clients, so
+        # other machines that can reach this port get the sign-in page - but they can reach it.
+        log.get("main").warning("listening on %s: the app port is reachable from other machines", args.host)
 
     app = create_app()
     config = uvicorn.Config(app, host=args.host, port=args.port or MAIN_PORT, log_config=None, access_log=False,
@@ -53,15 +60,31 @@ def doctor(args: argparse.Namespace) -> None:
     print(json.dumps(report, indent=2))
 
 
+def content(rest: list[str]) -> None:
+    """Hand off to scripts/content.py (stdlib only, shared with the installers)."""
+    import runpy
+
+    from .paths import default_root
+
+    script = default_root() / "scripts" / "content.py"
+    if not script.exists():
+        sys.exit(f"{script} not found: the content manager ships with the Mimi folder, not with Core alone.")
+    sys.argv = ["mimi content", *rest]
+    runpy.run_path(str(script), run_name="__main__")
+
+
 def main() -> None:
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    if sys.argv[1:2] == ["content"]:  # everything after `content` belongs to scripts/content.py, --help included
+        return content(sys.argv[2:])
     ap = argparse.ArgumentParser(prog="mimi", description="Mimi — Machine Intelligence, Minus the Internet")
     sub = ap.add_subparsers(dest="cmd")
     s = sub.add_parser("serve", help="run Mimi Core")
     s.add_argument("--host", default=os.environ.get("MIMI_HOST", "127.0.0.1"))
     s.add_argument("--port", type=int, default=None)
     sub.add_parser("doctor", help="diagnostics")
+    sub.add_parser("content", help="manage models, books and maps (list, status, regions, add, remove, verify)")
     args = ap.parse_args()
     if args.cmd == "doctor":
         doctor(args)
