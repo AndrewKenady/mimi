@@ -262,15 +262,26 @@
 :root,
 [data-theme] {
 	--well-a: var(--accent-raw, #6ee7d2);
-	--well-spec: color-mix(in oklab, var(--well-a) 18%, white);
-	--orb: radial-gradient(circle at 36% 32%, var(--well-spec) 0, var(--well-a) 25%, var(--well-b) 54%, var(--well-c) 78%);
 }
-/* Well styles (Settings → Appearance → Well). Tide is the default above. */
+/* Well styles (Settings → Appearance → The Well). Each works on <html> and on a
+   nested preview element (the second selector of each light variant). */
+[data-well='tide'] {
+	--well-a: var(--accent-raw, #6ee7d2);
+	--well-b: #1e7f8f;
+	--well-c: #0b2432;
+}
+[data-theme='light'][data-well='tide'],
+[data-theme='light'] [data-well='tide'] {
+	--well-b: #3aa6b3;
+	--well-c: #d8eef2;
+}
 [data-well='aurora'] {
+	--well-a: var(--accent-raw, #6ee7d2);
 	--well-b: #5b4bd6;
 	--well-c: #120f33;
 }
-[data-theme='light'][data-well='aurora'] {
+[data-theme='light'][data-well='aurora'],
+[data-theme='light'] [data-well='aurora'] {
 	--well-b: #8b7cf0;
 	--well-c: #e6e2fb;
 }
@@ -279,7 +290,8 @@
 	--well-b: #c2410c;
 	--well-c: #2a0e05;
 }
-[data-theme='light'][data-well='ember'] {
+[data-theme='light'][data-well='ember'],
+[data-theme='light'] [data-well='ember'] {
 	--well-b: #ea7a3a;
 	--well-c: #fbe6d8;
 }
@@ -288,10 +300,19 @@
 	--well-b: #5d6b80;
 	--well-c: #121821;
 }
-[data-theme='light'][data-well='mono'] {
+[data-theme='light'][data-well='mono'],
+[data-theme='light'] [data-well='mono'] {
 	--well-a: #ffffff;
 	--well-b: #9aa6b8;
 	--well-c: #e3e7ee;
+}
+/* Derived per element, so a nested [data-well] or [data-theme] (a style preview)
+   draws its own orb. */
+:root,
+[data-theme],
+[data-well] {
+	--well-spec: color-mix(in oklab, var(--well-a) 18%, white);
+	--orb: radial-gradient(circle at 36% 32%, var(--well-spec) 0, var(--well-a) 25%, var(--well-b) 54%, var(--well-c) 78%);
 }
 
 /* Fixed colours for media, not themes: camera viewfinder, QR codes (must be
