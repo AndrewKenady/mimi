@@ -4,10 +4,12 @@
 	import { onMount } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { fmtBytes, get } from '$lib/api';
-	import { Search, BookOpen, Sparkles, FolderOpen, X, Loader } from '@lucide/svelte';
+	import { Search, BookOpen, Sparkles, FolderOpen, X, Loader, FileText } from '@lucide/svelte';
 
 	let books = $state<any[]>([]);
+	let indexing = $state<any>(null);
 	let loading = $state(true);
+	let searchEl: HTMLInputElement | undefined = $state();
 	let q = $state(page.url.searchParams.get('q') || '');
 	let coll = $state<string | null>(page.url.searchParams.get('collection'));
 	let results = $state<any[] | null>(null);
@@ -24,16 +26,43 @@
 		return [...m.entries()];
 	});
 	const collections = $derived([...new Map(books.map((b) => [b.collection, b.collection_label])).entries()]);
-	const total = $derived(books.reduce((n, b) => n + b.articles, 0));
+	// Honest totals: a document collection counts its documents, not Kiwix's "1 article".
+	const total = $derived(books.filter((b) => b.kind === 'articles').reduce((n, b) => n + (b.items ?? b.articles), 0));
+	const docs = $derived(books.filter((b) => b.kind === 'documents').reduce((n, b) => n + (b.items || 0), 0));
 	const size = $derived(books.reduce((n, b) => n + (b.size || 0), 0));
 
-	onMount(async () => {
+	// A small, honest status for each card: can it be opened, can it be searched?
+	const STATUS: Record<string, { label: string; tone: string }> = {
+		ok: { label: 'Ready', tone: 'ok' },
+		indexing: { label: 'Indexing…', tone: 'busy' },
+		checking: { label: 'Checking…', tone: 'idle' },
+		unreadable: { label: "Can't open", tone: 'bad' }
+	};
+	function status(b: any) {
+		const h = b.health || {};
+		if (h.status === 'limited') return { label: h.readable ? 'Browse only' : 'Search only', tone: 'warn' };
+		return STATUS[h.status] || STATUS.checking;
+	}
+
+	async function load() {
 		try {
-			books = (await get('/api/library/books')).books;
+			const r = await get('/api/library/books');
+			books = r.books;
+			indexing = r.indexing;
 		} finally {
 			loading = false;
 		}
-		if (q) search();
+	}
+
+	onMount(() => {
+		load().then(() => {
+			if (q) search();
+		});
+		// While Mimi is still reading documents (first start), keep the cards' status current.
+		const t = setInterval(() => {
+			if (books.some((b) => ['indexing', 'checking'].includes(b.health?.status))) load();
+		}, 5000);
+		return () => clearInterval(t);
 	});
 
 	function onInput() {
@@ -60,7 +89,16 @@
 	}
 
 	async function openBook(b: any) {
+		const h = b.health || {};
+		if (h.status === 'unreadable' || h.readable === false) {
+			// Don't offer a blank page: say what's wrong, and point at search when that still works.
+			app.toast(h.note || "Mimi can't open this book.", 'info');
+			if (h.searchable) searchEl?.focus();
+			return;
+		}
+		if (b.kind && b.kind !== 'articles') return goto(`/library/book/${b.alias}`);
 		const r = await get(`/api/library/home/${b.alias}`).catch(() => null);
+		if (r?.kind && r.kind !== 'articles') return goto(`/library/book/${b.alias}`);
 		goto(`/library/read/${b.alias}/${r?.path || ''}`);
 	}
 
@@ -78,7 +116,15 @@
 			<div>
 				<h1 class="page-title">Library</h1>
 				<p class="page-sub">
-					{#if books.length}{books.length} {books.length === 1 ? 'collection' : 'collections'} · {total.toLocaleString()} {total === 1 ? 'article' : 'articles'} · {fmtBytes(size)} · offline{:else}Your offline reference shelf{/if}
+					{#if books.length}{[
+							`${books.length} ${books.length === 1 ? 'collection' : 'collections'}`,
+							total || !docs ? `${total.toLocaleString()} ${total === 1 ? 'article' : 'articles'}` : '',
+							docs ? `${docs.toLocaleString()} ${docs === 1 ? 'document' : 'documents'}` : '',
+							fmtBytes(size),
+							'offline'
+						]
+							.filter(Boolean)
+							.join(' · ')}{:else}Your offline reference shelf{/if}
 				</p>
 			</div>
 			{#if !app.isGuest}<a class="btn" href="/library/files"><FolderOpen size={16} /> My files</a>{/if}
@@ -86,7 +132,7 @@
 
 		<div class="searchbar">
 			<Search size={19} />
-			<input bind:value={q} oninput={onInput} onkeydown={(e) => e.key === 'Enter' && search()} placeholder="Search every article, guide and answer…" data-autofocus />
+			<input bind:this={searchEl} bind:value={q} oninput={onInput} onkeydown={(e) => e.key === 'Enter' && search()} placeholder="Search every article, guide and answer…" data-autofocus />
 			{#if searching}<Loader size={17} class="spin" />{/if}
 			{#if q}<button class="icon-btn sm" onclick={() => { q = ''; results = null; }} aria-label="Clear"><X size={16} /></button>{/if}
 		</div>
@@ -105,9 +151,9 @@
 						<span>Ask Mimi: <b>{q}</b></span>
 					</button>
 				{/if}
-				{#each results as r (r.book + r.path)}
+				{#each results as r (r.book + r.path + '#' + (r.page || 0))}
 					<a class="result" href={r.url}>
-						<span class="rbook">{r.book_title}</span>
+						<span class="rbook">{#if r.page}<FileText size={12} />{/if}{r.book_title}</span>
 						<span class="rtitle">{r.title}</span>
 						<span class="rsnip">{r.snippet}</span>
 					</a>
@@ -128,12 +174,16 @@
 				<h2 class="label glabel">{label}</h2>
 				<div class="grid">
 					{#each list as b (b.name)}
-						<button class="book card card-hover" onclick={() => openBook(b)}>
+						{@const st = status(b)}
+						<button class="book card card-hover" class:dim={st.tone === 'bad'} onclick={() => openBook(b)} title={b.health?.note || ''}>
 							<span class="bicon">{#if b.icon}<img src={b.icon} alt="" />{:else}<BookOpen size={20} />{/if}</span>
 							<span class="binfo">
 								<b>{b.title}</b>
 								<small>{b.summary}</small>
-								<span class="bmeta">{b.articles.toLocaleString()} {b.collection === 'talks' ? (b.articles === 1 ? 'talk' : 'talks') : b.articles === 1 ? 'article' : 'articles'}{#if b.size} · {fmtBytes(b.size)}{/if}</span>
+								<!-- One string: Svelte trims whitespace at the edge of {#if} blocks, which once ate the space before "·". -->
+								<span class="bmeta">{[`${(b.items ?? b.articles).toLocaleString()} ${b.item_noun || 'articles'}`, b.size ? fmtBytes(b.size) : ''].filter(Boolean).join(' · ')}</span>
+								<span class="bstatus {st.tone}"><i></i>{st.label}{#if st.tone === 'busy' && indexing?.total && b.name === indexing.book}{` · ${indexing.done} of ${indexing.total}`}{/if}</span>
+								{#if b.health?.note && st.tone !== 'ok' && st.tone !== 'idle'}<span class="bnote">{b.health.note}</span>{/if}
 							</span>
 						</button>
 					{/each}
@@ -243,6 +293,68 @@
 		color: var(--text-3);
 		margin-top: 4px;
 	}
+	.book.dim {
+		opacity: 0.62;
+	}
+	.book.dim:hover {
+		opacity: 0.85;
+	}
+	.bstatus {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 0.72rem;
+		color: var(--text-3);
+		margin-top: 2px;
+	}
+	.bstatus i {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--text-3);
+		flex: none;
+	}
+	.bstatus.ok i {
+		background: var(--ok);
+	}
+	.bstatus.warn {
+		color: var(--warn);
+	}
+	.bstatus.warn i {
+		background: var(--warn);
+	}
+	.bstatus.bad {
+		color: var(--danger);
+	}
+	.bstatus.bad i {
+		background: var(--danger);
+	}
+	.bstatus.busy {
+		color: var(--accent);
+	}
+	.bstatus.busy i {
+		background: var(--accent);
+		animation: pulse 1.4s ease-in-out infinite;
+	}
+	.bstatus.idle i {
+		background: transparent;
+		border: 1px solid var(--text-3);
+	}
+	@keyframes pulse {
+		50% {
+			opacity: 0.25;
+		}
+	}
+	.bnote {
+		font-size: 0.75rem;
+		line-height: 1.4;
+		color: var(--text-2);
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
 	.results {
 		display: flex;
 		flex-direction: column;
@@ -275,6 +387,9 @@
 		background: var(--surface);
 	}
 	.rbook {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
 		font-size: 0.74rem;
 		color: var(--accent);
 		font-weight: 550;
