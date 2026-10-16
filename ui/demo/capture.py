@@ -40,14 +40,14 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "core"))
 sys.path.insert(0, str(ROOT / "ui" / "e2e"))
 
-import fixture_core as fx  # noqa: E402  (also puts core/ on sys.path)
-import httpx  # noqa: E402
-import uvicorn  # noqa: E402
-from fastapi.responses import RedirectResponse  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from mimi import hardware  # noqa: E402
-from mimi.app import create_app  # noqa: E402
-from mimi.paths import Paths  # noqa: E402
+import fixture_core as fx
+import httpx
+import uvicorn
+from fastapi.responses import RedirectResponse
+from fastapi.testclient import TestClient
+from mimi import hardware
+from mimi.app import create_app
+from mimi.paths import Paths
 
 OUT = ROOT / "ui" / "src" / "lib" / "demo" / "recorded.json"
 

@@ -44,3 +44,5 @@ desktop.ini
 .claude/worktrees/
 ui/test-results/
 ui/playwright-report/
+/ui/test-results-demo/
+/ui/playwright-report-demo/
