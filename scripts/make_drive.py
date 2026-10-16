@@ -39,6 +39,9 @@ import fetch
 
 CODE = ["core", "config", "scripts", "manifests", "docs", "tools", "shell", "LICENSE", "README.md"]
 EXCLUDE_DIRS = ["__pycache__", ".pytest_cache", "node_modules", ".svelte-kit", "obj", "bin\\Debug", "tests"]
+# Never leaves the device, even with --include-my-data: the local CA's private key. Phones that
+# trust this Mimi would trust anyone holding it; the drive makes its own CA on first start.
+DATA_NEVER_COPIED = ["certs"]
 
 MODELS = {
     "lite": ["qwen3.5-4b", "bge-m3", "whisper/small", "tts"],
@@ -236,7 +239,8 @@ def plan(args) -> tuple[list[tuple[Path, Path, list[str] | None]], int, list[str
         total += sum(size[b] for b in chosen)
     if args.include_my_data:
         total += add("data")
-        notes.append("Including your personal data (accounts, chats, memories). Anyone with the drive can read it.")
+        notes.append("Including your personal data (accounts, chats, memories). Anyone with the drive can read it. "
+                     "The certificate phones trust stays on this device; phones must install the drive's own one.")
     return jobs, total, notes
 
 
@@ -290,7 +294,8 @@ def main() -> None:
             continue
         label = src.relative_to(ROOT) if src != ROOT else ", ".join(files or [])[:70]
         print(f"[{i}/{len(jobs)}] {label} ...", flush=True)
-        robocopy(src, d, files, EXCLUDE_DIRS if files is None else None)
+        excl = EXCLUDE_DIRS + (DATA_NEVER_COPIED if src == ROOT / "data" else []) if files is None else None
+        robocopy(src, d, files, excl)
 
     (dst / "data").mkdir(parents=True, exist_ok=True)
     (dst / "logs").mkdir(parents=True, exist_ok=True)
