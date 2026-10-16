@@ -58,9 +58,11 @@
 	const metric = $derived(app.settings.device?.general?.units === 'metric');
 	const fmtDist = (km: number) => (metric ? `${km.toFixed(1)} km` : `${(km * 0.621371).toFixed(1)} mi`);
 
-	// The world map (zoom 0-11) is drawn under the detailed regions. Where a region fully
-	// covers a world tile, that tile is served empty so the handheld doesn't draw both;
-	// abroad, MapLibre stretches the zoom-11 world tiles when you zoom in further.
+	// The world map is drawn under the detailed regions. Where a region fully covers a world
+	// tile, that tile is served empty so the handheld doesn't draw both; abroad, MapLibre
+	// stretches the world map's deepest tiles when you zoom in further. How deep that is depends
+	// on the pack (zoom 7 in Lite, 11 in Standard), so it is read from the file's header.
+	let worldMaxZoom = 11;
 	const EMPTY = new Uint8Array(0);
 	function coveredByRegion(z: number, x: number, y: number): boolean {
 		const n = 2 ** z;
@@ -87,7 +89,7 @@
 		const sources: Record<string, any> = {};
 		let all: any[] = [];
 		if (info.world_url) {
-			sources.world = { type: 'vector', tiles: ['mimiworld://{z}/{x}/{y}'], minzoom: 0, maxzoom: 11, attribution: '© OpenStreetMap contributors · Protomaps' };
+			sources.world = { type: 'vector', tiles: ['mimiworld://{z}/{x}/{y}'], minzoom: 0, maxzoom: worldMaxZoom, attribution: '© OpenStreetMap contributors · Protomaps' };
 			all = (layers('world', flavor, { lang: 'en' }) as any[]).map((l) => ({ ...l, id: `world-${l.id}` }));
 		}
 		if (info.tiles_url) {
@@ -114,7 +116,12 @@
 		maplibregl.setWorkerUrl(workerUrl);
 		const protocol = new Protocol();
 		maplibregl.addProtocol('pmtiles', protocol.tile);
-		if (info.world_url) maplibregl.addProtocol('mimiworld', worldTiles(new PMTiles(`${location.origin}${info.world_url}`)) as any);
+		if (info.world_url) {
+			const world = new PMTiles(`${location.origin}${info.world_url}`);
+			// a source's maxzoom past the file's own would ask for tiles that don't exist: blank map abroad
+			worldMaxZoom = await world.getHeader().then((h) => h.maxZoom).catch(() => 11);
+			maplibregl.addProtocol('mimiworld', worldTiles(world) as any);
+		}
 		const start = loc ? [loc.lon, loc.lat] : [-98.5, 39.8];
 		map = new maplibregl.Map({
 			container: el,
