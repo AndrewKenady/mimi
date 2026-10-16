@@ -176,7 +176,8 @@ def cmd_add(args) -> int:
         say(f"\nNot enough space: this needs {fmt_size(need)} plus {fmt_size(HEADROOM)} to spare, and {fmt_size(free)} is free "
             f"on the drive holding {content_root()}.\nFree some space, remove packs (content.py remove ...), set MIMI_CONTENT to a bigger "
             f"drive, or pass --force to try anyway.")
-        return 2
+        if not args.dry_run:
+            return 2
     if args.dry_run:
         say("\n(dry run: nothing downloaded)")
         fetch.run(todo, dry=True)
