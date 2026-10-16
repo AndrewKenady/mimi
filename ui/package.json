@@ -8,7 +8,8 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && npm run --silent contrast",
+    "contrast": "node --disable-warning=ExperimentalWarning scripts/contrast.mjs"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.10",
