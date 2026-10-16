@@ -1,0 +1,3 @@
+# Raw run output: large (it holds the text of every cited article) and device-specific.
+# Commit the scoreboard from reports/ instead; attach the JSONL to the PR if reviewers want it.
+/results/
