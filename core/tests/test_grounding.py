@@ -92,6 +92,13 @@ def test_supported_paraphrases(claim, src):
     assert r.verdict == g.SUPPORTED, (claim, r)
 
 
+def test_negated_claim_against_a_restricted_source_is_not_a_contradiction():
+    # "only an expert…makes it safe to eat" agrees with "don't eat it unless an expert…"
+    src = "There is no simple test for edibility, and only expert positive identification makes a wild mushroom safe to eat."
+    r = g.support("Don't eat any wild mushroom unless an expert has positively identified it.", src)
+    assert not r.polarity_mismatch and r.verdict != g.UNSUPPORTED
+
+
 def test_cool_water_not_ice_is_not_a_contradiction():
     # the source's "not ice" negates ice, not the cooling the claim asserts
     src = "Cool the burn with cool running water, not ice, for 20 minutes."

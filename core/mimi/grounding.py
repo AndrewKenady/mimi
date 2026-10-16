@@ -100,6 +100,7 @@ GENERIC = set(
 )
 NEGATIONS = re.compile(r"\b(not|no|never|none|nothing|neither|nor|without|avoid|avoiding|don'?t|doesn'?t|didn'?t|isn'?t|aren'?t|"
                        r"wasn'?t|weren'?t|shouldn'?t|can'?t|cannot|won'?t|mustn'?t|instead of|rather than)\b", re.I)
+_RESTRICT = re.compile(r"\b(only|unless|except|no|not|never|without|nor|none)\b|n't\b", re.I)
 _GENERIC_ENTITY = {"mount", "mt", "river", "lake", "saint", "st", "north", "south", "east", "west", "new", "university",
                    "dr", "mr", "mrs", "ms", "sir", "king", "queen", "national", "park", "the"}
 _ABBREV = re.compile(r"\b(e\.g|i\.e|etc|vs|approx|dr|mr|mrs|ms|st|mt|no|fig|ca|u\.s|u\.k|a\.m|p\.m|jr|sr)\.", re.I)
@@ -617,7 +618,7 @@ def _neg_targets(text: str) -> set[str]:
     for m in NEGATIONS.finditer(text):
         # The scope runs to the end of the clause: a list ("ice, iced water, butter or creams") stays
         # in it, a prepositional tail ("not ice, for 20 minutes") or a new clause doesn't.
-        scope = re.split(r"[;:.!?()]|\b(?:but|then|because|so|which|while|for|to|with|in|on|at|by|from|until|after|before|during|if|when)\b",
+        scope = re.split(r"[;:.!?()]|\b(?:but|then|because|so|which|while|for|to|with|in|on|at|by|from|until|unless|except|after|before|during|if|when)\b",
                          text[m.end():], maxsplit=1)[0]
         if "," not in scope:
             scope = re.split(r"\band\b", scope, maxsplit=1)[0]
@@ -659,8 +660,10 @@ def _support_lexical(claim_text: str, src: _Source, th: Thresholds) -> tuple[flo
         # the source negates something the claim asserts ("do not apply butter" vs "apply butter") …
         if any(matched[t] & s_neg for t in asserted):
             polarity = True
-        # … or the claim negates something the source asserts and never negates
-        elif any(matched.get(t, set()) & span_stems and not matched.get(t, set()) & s_neg for t in c_neg):
+        # … or the claim negates something the source asserts plainly. A source sentence with any
+        # restriction in it ("only an expert can…", "unless…") is too subtle for this check.
+        elif not any(_RESTRICT.search(src.sents[j]) for j in range(first, first + size)) and \
+                any(matched.get(t, set()) & span_stems for t in c_neg):
             polarity = True
     return lexical, best_i, missing_nums, missing_ents, polarity
 
