@@ -70,12 +70,12 @@
 <div class="wrap" data-layer>
 	{#if pairing}
 		<div class="panel" role="status" aria-live="polite">
-			<span class="pic"><MonitorSmartphone size={30} /></span>
+			<span class="pic" aria-hidden="true"><MonitorSmartphone size={30} /></span>
 			<h1>Check the Mimi screen</h1>
 			<p class="sub">Tap <b>Allow</b> on the Mimi device to sign in as {name.trim()}. It shows this code:</p>
-			<div class="code" aria-label="Code {pairing.code.split('').join(' ')}">{#each pairing.code.split('') as d}<span>{d}</span>{/each}</div>
+			<div class="code" role="img" aria-label="Code {pairing.code.split('').join(' ')}">{#each pairing.code.split('') as d}<span aria-hidden="true">{d}</span>{/each}</div>
 			{#if pairing.screen}
-				<p class="fine waiting"><span class="dot"></span> Waiting for approval…</p>
+				<p class="fine waiting"><span class="dot" aria-hidden="true"></span> Waiting for approval…</p>
 			{:else}
 				<p class="warn">Mimi isn't open on the device's screen right now, so nobody can tap Allow. Open or unlock Mimi there and this request will appear, or cancel and use your PIN.</p>
 			{/if}
@@ -85,27 +85,36 @@
 	<form class="panel" onsubmit={go}>
 		<Well size={170} mood="idle" />
 		{#if locked}
-			<h1><Lock size={22} /> Mimi is locked</h1>
+			<h1><Lock size={22} aria-hidden="true" /> Mimi is locked</h1>
 			<p class="sub">Enter the owner's PIN to continue.</p>
-			<input class="input big" type="password" inputmode="numeric" placeholder="PIN" bind:value={secret} maxlength="8" data-autofocus />
+			<label class="field">
+				<span class="field-label">PIN</span>
+				<input class="input big" type="password" inputmode="numeric" bind:value={secret} maxlength="8" autocomplete="current-password" data-autofocus aria-invalid={!!error} aria-describedby={error ? 'signin-err' : undefined} />
+			</label>
 		{:else}
 			<h1>Welcome to Mimi</h1>
 			<p class="sub">An AI that lives entirely on this device, with no internet needed.</p>
-			<div class="seg">
+			<div class="seg" role="group" aria-label="How to join">
 				{#if app.boot?.guest_access !== false}
-					<button type="button" class:on={mode === 'guest'} onclick={() => (mode = 'guest')}>Join as guest</button>
+					<button type="button" class:on={mode === 'guest'} aria-pressed={mode === 'guest'} onclick={() => (mode = 'guest')}>Join as guest</button>
 				{/if}
-				<button type="button" class:on={mode === 'account'} onclick={() => (mode = 'account')}>Sign in</button>
+				<button type="button" class:on={mode === 'account'} aria-pressed={mode === 'account'} onclick={() => (mode = 'account')}>Sign in</button>
 			</div>
-			<input class="input big" placeholder={mode === 'guest' ? 'Your name (optional)' : 'Name'} bind:value={name} maxlength="40" data-autofocus />
+			<label class="field">
+				<span class="field-label">{mode === 'guest' ? 'Your name (optional)' : 'Name'}</span>
+				<input class="input big" bind:value={name} maxlength="40" autocomplete="username" data-autofocus aria-invalid={!!error && mode === 'account'} aria-describedby={error ? 'signin-err' : undefined} />
+			</label>
 			{#if mode === 'account'}
-				<input class="input big" type="password" placeholder="PIN or password" bind:value={secret} autocomplete="current-password" />
-				<p class="fine">No PIN? Leave it blank and approve on the Mimi device.</p>
+				<label class="field">
+					<span class="field-label">PIN or password</span>
+					<input class="input big" type="password" bind:value={secret} autocomplete="current-password" aria-describedby="signin-pin-hint" />
+					<span class="fine" id="signin-pin-hint">No PIN? Leave it blank and approve on the Mimi device.</span>
+				</label>
 			{/if}
 			{#if mode === 'guest'}<p class="fine">Guest chats aren't saved and Mimi won't remember you.</p>{/if}
 		{/if}
-		{#if error}<p class="err">{error}</p>{/if}
-		<button class="btn btn-primary btn-lg" disabled={busy}>{busy ? 'One moment…' : locked ? 'Unlock' : mode === 'account' && !secret ? 'Ask the Mimi device' : 'Continue'} <ArrowRight size={18} /></button>
+		{#if error}<p class="err" id="signin-err" role="alert">{error}</p>{/if}
+		<button class="btn btn-primary btn-lg" disabled={busy}>{busy ? 'One moment…' : locked ? 'Unlock' : mode === 'account' && !secret ? 'Ask the Mimi device' : 'Continue'} <ArrowRight size={18} aria-hidden="true" /></button>
 	</form>
 	{/if}
 </div>
@@ -120,7 +129,7 @@
 		overflow-y: auto;
 	}
 	.panel {
-		width: min(420px, calc(100vw - 32px));
+		width: min(420px, calc(100vw - 2 * var(--space-4)));
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -151,7 +160,7 @@
 	}
 	.seg button {
 		flex: 1;
-		height: 38px;
+		height: var(--control-md);
 		border-radius: var(--radius-pill);
 		color: var(--text-2);
 		font-weight: var(--fw-medium);
@@ -160,12 +169,15 @@
 	.seg button.on {
 		background: var(--surface-3);
 		color: var(--text);
+		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.input.big {
-		height: 3.2rem;
-		font-size: var(--fs-base);
-		text-align: center;
+		height: var(--control-lg);
+		font-size: var(--fs-lg);
 		border-radius: var(--radius-lg);
+	}
+	.field .fine {
+		text-align: left;
 	}
 	.fine {
 		color: var(--text-3);
