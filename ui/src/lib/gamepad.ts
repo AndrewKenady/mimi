@@ -1,6 +1,7 @@
 // Gamepad support: spatial navigation with the D-pad / left stick, and
 // configurable button actions (see Settings → Controls).
 import { goto } from '$app/navigation';
+import { base } from '$app/paths';
 import { app } from './app.svelte';
 import { scrollBehavior } from './motion';
 
@@ -70,7 +71,7 @@ export function moveFocus(dir: Dir) {
 }
 
 function currentSurfaceIndex(): number {
-	const p = location.pathname;
+	const p = __MIMI_DEMO__ ? location.pathname.slice(base.length) || '/' : location.pathname;
 	let idx = 0;
 	SURFACES.forEach((s, i) => {
 		if (s === '/' ? p === '/' : p.startsWith(s)) idx = i;
