@@ -14,6 +14,8 @@ Each line of eval/questions/*.jsonl is one item:
     query              optional short keyword query for --retrieval-only (else the question)
     needs_location     optional: the answer depends on the device's location
     behavior_without_location  optional: expected behavior when no location is set
+    needs_services     optional: the answer needs the fuel/hospital table (it comes with offline directions)
+    behavior_without_services  optional: expected behavior when the device doesn't have it
     expected_tools     optional: tools a good turn calls (any one counts)
     tags               optional labels (false_premise, dosing, prompt_injection, ...)
     notes              optional free text
@@ -66,7 +68,7 @@ def validate(items: list[dict]) -> list[str]:
         seen.add(iid)
         if it.get("domain") not in DOMAINS:
             errs.append(f"{iid}: unknown domain {it.get('domain')!r}")
-        for key in ("behavior", "behavior_without_location"):
+        for key in ("behavior", "behavior_without_location", "behavior_without_services"):
             if key in it and it[key] not in BEHAVIORS:
                 errs.append(f"{iid}: bad {key} {it[key]!r}")
         for c in it.get("collections", []):
@@ -89,9 +91,11 @@ def _patterns(facts: list) -> list[str]:
     return out
 
 
-def expected_behavior(item: dict, location_known: bool | None) -> str:
+def expected_behavior(item: dict, location_known: bool | None, services_known: bool | None = None) -> str:
     if item.get("needs_location") and location_known is False:
         return item.get("behavior_without_location", item["behavior"])
+    if item.get("needs_services") and not services_known:  # rows from before 0.2 don't say: no device had it then
+        return item.get("behavior_without_services", item["behavior"])
     return item["behavior"]
 
 

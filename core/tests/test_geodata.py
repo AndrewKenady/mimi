@@ -142,7 +142,7 @@ def test_missing_databases_degrade_gracefully(tmp_path):
     assert g.where_am_i(*CN_TOWER) == {}
     assert g.search_places("toronto") == []
     assert g.wiki_location("CN_Tower") is None
-    assert g.info() == {"places": {"available": False}, "wiki": {"available": False}}
+    assert g.info() == {"places": {"available": False}, "wiki": {"available": False}, "pois": {"available": False}}
     g.close()
 
 

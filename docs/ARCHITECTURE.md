@@ -82,6 +82,15 @@ In the browser, deltas are batched per animation frame and the markdown is rende
 - **Passages and citations.** `passage()` picks paragraphs by BM25 (plus embedding similarity when available). A PDF hit is cited by page ("Where there is no Doctor, p. 265") and links to `/library/read/<book>/<file>.pdf#page=312`, which opens the browser's PDF viewer at that page.
 - **Reader.** HTML articles are cleaned server-side (`render_reader`): scripts, frames and forms are dropped, and only http(s)/mailto and relative links survive. PDFs, video and audio are served by the `/kiwix` proxy, where only PDFs and media may be framed (by Mimi itself) and ZIM HTML/SVG is CSP-sandboxed. See D16.
 
+## Places, services and addresses
+
+All offline, all SQLite files in `maps/` opened read-only (`geodata.py`, `address.py`), built on the device by `scripts/` from the downloads in `manifests/packs.json`:
+
+- **Notable places** (`places.sqlite` from GeoNames, `geowiki.sqlite` from Wikipedia geotags) answer "where am I" and "what's near me", ranked by how notable they are and how close.
+- **Services** (`pois.sqlite`): fuel stations, hospitals, clinics, pharmacies and ambulance stations from the region's OpenStreetMap extract, built by `build_geodata.py --only pois` in the routing pack. `nearby` takes them as stable kind ids (`fuel`, `hospital`, `clinic`, `pharmacy`, `ambulance`; `health` for the medical four) and lists them nearest first, widening the search until one is found (up to 250 km). "all" stays the notable places only. See [D17](DECISIONS.md#d17--fuel-stations-and-health-services-from-the-routing-extract-in-their-own-file).
+- **Addresses** (`addresses.sqlite`): US Census TIGER and the Statistics Canada register in North America, OpenStreetMap address points elsewhere ([D19](DECISIONS.md#d19--street-addresses-outside-the-us-and-canada-from-openstreetmap-without-touching-the-us-and-canadian-keys)). An index built from OpenStreetMap alone switches the parser to the international forms ("Hauptstraße 5, 10115 Berlin") and writes results the way the country does.
+- **One extract per region.** The content manager downloads the region's Geofabrik extract once (`"type": "osm"`), every build that reads it (addresses, services, routing) runs, and then it is deleted ([D18](DECISIONS.md#d18--one-openstreetmap-download-per-region-shared-by-the-builds-that-read-it)).
+
 ## Memory and models
 
 The reference device has 16 GB of RAM; about 3 GB of that is carved out for the iGPU, which the model can also use.
@@ -99,7 +108,7 @@ The reference device has 16 GB of RAM; about 3 GB of that is carved out for the 
 | `python/` | portable CPython 3.12 + packages | no |
 | `models/` | GGUF models, Whisper, Kokoro | no |
 | `zim/` | offline library (Kiwix ZIM files) | no |
-| `maps/` | `tiles.pmtiles`, fonts/sprites, `places.sqlite`, `geowiki.sqlite`, `routing/` | no |
+| `maps/` | `tiles.pmtiles`, fonts/sprites, `places.sqlite`, `geowiki.sqlite`, `pois.sqlite` (fuel, hospitals), `addresses.sqlite`, `routing/` | no |
 | `data/` | `mimi.db` (users, chats, memories, settings), uploads, library, notes, certs, WebView2 profile; `library-index.sqlite` (PDF text from the ZIMs, a rebuildable cache) | no (personal) |
 | `logs/` | component logs | no |
 

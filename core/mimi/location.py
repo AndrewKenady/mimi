@@ -151,6 +151,8 @@ class LocationService:
                 "places": bool(self.geo and getattr(self.geo, "places_available", True)),
                 "wikipedia": bool(self.geo and getattr(self.geo, "wiki_available", True)),
                 "addresses": bool(self.addr),
+                # fuel stations, hospitals, clinics, pharmacies, ambulance stations (OpenStreetMap)
+                "services": bool(self.geo and getattr(self.geo, "pois_available", False)),
             },
         }
 
@@ -206,8 +208,9 @@ class LocationService:
                 places = geo.search_places(query, limit=limit, near=near)
             except Exception as e:
                 L.warning("place search failed: %s", e)
-        address_first = looks_like_address(query)
-        parsed = parse_address(query) if addr or address_first else None
+        intl = bool(addr and getattr(addr, "intl", False))  # an index from OpenStreetMap outside North America
+        address_first = looks_like_address(query, intl)
+        parsed = parse_address(query, intl) if addr or address_first else None
         if addr and (address_first or parsed["typed"]):
             try:
                 addrs = addr.search(query, near=near, limit=limit,

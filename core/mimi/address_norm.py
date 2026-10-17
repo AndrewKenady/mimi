@@ -21,6 +21,13 @@ exactly with an index lookup:
 Both functions are pure and fast (they run once per row while building an index of
 tens of millions of streets), and the build and the query side MUST use the same
 version: changing a mapping here means rebuilding maps/addresses.sqlite.
+
+Outside North America the index keys are made the same way, so "Hauptstraße" is keyed
+"hauptstraße" and "Rue de la Paix" "rue de la paix". Spellings people type for those
+("Hauptstrasse", "Hauptstr.", "Muellerstrasse", "C/ Mayor", "P.zza Garibaldi") are tried
+as extra keys at query time (``intl_variants``), so nothing here changes an existing key.
+The rest of this module's international part says how countries write an address
+(``number_first``, ``postcode_first``) and reads their postcodes and house numbers.
 """
 
 from __future__ import annotations
@@ -394,3 +401,198 @@ def house_number(text: str) -> tuple[int, str] | None:
     if not m:
         return None
     return int(m.group(1)), (m.group(1) + ((" " if m.group(2) in ("1/2", "½") else "") + m.group(2).upper() if m.group(2) else "")).strip()
+
+
+# --- how countries write an address -------------------------------------------------------
+# The house number comes before the street ("10 Downing Street", "12 rue de la Paix") in these
+# countries, and after it ("Hauptstraße 5", "Via Roma 1", "Calle Mayor 12") in the rest of
+# Europe and in Latin America.
+NUMBER_FIRST = frozenset(("US", "CA", "GB", "IE", "IM", "JE", "GG", "FR", "MC", "LU", "AU", "NZ", "ZA", "IN", "PH",
+                          "SG", "MY", "HK", "PR", "GU", "VI", "AS", "MP"))
+# The postcode follows the town ("London SW1A 2AA", "Sydney NSW 2000") here, and comes first
+# ("10115 Berlin", "75002 Paris", "9490 Vaduz") elsewhere in Europe.
+POSTCODE_AFTER = frozenset(("US", "CA", "GB", "IE", "IM", "JE", "GG", "AU", "NZ", "ZA", "IN", "PH", "SG", "MY", "HK",
+                            "PR", "GU", "VI", "AS", "MP"))
+
+
+def number_first(country: str | None) -> bool | None:
+    """Does this country (ISO code) write the house number before the street? None if unknown."""
+    return None if not country else country.upper() in NUMBER_FIRST
+
+
+def postcode_first(country: str | None) -> bool | None:
+    """Does this country write the postcode before the town? None if unknown."""
+    return None if not country else country.upper() not in POSTCODE_AFTER
+
+
+_UK_POSTCODE = re.compile(r"([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})")  # SW1A 2AA, M1 1AE, JE2 4WE
+_EIRCODE = re.compile(r"([AC-FHKNPRTV-Y]\d{2}|D6W)\s*([AC-FHKNPRTV-Y\d]{4})")  # D02 X285
+_NL_POSTCODE = re.compile(r"(\d{4})\s*([A-Z]{2})")  # 1012 AB
+_PREFIXED = re.compile(r"(?:[A-Z]{1,3})-(\d{4,5})")  # D-10115, CH-9050, FL-9490, L-1234 (the old country prefix)
+
+
+def intl_postcode(text: str | None) -> str | None:
+    """A postcode outside the US and Canada, normalized for lookup (upper case, no spaces).
+
+    'SW1A 2AA' -> 'SW1A2AA', 'D02 X285' -> 'D02X285', '1012 ab' -> '1012AB', 'AD500' -> 'AD500',
+    '10115', '9490', 'D-10115' -> '10115', '114 55' -> '11455', '00-950' -> '00950',
+    '1000-001' -> '1000001'. None for anything else (including Canadian codes)."""
+    t = re.sub(r"\s+", " ", (text or "").strip().upper())
+    if not t or len(t) > 10:
+        return None
+    if m := _PREFIXED.fullmatch(t):
+        return m.group(1)
+    for rx in (_UK_POSTCODE, _EIRCODE, _NL_POSTCODE):
+        if m := rx.fullmatch(t):
+            return m.group(1) + m.group(2)
+    if re.fullmatch(r"AD ?\d{3}", t):
+        return t.replace(" ", "")
+    if re.fullmatch(r"\d{4,6}|\d{3} \d{2}|\d{2}-\d{3}|\d{4}-\d{3}", t):
+        return t.replace(" ", "").replace("-", "")
+    return None
+
+
+def format_intl_postcode(code: str | None) -> str | None:
+    """How a normalized postcode is printed: 'SW1A 2AA', 'D02 X285', '1012 AB'; others as they are."""
+    if not code:
+        return code
+    if _UK_POSTCODE.fullmatch(code):
+        return f"{code[:-3]} {code[-3:]}"
+    if _EIRCODE.fullmatch(code):
+        return f"{code[:3]} {code[3:]}"
+    if _NL_POSTCODE.fullmatch(code):
+        return f"{code[:4]} {code[4:]}"
+    return code
+
+
+def uk_outward(code: str | None) -> str | None:
+    """'SW1A2AA' -> 'SW1A', the district of a full UK postcode (like a Canadian FSA)."""
+    return code[:-3] if code and _UK_POSTCODE.fullmatch(code) else None
+
+
+def postcode_style(code: str | None) -> str | None:
+    """Which family a normalized postcode belongs to: 'uk', 'ie', 'nl', 'ad', 'digits' or None."""
+    if not code:
+        return None
+    if _UK_POSTCODE.fullmatch(code):
+        return "uk"
+    if _EIRCODE.fullmatch(code):
+        return "ie"
+    if _NL_POSTCODE.fullmatch(code):
+        return "nl"
+    if code.startswith("AD"):
+        return "ad"
+    return "digits" if code.isdigit() else None
+
+
+_HN_INTL = re.compile(r"(\d{1,5})\s*(bis|ter|quater|[a-z])?(?:\s*([-/])\s*(\d{1,5}|[a-z])\s*([a-z])?)?", re.I)
+
+
+def house_number_intl(text: str | None) -> list[tuple[int, str]]:
+    """House numbers as Europe writes them: (number, text) pairs, the text as written without
+    spaces (matching ignores case).
+
+    '5' -> [(5, '5')]; '5a', '5 a' -> [(5, '5a')]; '12bis' -> [(12, '12bis')]; '5/1', '1/A' ->
+    [(5, '5/1')], [(1, '1/A')]; a range '13-14' or '16-18' -> both ends, [(16, '16-18'), (18,
+    '16-18')]. Anything else (Canada's '4-123', unit 4 of civic 123) -> []."""
+    m = _HN_INTL.fullmatch((text or "").strip())
+    if not m:
+        return []
+    a, suffix, sep, b, b_suffix = m.groups()
+    n = int(a)
+    if not sep:
+        return [(n, a + (suffix or ""))]
+    if suffix:
+        return []
+    if sep == "/":
+        return [(n, f"{a}/{b}{b_suffix or ''}")]
+    if b.isdigit() and n < int(b) <= n + 20:  # 16-18: both numbers on one building
+        nt = f"{a}-{b}{b_suffix or ''}"
+        return [(n, nt), (int(b), nt)]
+    return []
+
+
+# Street words that show a name is a street in Europe: a type first ("Calle Mayor", "Via Roma",
+# "Rua Augusta", "ul. Długa") or a compound ending ("Hauptstraße", "Kirchgasse", "Damrak"
+# has neither, and stays unrecognized).
+INTL_TYPE_FIRST = frozenset((
+    "calle", "c", "cl", "carrer", "cr", "via", "viale", "vle", "vicolo", "vico", "piazza", "pza", "piazzale", "largo",
+    "corso", "strada", "contrada", "lungomare", "salita", "avenida", "avda", "avinguda", "av", "rua", "travessa",
+    "travesia", "travessera", "plaza", "placa", "praca", "paseo", "passeig", "rambla", "carretera", "ctra", "camino",
+    "cami", "ronda", "glorieta", "costa", "cuesta", "rue", "avenue", "boulevard", "bd", "bld", "place", "quai", "chemin",
+    "impasse", "allee", "route", "cours", "ulica", "ul", "aleja", "al", "ulitsa", "odos", "sokak", "cadde",
+))
+INTL_TYPE_SUFFIXES = ("strasse", "straße", "str", "gasse", "weg", "platz", "allee", "damm", "ufer", "chaussee", "steig",
+                      "pfad", "markt", "graben", "zeile", "stieg", "kamp", "straat", "laan", "gracht", "plein", "kade",
+                      "singel", "dijk", "vej", "gade", "gata", "gatan", "vagen", "vag", "veien", "vegen", "katu",
+                      "utca", "ulice", "ulica", "cesta", "trg")
+
+
+def intl_typed(name: str) -> bool:
+    """Does a street name carry a European street word ('Calle Mayor', 'Hauptstraße', 'Städtle' doesn't)?"""
+    toks = fold(name).replace("/", " ").replace("-", " ").split()
+    if not toks:
+        return False
+    if len(toks) > 1 and toks[0] in INTL_TYPE_FIRST:
+        return True
+    last = toks[-1]
+    return any(last.endswith(s) and (len(last) > len(s) or len(toks) > 1) for s in INTL_TYPE_SUFFIXES)
+
+
+_LEADING_ABBR = [  # how people shorten a leading street word, and what it may stand for
+    (r"c\s*/\s*|c\.\s*|cl\.?\s+|cl/\s*", ("Calle ", "Carrer ")),
+    (r"avda\.?\s*", ("Avenida ",)),
+    (r"av\.?\s+|av\.\s*", ("Avenida ", "Avinguda ", "Avenue ")),
+    (r"p\.?\s?zza\.?\s*|pza\.?\s+|pza\.\s*", ("Piazza ", "Plaza ")),
+    (r"pl\.?\s+|pl\.\s*", ("Plaza ", "Plaça ", "Place ")),
+    (r"p[ºo°]\.?\s+|p[ºo°]\.\s*", ("Paseo ",)),
+    (r"pg\.?\s+|pg\.\s*", ("Passeig ",)),
+    (r"ctra\.?\s*", ("Carretera ",)),
+    (r"v\.\s*le\.?\s*|vle\.?\s+", ("Viale ",)),
+    (r"v\.\s*|v\s+(?=[a-z]{3})", ("Via ",)),
+    (r"c\.\s*so\.?\s*|cso\.?\s+", ("Corso ",)),
+    (r"l\.\s*go\.?\s*|lgo\.?\s+", ("Largo ",)),
+    (r"r\.\s*", ("Rua ", "Rue ")),
+    (r"bd\.?\s+|bld\.?\s+|bvd\.?\s+|boul\.?\s+", ("Boulevard ",)),
+    (r"ul\.?\s+|ul\.\s*", ("Ulica ",)),
+]
+_LEADING_ABBR_RX = [(re.compile(r"^(?:" + rx + ")", re.I), out) for rx, out in _LEADING_ABBR]
+
+
+def intl_variants(street: str) -> list[str]:
+    """Other spellings of a European street name, for extra key lookups at query time.
+
+    'Hauptstrasse' -> 'Hauptstraße'; 'Hauptstr.' -> 'Hauptstraße', 'Hauptstrasse', 'Hauptstraat';
+    'Muellerstrasse' -> 'Mullerstraße' (the index folds ü to u); 'C/ Mayor' -> 'Calle Mayor',
+    'Carrer Mayor'; 'P.zza Garibaldi' -> 'Piazza Garibaldi'. The original is not included."""
+    s = re.sub(r"\s+", " ", (street or "").strip())
+    if not s:
+        return []
+    bases = {s}
+    for rx, outs in _LEADING_ABBR_RX:
+        if m := rx.match(s):
+            rest = s[m.end():].strip()
+            if rest:
+                bases.update(o + rest for o in outs)
+            break
+    out: set[str] = set()
+    for b in bases:
+        forms = {b}
+        # "-str." / "Str." at the end of a word: Straße, Strasse or (Dutch) straat
+        m = re.search(r"(?i)str\.?$", b)
+        if m and not re.search(r"(?i)(stra(ss|ß)e|straat)$", b):
+            head = b[:m.start()]
+            forms.update(head + w for w in (("Straße", "Strasse", "Straat") if head.endswith(" ") or not head else
+                                             ("straße", "strasse", "straat")))
+        for f in list(forms):
+            if "ß" in f:
+                forms.add(f.replace("ß", "ss"))
+            elif re.search(r"(?i)ss", f):
+                forms.add(re.sub(r"(?i)strasse", lambda x: x.group(0)[:4] + "ße", f))
+                forms.add(f.replace("ss", "ß"))
+        for f in list(forms):  # typed without umlauts: ae/oe/ue for ä/ö/ü (inside a word: not "Rue", "Avenue")
+            if re.search(r"(?i)(?<=[a-zß])[aou]e(?=[a-zß])", f):
+                forms.add(re.sub(r"(?i)(?<=[a-zß])([aou])e(?=[a-zß])", r"\1", f))
+        out.update(forms)
+    out.discard(s)
+    return sorted(out)[:16]

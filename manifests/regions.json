@@ -1,5 +1,5 @@
 {
-  "$comment": "Named map regions for `install.py --region` and `content.py add --region`. bbox is west,south,east,north in degrees (a box, so neighbors' border areas come along). map_mb: size of the detailed map at that max zoom, measured with `pmtiles extract --dry-run` on the 2026-08 Protomaps build. routing_mb is a rough estimate of the built Valhalla tiles. countries: GeoNames codes for the places database. geofabrik: OpenStreetMap extracts for the routing build. Street-address search uses US Census TIGER and Statistics Canada data, so it exists only for regions marked addresses: true. Any other area works too for the map: pass --bbox W,S,E,N instead of a name (routing and the places database need a named region).",
+  "$comment": "Named map regions for `install.py --region` and `content.py add --region`. bbox is west,south,east,north in degrees (a box, so neighbors' border areas come along). map_mb: size of the detailed map at that max zoom, measured with `pmtiles extract --dry-run` on the 2026-08 Protomaps build. routing_mb is a rough estimate of the built Valhalla tiles. countries: GeoNames codes for the places database. geofabrik: OpenStreetMap extracts for the routing build (also the source of the fuel/hospital table, and of street addresses where marked osm). addresses: true builds street-address search from US Census TIGER and Statistics Canada data; \"osm\" builds it from the OpenStreetMap extract; regions without it (Japan, whose addresses are numbered blocks rather than streets) have none. Any other area works too for the map: pass --bbox W,S,E,N instead of a name (routing and the places database need a named region).",
   "default": "us",
   "regions": {
     "us":          { "title": "United States (lower 48)", "bbox": [-125.0, 24.3, -66.9, 49.5], "countries": ["US"], "geofabrik": ["north-america/us"],
@@ -9,15 +9,15 @@
     "us-canada":   { "title": "United States and Canada", "bbox": [-141.1, 24.3, -52.5, 72.0], "countries": ["US", "CA"], "geofabrik": ["north-america/us", "north-america/canada"],
                      "map_mb": { "12": 3800, "13": 7800, "14": 15600 }, "routing_mb": 18000, "addresses": true },
     "uk":          { "title": "United Kingdom and Ireland", "bbox": [-10.7, 49.8, 1.8, 60.9], "countries": ["GB", "IE"], "geofabrik": ["europe/united-kingdom", "europe/ireland-and-northern-ireland"],
-                     "map_mb": { "13": 764, "14": 1500 }, "routing_mb": 2000 },
+                     "map_mb": { "13": 764, "14": 1500 }, "routing_mb": 2000, "addresses": "osm" },
     "germany":     { "title": "Germany", "bbox": [5.8, 47.2, 15.1, 55.1], "countries": ["DE"], "geofabrik": ["europe/germany"],
-                     "map_mb": { "13": 1800, "14": 3500 }, "routing_mb": 3500 },
+                     "map_mb": { "13": 1800, "14": 3500 }, "routing_mb": 3500, "addresses": "osm" },
     "france":      { "title": "France (metropolitan)", "bbox": [-5.2, 41.3, 9.6, 51.1], "countries": ["FR"], "geofabrik": ["europe/france"],
-                     "map_mb": { "13": 2300, "14": 4500 }, "routing_mb": 3800 },
+                     "map_mb": { "13": 2300, "14": 4500 }, "routing_mb": 3800, "addresses": "osm" },
     "australia":   { "title": "Australia", "bbox": [112.9, -43.7, 153.7, -10.6], "countries": ["AU"], "geofabrik": ["australia-oceania/australia"],
-                     "map_mb": { "12": 234, "13": 506, "14": 1000 }, "routing_mb": 900 },
+                     "map_mb": { "12": 234, "13": 506, "14": 1000 }, "routing_mb": 900, "addresses": "osm" },
     "new-zealand": { "title": "New Zealand", "bbox": [166.3, -47.4, 178.6, -34.3], "countries": ["NZ"], "geofabrik": ["australia-oceania/new-zealand"],
-                     "map_mb": { "13": 169, "14": 312 }, "routing_mb": 300 },
+                     "map_mb": { "13": 169, "14": 312 }, "routing_mb": 300, "addresses": "osm" },
     "japan":       { "title": "Japan", "bbox": [122.9, 24.0, 146.0, 45.6], "countries": ["JP"], "geofabrik": ["asia/japan"],
                      "map_mb": { "13": 851, "14": 1700 }, "routing_mb": 2000 }
   },

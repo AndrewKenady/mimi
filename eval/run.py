@@ -92,6 +92,13 @@ class Mimi:
         except EvalError:
             return None
 
+    def services_known(self) -> bool | None:
+        """Does the device have the fuel/hospital table (it comes with offline directions)?"""
+        try:
+            return bool((self._json("GET", "/api/location").get("geodata") or {}).get("services"))
+        except EvalError:
+            return None
+
     # ---- models
     def main_model_setting(self) -> str | None:
         return self._json("GET", "/api/settings")["device"]["models"].get("main")
@@ -261,10 +268,12 @@ def select(items: list[dict], args) -> list[dict]:
     return items[: args.limit] if args.limit else items
 
 
-def chat_row(mimi: Mimi, item: dict, rep: int, args, run_id: str, location_known: bool | None, version: str) -> dict:
+def chat_row(mimi: Mimi, item: dict, rep: int, args, run_id: str, location_known: bool | None, version: str,
+             services_known: bool | None = None) -> dict:
     row: dict[str, Any] = {"run_id": run_id, "kind": "chat", "id": item["id"], "rep": rep, "domain": item["domain"],
                            "question": item["question"], "started_at": _now(), "mimi_version": version, "device": args.device,
-                           "location_known": location_known, "mode": args.mode, "think": args.think}
+                           "location_known": location_known, "services_known": services_known, "mode": args.mode,
+                           "think": args.think}
     try:
         got = mimi.ask(item["question"], mode=args.mode, think=args.think)
     except (httpx.HTTPError, EvalError) as e:
@@ -341,13 +350,14 @@ def run(args, transport: httpx.BaseTransport | None = None, log=print) -> Path:
         done = done_keys(out)
         run_id = uuid.uuid4().hex[:12]
         location_known = None if args.retrieval_only else mimi.location_known()
+        services_known = None if args.retrieval_only else mimi.services_known()
         reps = 1 if args.retrieval_only else max(1, args.repeats)
         todo = [(it, rep) for rep in range(reps) for it in items if (it["id"], rep) not in done]
         log(f"{len(todo)} to run ({len(done)} already in {out})")
         with out.open("a", encoding="utf-8") as f:
             for i, (it, rep) in enumerate(todo, 1):
                 row = retrieval_row(mimi, it, args, run_id, version) if args.retrieval_only else \
-                    chat_row(mimi, it, rep, args, run_id, location_known, version)
+                    chat_row(mimi, it, rep, args, run_id, location_known, version, services_known)
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
                 f.flush()
                 took = row.get("ms") if args.retrieval_only else (row.get("timings") or {}).get("total_ms")

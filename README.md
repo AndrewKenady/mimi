@@ -80,11 +80,11 @@ Mimi picks the Plus or Max models by itself on hardware that can run them, and u
 
 Every push runs [CI](.github/workflows/ci.yml) (Core on Linux, Windows and macOS):
 
-- **Core:** 396 tests, from geocoding to the CA's name constraints and prompt-injection defenses, plus ruff.
+- **Core:** 482 tests, from geocoding to the CA's name constraints and prompt-injection defenses, plus ruff.
 - **UI:**
   - type checks;
   - a WCAG AA contrast audit of every theme × token pair;
-  - 32 Playwright end-to-end tests against the real Core API, with a scripted model, covering the honest library, sources-first chat, flagged citations and recovery;
+  - 35 Playwright end-to-end tests against the real Core API, with a scripted model, covering the honest library, sources-first chat, flagged citations and recovery;
   - axe accessibility scans of every main screen in dark and light;
   - pixel snapshots of key screens.
 - **Evaluation:** the scoring pipeline runs on fixtures and publishes its scoreboard.

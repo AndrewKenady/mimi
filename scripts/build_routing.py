@@ -27,16 +27,9 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-GEOFABRIK = "https://download.geofabrik.de/{}-latest.osm.pbf"
-CONTINENTS = ("africa", "antarctica", "asia", "australia-oceania", "central-america", "europe", "north-america", "russia", "south-america")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fetch
-
-
-def geofabrik_url(region: str) -> str:
-    """us -> north-america/us; europe/germany stays as is."""
-    path = region if region.split("/")[0] in CONTINENTS else f"north-america/{region}"
-    return GEOFABRIK.format(path)
+from fetch import CONTINENTS, GEOFABRIK, geofabrik_url  # noqa: F401  (kept importable from here)
 
 
 def valhalla_dirs() -> tuple[Path, Path]:
@@ -48,28 +41,15 @@ def valhalla_dirs() -> tuple[Path, Path]:
 
 
 def download(regions: list[str], dest: Path) -> list[Path]:
-    """Fetch each extract (resumable, via <name>.part) and check it against Geofabrik's .md5."""
-    import hashlib
+    """Fetch each extract (resumable, via <name>.part) and check it against Geofabrik's .md5.
 
+    An extract already in ``dest`` (the installer downloads it first, because the fuel/hospital
+    table and outside North America the address index are built from the same file) is used as is."""
     dest.mkdir(parents=True, exist_ok=True)
-    files = []
-    for r in regions:
-        url = geofabrik_url(r)
-        out = dest / Path(url).name
-        files.append(out)
-        if out.exists() and not out.with_name(out.name + ".aria2").exists():
-            print(f"✓ {out.name} already downloaded")
-            continue
-        md5 = fetch.fetch_bytes(url + ".md5").decode().split()[0]
-        fetch.download(url, out)
-        h = hashlib.md5()
-        with open(out, "rb") as f:
-            while b := f.read(1 << 22):
-                h.update(b)
-        if h.hexdigest() != md5:
-            out.unlink()
-            sys.exit(f"{out.name} doesn't match Geofabrik's checksum (a new extract may have been published mid-download); run again")
-    return files
+    try:
+        return [fetch.download_osm_extract(r, dest) for r in regions]
+    except fetch.DownloadError as e:
+        sys.exit(str(e))
 
 
 DRIVABLE = {
@@ -223,6 +203,8 @@ def main() -> None:
     ap.add_argument("--concurrency", type=int, default=max(2, (os.cpu_count() or 4) // 2))
     ap.add_argument("--skip-download", action="store_true")
     ap.add_argument("--keep", action="store_true", help="keep the downloaded .osm.pbf files")
+    ap.add_argument("--keep-download", action="store_true",
+                    help="keep the input extracts (another build reads them next) but still delete the filtered copies")
     ap.add_argument("--pbf", nargs="*", help="use these local .osm.pbf files instead of downloading")
     ap.add_argument("--no-filter", action="store_true", help="build from the raw extracts (needs ~5x their size in temp space)")
     ap.add_argument("--full-roads", action="store_true", help="keep driveways, parking aisles and unnamed tracks (much more scratch space)")
@@ -248,21 +230,21 @@ def main() -> None:
     if missing:
         sys.exit(f"missing extracts: {', '.join(p.name for p in missing)}")
     pbfs = raw if args.no_filter else [roads_only(p) for p in raw]
-    if not args.keep and not args.no_filter:
+    if not (args.keep or args.keep_download) and not args.no_filter:
         for p in raw:  # free the space before the (disk-hungry) tile build
             p.unlink(missing_ok=True)
     if len(pbfs) > 1:
         merged = merge_pbfs(pbfs)
         if not args.keep:
             for p in pbfs:
-                if p not in raw or not args.pbf:  # never delete a file the user pointed at directly
+                if p not in raw or not (args.pbf or args.keep_download):  # never delete a file the user pointed at directly
                     p.unlink(missing_ok=True)
         pbfs = [merged]
     if not args.full_roads:
         lean = [lean_roads(p) for p in pbfs]
         if not args.keep:
             for p in pbfs:
-                if p not in raw or not args.pbf:
+                if p not in raw or not (args.pbf or args.keep_download):
                     p.unlink(missing_ok=True)
         pbfs = lean
 
@@ -300,7 +282,7 @@ def main() -> None:
     shutil.move(str(work), str(out))  # works across drives when --work is elsewhere
     print(f"✓ routing ready in {out} ({size / 1e9:.1f} GB, {meta['build_seconds'] // 60} min)")
     if not args.keep:
-        for p in pbfs + raw:
+        for p in pbfs + ([] if args.keep_download else raw):
             p.unlink(missing_ok=True)
 
 

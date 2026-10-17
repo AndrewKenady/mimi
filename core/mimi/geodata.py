@@ -1,18 +1,28 @@
 """Offline "where am I?", "what's near me?" and place search.
 
-Reads the two SQLite databases built by ``scripts/build_geodata.py``:
+Reads the SQLite databases built by ``scripts/build_geodata.py``:
 
-* ``places.sqlite``: the GeoNames gazetteer for the US and Canada
+* ``places.sqlite``: the GeoNames gazetteer for the region's countries
   (towns, parks, lakes, peaks, historic sites and more).
   Place data (c) GeoNames (CC BY 4.0)
 * ``geowiki.sqlite``: coordinates of English Wikipedia articles, worldwide.
   Wikipedia geotags, CC BY-SA 4.0
+* ``pois.sqlite``: fuel stations, hospitals, clinics, pharmacies and ambulance
+  stations from the region's OpenStreetMap extract (built with offline directions).
+  (c) OpenStreetMap contributors (ODbL 1.0)
 
-Only the standard library is used. Both files are opened read-only. If one is
+Only the standard library is used. All files are opened read-only. If one is
 missing, its results are simply empty, and ``places_available`` /
-``wiki_available`` report what is there. A rebuilt database that could not
-replace the one in use (it is left as ``<name>.new``) is moved into place when
-the directory is next opened. Close any old GeoData first when reloading.
+``wiki_available`` / ``pois_available`` report what is there. A rebuilt database
+that could not replace the one in use (it is left as ``<name>.new``) is moved into
+place when the directory is next opened. Close any old GeoData first when reloading.
+
+"Nearby" has two kinds of answer. Notable places (the categories nature, history,
+culture, towns, water, mountains, or all of them) are ranked by how interesting
+they are, discounted by distance. Services (the stable ids in ``SERVICE_KINDS``:
+fuel, hospital, clinic, pharmacy, ambulance; "health" means the last four) are
+listed nearest first, and the search widens until one is found. "all" means the
+notable places only, so a fuel station never crowds out a national park.
 
 Conventions
 -----------
@@ -29,6 +39,7 @@ Conventions
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
@@ -38,9 +49,12 @@ import unicodedata
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from .address_norm import number_first, postcode_first
+
 __all__ = [
     "GeoData",
     "KINDS",
+    "SERVICE_KINDS",
     "KM_PER_MILE",
     "haversine_km",
     "initial_bearing_deg",
@@ -53,7 +67,11 @@ EARTH_RADIUS_KM = 6371.0088
 KM_PER_MILE = 1.609344
 KM_PER_DEG_LAT = 111.195  # = EARTH_RADIUS_KM * pi / 180
 
-KINDS = ("nature", "history", "culture", "towns", "water", "mountains", "all")
+# Stable ids (the UI translates them). Services come from pois.sqlite (OpenStreetMap).
+SERVICE_KINDS = ("fuel", "hospital", "clinic", "pharmacy", "ambulance")
+HEALTH_KINDS = ("hospital", "clinic", "pharmacy", "ambulance")
+KINDS = ("nature", "history", "culture", "towns", "water", "mountains", *SERVICE_KINDS, "health", "all")
+SERVICE_MAX_KM = 250.0  # how far "the nearest hospital" may be looked for
 
 COUNTRY_NAMES = {"US": "United States", "CA": "Canada"}
 
@@ -248,6 +266,11 @@ _reg(8, _cats(O), "PO")
 _reg(5, _cats(O), "AIRH", "FRM", "GRAZ", "OILF")
 
 _DEFAULT_KIND = (5, _cats(O))
+# Services: what an unnamed one is called (the UI shows its own word for the kind id), and
+# their weight when mixed with notable places (a museum is 65, a big national park 100).
+_SERVICE_LABELS = {"fuel": "Fuel station", "hospital": "Hospital", "clinic": "Clinic", "pharmacy": "Pharmacy",
+                   "ambulance": "Ambulance station"}
+_SERVICE_WEIGHT = 60.0
 # Upper bound of any item's weight: GeoNames 70 + 35 name boost or 100 for a
 # town, Wikipedia 50 + 25 keyword + 35 length; x1.1 when an article merges.
 _MAX_WEIGHT = 125.0
@@ -491,27 +514,40 @@ class _Item:
         }
 
 
+_KIND_ALIASES = {
+    "town": T, "city": T, "cities": T, "places": T,
+    "mountain": M, "peaks": M, "peak": M,
+    "historic": H, "historical": H,
+    "parks": N, "park": N, "outdoors": N,
+    "lakes": W, "rivers": W, "lake": W, "river": W,
+    "museums": C, "museum": C, "cultural": C,
+    # services (what people call them; the ids stay fuel/hospital/clinic/pharmacy/ambulance)
+    "gas": "fuel", "gas station": "fuel", "gas stations": "fuel", "gas_station": "fuel", "petrol": "fuel",
+    "petrol station": "fuel", "filling station": "fuel", "fuel station": "fuel", "fuel stations": "fuel", "diesel": "fuel",
+    "hospitals": "hospital", "emergency": "hospital", "emergency room": "hospital", "er": "hospital", "a&e": "hospital",
+    "clinics": "clinic", "urgent care": "clinic", "medical center": "clinic", "medical centre": "clinic",
+    "pharmacies": "pharmacy", "drugstore": "pharmacy", "drug store": "pharmacy", "chemist": "pharmacy",
+    "ambulance_station": "ambulance", "ambulance station": "ambulance", "ambulances": "ambulance",
+    "medical": "health", "healthcare": "health", "health care": "health",
+}
+
+
 def _parse_kinds(kinds: str | Iterable[str] | None) -> frozenset[str] | None:
-    """Normalize the ``kinds`` filter. None means everything."""
+    """Normalize the ``kinds`` filter: a set of categories and service kinds. None means
+    every notable place ("all" doesn't include services)."""
     if kinds is None:
         return None
     if isinstance(kinds, str):
         kinds = [kinds]
-    aliases = {
-        "town": T, "city": T, "cities": T, "places": T,
-        "mountain": M, "peaks": M, "peak": M,
-        "historic": H, "historical": H,
-        "parks": N, "park": N, "outdoors": N,
-        "lakes": W, "rivers": W, "lake": W, "river": W,
-        "museums": C, "museum": C, "cultural": C,
-    }
     out = set()
     for k in kinds:
-        k = str(k).strip().lower()
-        k = aliases.get(k, k)
+        k = str(k).strip().lower().replace("-", " ")
+        k = _KIND_ALIASES.get(k, k)
         if k == "all":
             return None
-        if k in KINDS:
+        if k == "health":
+            out.update(HEALTH_KINDS)
+        elif k in KINDS:
             out.add(k)
     return frozenset(out) or None
 
@@ -530,15 +566,26 @@ class GeoData:
 
     PLACES_FILE = "places.sqlite"
     WIKI_FILE = "geowiki.sqlite"
+    POIS_FILE = "pois.sqlite"
 
     def __init__(self, maps_dir: Path | str) -> None:
         self.maps_dir = Path(maps_dir)
         self._places = self._open(self.maps_dir / self.PLACES_FILE)
         self._wiki = self._open(self.maps_dir / self.WIKI_FILE)
+        self._pois = self._open(self.maps_dir / self.POIS_FILE)
         self._places_lock = threading.Lock()
         self._wiki_lock = threading.Lock()
+        self._pois_lock = threading.Lock()
+        self._pois_bounds: list[tuple[float, float, float, float]] = []
+        if self._pois is not None:
+            try:
+                row = self._pois.execute("SELECT value FROM meta WHERE key = 'bounds'").fetchone()
+                self._pois_bounds = [tuple(map(float, b)) for b in json.loads(row[0])] if row else []
+            except (sqlite3.Error, ValueError, TypeError):
+                self._pois_bounds = []
         self._admin1_names: dict[tuple[str, str], str] = {}
         self._suffixes: set[str] = {"united states", "usa", "u s", "canada", "d c"}
+        self._default_country: str | None = None  # how service addresses are written, when not tagged
         if self._places is not None:
             try:
                 for cc, code, name in self._places.execute("SELECT country, code, name FROM admin1"):
@@ -546,6 +593,13 @@ class GeoData:
                     self._suffixes.add(name_key(name))
             except sqlite3.Error:
                 pass  # older/foreign file without the lookup table: region parsing is disabled
+            try:
+                row = self._places.execute("SELECT value FROM meta WHERE key = 'countries'").fetchone()
+                ccs = [c.strip().upper() for c in (row[0] if row else "").split(",") if c.strip()]
+                if ccs and len({(number_first(c), postcode_first(c)) for c in ccs}) == 1:
+                    self._default_country = ccs[0]  # GB and IE write addresses alike, as do US and CA
+            except sqlite3.Error:
+                pass
         self._sql_cache: dict[tuple, str] = {}
         self._big: list[tuple] | None = None
 
@@ -584,17 +638,30 @@ class GeoData:
         return self._wiki is not None
 
     @property
+    def pois_available(self) -> bool:
+        return self._pois is not None
+
+    def pois_cover(self, lat: float, lon: float) -> bool:
+        """Is this point inside the area the services database was built for? Outside it, "no
+        fuel station" means "no data", not "none here"."""
+        if self._pois is None:
+            return False
+        if not self._pois_bounds:
+            return True  # an older or hand-made file: trust it everywhere
+        return any(w <= lon <= e and s <= lat <= n for w, s, e, n in self._pois_bounds)
+
+    @property
     def available(self) -> bool:
-        return self._places is not None or self._wiki is not None
+        return self._places is not None or self._wiki is not None or self._pois is not None
 
     def __bool__(self) -> bool:  # `if geo:` means "has data to answer with"
         return self.available
 
     def close(self) -> None:
-        for conn in (self._places, self._wiki):
+        for conn in (self._places, self._wiki, self._pois):
             if conn is not None:
                 conn.close()
-        self._places = self._wiki = None
+        self._places = self._wiki = self._pois = None
 
     def __enter__(self) -> GeoData:
         return self
@@ -603,9 +670,10 @@ class GeoData:
         self.close()
 
     def info(self) -> dict:
-        """Availability, attribution and build metadata of both databases (for an About page)."""
+        """Availability, attribution and build metadata of the databases (for an About page)."""
         out = {}
-        for key, conn, lock in (("places", self._places, self._places_lock), ("wiki", self._wiki, self._wiki_lock)):
+        for key, conn, lock in (("places", self._places, self._places_lock), ("wiki", self._wiki, self._wiki_lock),
+                                ("pois", self._pois, self._pois_lock)):
             if conn is None:
                 out[key] = {"available": False}
                 continue
@@ -637,11 +705,24 @@ class GeoData:
         ``name, kind, categories, lat, lon, distance_km, distance_mi,
         bearing_deg, direction, source ('geonames'|'wikipedia'), wiki_path,
         population, admin1, country, score``.
+
+        Services ('fuel', 'hospital', 'clinic', 'pharmacy', 'ambulance', or 'health'
+        for the last four) come nearest first instead, from pois.sqlite; see
+        :meth:`nearby_services` for their extra keys. Mixed with categories, both
+        are ranked together by score.
         """
         lat, lon = _check_point(lat, lon)
         radius_km = min(max(float(radius_km), 0.05), 250.0)
         limit = max(1, int(limit))
         want = _parse_kinds(kinds)
+        services = want & frozenset(SERVICE_KINDS) if want is not None else frozenset()
+        if services:
+            found = self.nearby_services(lat, lon, radius_km, services, limit)
+            rest = want - services
+            if not rest:
+                return found
+            mixed = found + self.nearby(lat, lon, radius_km, sorted(rest), limit)
+            return sorted(mixed, key=lambda r: r["score"], reverse=True)[:limit]
         scale = max(1.5, radius_km / 4.0)  # distance at which the score halves
         coslat = math.cos(math.radians(lat))
 
@@ -656,6 +737,121 @@ class GeoData:
                 return [it.as_dict(lat, lon) for it in top[:limit]]
         top = self._nearby_pass(lat, lon, coslat, radius_km, want, scale, limit)
         return [it.as_dict(lat, lon) for it in top[:limit]]
+
+    def nearby_services(self, lat: float, lon: float, radius_km: float = 16,
+                        kinds: Sequence[str] | str | None = None, limit: int = 20) -> list[dict]:
+        """Fuel stations, hospitals, clinics, pharmacies and ambulance stations, nearest first.
+
+        They come from pois.sqlite (OpenStreetMap) wherever it covers the point. Elsewhere,
+        hospitals and clinics fall back on GeoNames (feature codes HSP, HSPC, HSPD), which
+        knows fewer and may list closed ones; ``source`` says which. When nothing is within
+        ``radius_km`` the search widens, doubling up to SERVICE_MAX_KM: the nearest hospital
+        is worth knowing even 60 km away. ``kinds`` defaults to every service.
+
+        Each result has the keys of :meth:`nearby` (``kind`` is the service id, ``source``
+        'osm' or 'geonames') plus ``unnamed`` (True when OpenStreetMap gives no name, brand
+        or operator, and ``name`` is a generic English label) and, when mapped, ``osm``
+        ('n123', 'w45': the OpenStreetMap object), ``brand``, ``operator``, ``opening_hours``,
+        ``phone``, ``emergency`` ('yes' or 'no': has an emergency department), ``address``
+        and ``fuels`` (e.g. ['diesel', 'lpg']).
+        """
+        lat, lon = _check_point(lat, lon)
+        want = (_parse_kinds(kinds) or frozenset()) & frozenset(SERVICE_KINDS) if kinds is not None else frozenset(SERVICE_KINDS)
+        if not want:
+            return []
+        radius = min(max(float(radius_km), 0.05), SERVICE_MAX_KM)
+        limit = max(1, int(limit))
+        scale = max(1.5, radius / 4.0)
+        from_osm = self.pois_cover(lat, lon)
+        while True:
+            if from_osm:
+                found = self._services_osm(lat, lon, radius, want, limit, scale)
+            else:
+                found = self._services_geonames(lat, lon, radius, want, scale)
+            if found or radius >= SERVICE_MAX_KM:
+                break
+            radius = min(SERVICE_MAX_KM, radius * 2.0)
+        found.sort(key=lambda r: r["distance_km"])
+        return found[:limit]
+
+    def _services_osm(self, lat, lon, radius, want, limit, scale) -> list[dict]:
+        k = math.cos(math.radians(lat)) ** 2
+        sql = (
+            "SELECT p.kind, p.name, p.lat, p.lon, p.osm, p.tags FROM pois_rtree r CROSS JOIN pois p ON p.id = r.id "
+            "WHERE r.minlat >= ? AND r.maxlat <= ? AND r.minlon >= ? AND r.maxlon <= ? "
+            f"AND p.kind IN ({','.join('?' * len(want))}) "
+            "ORDER BY (p.lat - ?) * (p.lat - ?) + (p.lon - ?) * (p.lon - ?) * ? LIMIT ?"
+        )
+        rows: list[tuple] = []
+        with self._pois_lock:
+            for box in bounding_boxes(lat, lon, radius):
+                rows += self._pois.execute(sql, (*box, *sorted(want), lat, lat, lon, lon, k, 4 * limit + 20)).fetchall()
+        out = []
+        for kind, name, plat, plon, osm, tags in rows:
+            d = haversine_km(lat, lon, plat, plon)
+            if d <= radius:
+                out.append(self._service_item(lat, lon, d, kind, name, plat, plon, "osm", osm,
+                                              json.loads(tags) if tags else {}, scale))
+        return out
+
+    _GEONAMES_SERVICES = {"HSP": "hospital", "HSPC": "clinic", "HSPD": "clinic"}
+
+    def _services_geonames(self, lat, lon, radius, want, scale) -> list[dict]:
+        codes = [c for c, kind in self._GEONAMES_SERVICES.items() if kind in want]
+        if self._places is None or not codes:
+            return []
+        sql = (
+            "SELECT p.name, p.lat, p.lon, p.fcode, p.admin1, p.country FROM places_rtree r CROSS JOIN places p ON p.id = r.id "
+            "WHERE r.minlat >= ? AND r.maxlat <= ? AND r.minlon >= ? AND r.maxlon <= ? "
+            f"AND p.fcode IN ({','.join('?' * len(codes))})"
+        )
+        rows: list[tuple] = []
+        with self._places_lock:
+            for box in bounding_boxes(lat, lon, radius):
+                rows += self._places.execute(sql, (*box, *codes)).fetchall()
+        out = []
+        for name, plat, plon, fcode, adm1, cc in rows:
+            d = haversine_km(lat, lon, plat, plon)
+            if d <= radius:
+                it = self._service_item(lat, lon, d, self._GEONAMES_SERVICES[fcode], name, plat, plon, "geonames", None, {}, scale)
+                it["admin1"], it["country"] = adm1, cc
+                out.append(it)
+        return out
+
+    def _service_item(self, qlat, qlon, d, kind, name, plat, plon, source, osm, tags, scale) -> dict:
+        b = initial_bearing_deg(qlat, qlon, plat, plon)
+        label = name or tags.get("brand") or tags.get("operator")
+        out = {
+            "name": label or _SERVICE_LABELS[kind],
+            "kind": kind,
+            "categories": ["health", kind] if kind in HEALTH_KINDS else [kind],
+            "lat": plat,
+            "lon": plon,
+            "distance_km": round(d, 2),
+            "distance_mi": round(d / KM_PER_MILE, 2),
+            "bearing_deg": round(b, 1),
+            "direction": compass_point(b),
+            "source": source,
+            "wiki_path": None,
+            "population": None,
+            "admin1": None,
+            "country": None,
+            "score": round(_SERVICE_WEIGHT / (1.0 + d / scale), 1),
+            "unnamed": label is None,
+        }
+        if osm:
+            out["osm"] = osm
+        for key in ("brand", "operator", "opening_hours", "phone"):
+            if tags.get(key):
+                out[key] = tags[key]
+        if tags.get("emergency") in ("yes", "no"):
+            out["emergency"] = tags["emergency"]
+        if address := _service_address(tags, self._default_country):
+            out["address"] = address
+        fuels = [k[5:] for k, v in tags.items() if k.startswith("fuel:") and v == "yes"]
+        if fuels:
+            out["fuels"] = fuels
+        return out
 
     def _nearby_pass(self, lat, lon, coslat, radius_km, want, scale, limit) -> list[_Item]:
         """Candidates within ``radius_km``, de-duplicated, best first."""
@@ -1311,6 +1507,21 @@ class GeoData:
         if r is None:
             return None
         return dict(zip(("title", "path", "lat", "lon", "type", "dim", "country", "region"), r))
+
+
+def _service_address(tags: dict, default_country: str | None) -> str | None:
+    """'Avenue Pasteur 3, 98000 Monaco' or '66 King Street, St Helier JE2 4WE', from a place's
+    addr:* tags, in the order its country writes them (addr:country, else the region's)."""
+    street = tags.get("addr:street") or tags.get("addr:place")
+    num = tags.get("addr:housenumber")
+    cc = (tags.get("addr:country") or default_country or "").upper() or None
+    if street and num:
+        line = f"{num} {street}" if number_first(cc) is not False else f"{street} {num}"
+    else:
+        line = street
+    pc, town = tags.get("addr:postcode"), tags.get("addr:city")
+    tail = " ".join(x for x in ((pc, town) if postcode_first(cc) else (town, pc)) if x)
+    return ", ".join(x for x in (line, tail) if x) or None
 
 
 # ---------------------------------------------------------------------------

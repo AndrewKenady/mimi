@@ -165,9 +165,12 @@ TOOLS: list[dict] = [
      "description": "The Mimi device's current location (from GPS or the location its owner set): nearest place, region, coordinates.",
      "inputSchema": _schema({}), "location": True},
     {"name": "nearby_places", "title": "Nearby places",
-     "description": "Notable places near the device's current location: parks, landmarks, historic sites, towns, lakes, mountains.",
+     "description": "Places near the device's current location: notable places (parks, landmarks, historic sites, towns, "
+                    "lakes, mountains), or services nearest first: fuel stations ('fuel'), hospitals, clinics, pharmacies, "
+                    "ambulance stations, or 'health' for all medical ones.",
      "inputSchema": _schema({"radius_km": {"type": "number", "minimum": 1, "maximum": 100, "description": "Default 15"},
-                             "kind": {"type": "string", "enum": ["all", "nature", "history", "culture", "towns", "water", "mountains"]},
+                             "kind": {"type": "string", "enum": ["all", "nature", "history", "culture", "towns", "water", "mountains",
+                                                                "fuel", "hospital", "clinic", "pharmacy", "ambulance", "health"]},
                              "limit": {"type": "integer", "minimum": 1, "maximum": 40}}), "location": True},
     {"name": "get_directions", "title": "Offline directions",
      "description": "Plan a route on Mimi's offline road map: distance, time and turn-by-turn steps. Starts from the device's "
@@ -253,10 +256,19 @@ class MimiTools:
             raise ToolError("Mimi doesn't know where it is, so it can't look around.")
         places = r.get("places") or []
         if not places:
+            if a.get("kind") in ("fuel", "hospital", "clinic", "pharmacy", "ambulance", "health") and not r.get("services"):
+                return ("Mimi has no offline data on these services for this area (they come with its offline "
+                        "directions pack).", {"places": []})
             return "Nothing notable found nearby.", {"places": []}
-        lines = [f"- {sanitize_untrusted(p.get('name', ''))} ({p.get('kind') or 'place'}) — {p.get('distance_km', 0):.1f} km "
-                 f"{p.get('direction', '')}".rstrip() for p in places]
-        keep = [{k: p.get(k) for k in ("name", "kind", "lat", "lon", "distance_km", "direction")} for p in places]
+        lines = []
+        for p in places:
+            line = (f"- {sanitize_untrusted(p.get('name', ''))} ({p.get('kind') or 'place'}) — {p.get('distance_km', 0):.1f} km "
+                    f"{p.get('direction', '')}").rstrip()
+            extra = [f"{k.replace('_', ' ')}: {sanitize_untrusted(str(p[k]))}" for k in ("emergency", "opening_hours", "phone", "address")
+                     if p.get(k)]
+            lines.append(line + ("; " + "; ".join(extra) if extra else ""))
+        keep = [{**{k: p.get(k) for k in ("name", "kind", "lat", "lon", "distance_km", "direction")},
+                 **{k: p[k] for k in ("emergency", "opening_hours", "phone", "address") if p.get(k)}} for p in places]
         return "Nearby:\n" + "\n".join(lines), {"places": keep}
 
     def _place(self, q: str) -> dict:
