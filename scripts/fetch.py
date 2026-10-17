@@ -1018,7 +1018,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--tier", help="lite or standard (default: standard)")
+    ap.add_argument("--tier", help="lite, standard, plus or max (default: standard)")
     ap.add_argument("--manifest", help="path to a tier manifest (instead of --tier)")
     ap.add_argument("--only", nargs="*", choices=GROUPS, help="just these groups")
     ap.add_argument("--region", help="map region, see manifests/regions.json")

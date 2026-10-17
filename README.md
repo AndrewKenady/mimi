@@ -53,8 +53,10 @@ Then open **http://localhost:7600** (on Windows, `MIMI.exe` opens it full screen
 |---|---|---|
 | **lite** (default) | ≈ 16–24 GB | Qwen3.5 4B, voice, WikiMed, iFixit, survival guides, Wikivoyage, the most-read Wikipedia articles, a world map plus your region in street detail |
 | **standard** | ≈ 210–245 GB | Gemma 4 12B and Qwen3.5 9B, all of Wikipedia with pictures, Stack Exchange, TED, Gutenberg, driving directions and address search |
+| **plus** | standard + 15 GB | Gemma 4 26B A4B, for 32 GB of RAM or a GPU with 16 GB+ |
+| **max** | standard + 22 GB | Qwen3.6 35B A3B, for 48 GB+ of RAM or a GPU with 24 GB+ |
 
-Add or remove content any time with `python -m mimi content list | add | remove`. Every download comes from its original publisher, resumes if interrupted, and is checked against a pinned SHA-256 before it's used. [docs/INSTALL.md](docs/INSTALL.md) covers regions, Steam Deck, portable USB drives, and what has been tested on which platform.
+Mimi picks the Plus or Max models by itself on hardware that can run them, and uses the Standard ones until they're installed. Add or remove content any time with `python -m mimi content list | add | remove`. Every download comes from its original publisher, resumes if interrupted, and is checked against a pinned SHA-256 before it's used. [docs/INSTALL.md](docs/INSTALL.md) covers regions, Steam Deck, portable USB drives, and what has been tested on which platform.
 
 ## How it's built
 
@@ -77,11 +79,11 @@ Add or remove content any time with `python -m mimi content list | add | remove`
 
 Every push runs [CI](.github/workflows/ci.yml) (Core on Linux, Windows and macOS):
 
-- **Core:** 368 tests, from geocoding to the CA's name constraints and prompt-injection defenses, plus ruff.
+- **Core:** 370 tests, from geocoding to the CA's name constraints and prompt-injection defenses, plus ruff.
 - **UI:**
   - type checks;
   - a WCAG AA contrast audit of every theme × token pair;
-  - 30 Playwright end-to-end tests against the real Core API, with a scripted model, covering the honest library, sources-first chat, flagged citations and recovery;
+  - 31 Playwright end-to-end tests against the real Core API, with a scripted model, covering the honest library, sources-first chat, flagged citations and recovery;
   - axe accessibility scans of every main screen in dark and light;
   - pixel snapshots of key screens.
 - **Evaluation:** the scoring pipeline runs on fixtures and publishes its scoreboard.

@@ -34,7 +34,12 @@
 	const cur = $derived(SETTINGS_SECTIONS.find((s) => s.id === section)!);
 	const D = $derived(app.settings.device || {});
 	const U = $derived(app.settings.user || {});
-	const dev = (sec: string, v: Record<string, unknown>) => app.setSetting('device', sec, v);
+	const dev = async (sec: string, v: Record<string, unknown>) => {
+		const saved = await app.setSetting('device', sec, v);
+		// /api/models reports which model each role resolves to, and these settings change that.
+		if (sec === 'models') get('/api/models').then((r) => (models = r));
+		return saved;
+	};
 	const usr = (sec: string, v: Record<string, unknown>) => app.setSetting('user', sec, v);
 
 	// --- lazily loaded per-section data
@@ -235,6 +240,18 @@
 	const FEATURES: [string, string][] = [['chat', 'Chat'], ['library', 'Library'], ['map', 'Map'], ['voice', 'Voice'], ['lens', 'Lens']];
 	const chatModels = $derived((models?.catalog || []).filter((m: any) => m.kind === 'chat'));
 	const installed = $derived(chatModels.filter((m: any) => m.installed));
+	// When the profile's own main model (one no smaller profile also lists) isn't the one
+	// answering, Mimi has fallen back to a smaller model: say which pack fixes that.
+	const PROFILE_ORDER = ['lite', 'standard', 'plus', 'max'];
+	const profileGap = $derived.by(() => {
+		const P = models?.profiles, p = D?.models?.profile === 'auto' ? models?.hardware_profile : D?.models?.profile;
+		if (!P?.[p]?.pack || D?.models?.main) return null;
+		const smaller = new Set(PROFILE_ORDER.slice(0, PROFILE_ORDER.indexOf(p)).flatMap((q) => P[q]?.main ?? []));
+		const own: string[] = P[p].main.filter((id: string) => !smaller.has(id));
+		const serving = models?.status?.roles?.main;
+		if (own.includes(serving)) return null;
+		return { label: P[p].label, pack: P[p].pack, serving: chatModels.find((m: any) => m.id === serving)?.name };
+	});
 	const shownUsers = $derived(users.filter((u) => !app.isPending(`user:${u.id}`)));
 </script>
 
@@ -450,6 +467,9 @@
 						<Row label="Profile" hint="Auto picks the best models this hardware can run reliably.">
 							<Segmented value={D.models.profile} options={[['auto', `Auto (${models?.hardware_profile || '…'})`], ['lite', 'Lite'], ['standard', 'Standard'], ['plus', 'Plus'], ['max', 'Max']]} onchange={(v) => dev('models', { profile: v })} />
 						</Row>
+						{#if profileGap}
+							<p class="warn-line"><Info size={14} style="vertical-align:-2px" aria-hidden="true" /> The {profileGap.label} model isn't installed{profileGap.serving ? `, so Mimi is using ${profileGap.serving}` : ''}. Add it with <code>python -m mimi content add {profileGap.pack}</code>.</p>
+						{/if}
 						{#each [['main', 'Main model', 'Answers most questions.'], ['quick', 'Quick model', 'Used by battery saver, and for quick background jobs.'], ['reader', 'Reader model', "Photos and documents when the main model can't see."]] as [role, label, hint]}
 							<Row {label} {hint}>
 								<select class="input sel" value={D.models[role] || ''} onchange={(e) => dev('models', { [role]: e.currentTarget.value || null })}>

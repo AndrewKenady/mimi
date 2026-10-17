@@ -261,6 +261,30 @@ def test_tiers_extend_and_dedupe_maps():
     assert all(p in fetch.all_packs() for p in std["packs"])
 
 
+def test_every_profile_model_can_be_downloaded():
+    """A profile that names a model no pack provides would silently fall back forever."""
+    cfg = json.loads((ROOT / "config" / "models.json").read_text("utf-8"))
+    packs = fetch.all_packs()
+    shipped = {it["path"] for p in packs.values() for it in p["items"] if it["type"] == "file"}
+    for prof, spec in cfg["profiles"].items():
+        for mid in {m for role in ("main", "quick", "reader") for m in spec[role]} | {spec["embed"]}:
+            for key in ("file", "mmproj"):  # what Core loads ("draft" is unused, see BENCHMARKS.md)
+                f = cfg["models"][mid].get(key)
+                assert not f or f in shipped, f"{prof}: {mid} needs {f}, which no pack downloads"
+    for prof, spec in cfg["profiles"].items():
+        carried = {it["path"] for it in packs[spec["pack"]]["items"]}
+        assert any(cfg["models"][m]["file"] in carried for m in spec["main"]), f"{prof}: {spec['pack']} has none of its main models"
+
+
+def test_plus_and_max_tiers_are_standard_plus_one_model():
+    std = set(fetch.load_tier("standard")["packs"])
+    for tier, pack, gb in (("plus", "llm-plus", (14, 17)), ("max", "llm-max", (20, 24))):
+        t = fetch.load_tier(tier)
+        assert set(t["packs"]) - std == {pack} and t["region"] == "us-canada"
+        size = sum(it["size"] for it in fetch.all_packs()[pack]["items"]) / 1e9
+        assert gb[0] < size < gb[1], (tier, size)
+
+
 def test_lite_tier_size_is_in_budget():
     lite = fetch.load_tier("lite")
     items = fetch.plan(lite["packs"], fetch.resolve_region("uk"))

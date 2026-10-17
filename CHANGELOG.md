@@ -27,6 +27,7 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 ### Runs anywhere
 - **One-line install** on Linux and macOS (`scripts/install.sh`) and a **Docker** image with content in a volume. Windows' `setup.ps1` gains `-Tier` and `-Region`.
 - **A Lite tier of about 16–24 GB** next to the ~210 GB standard tier, nine named map regions or any bounding box, and a content manager (`python -m mimi content list | add | remove | verify`) with disk-space checks.
+- **Plus and Max tiers** for bigger machines: Gemma 4 26B A4B with 32 GB of RAM or a 16 GB GPU, Qwen3.6 35B A3B with 48 GB+ or a 24 GB GPU (Qwen3.8 27B as an option for big GPUs). Mimi already picked these profiles on such hardware, but nothing could download their models, so it quietly ran the Standard ones. When a profile's model is missing, Settings now says so and names the pack to add. These tiers are untested on real hardware.
 - **Verified downloads:**
   - every runtime and model is pinned to a fixed revision with SHA-256, and books are checked against Kiwix's own hashes;
   - downloads resume from `.part` files and are verified before use;
@@ -74,7 +75,7 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - **CI:**
   - Core tests and lint on Linux, Windows and macOS;
   - UI type checks and the contrast audit;
-  - 30 end-to-end tests, axe scans and visual snapshots;
+  - 31 end-to-end tests, axe scans and visual snapshots;
   - the eval scoreboard on fixtures;
   - a Windows shell build.
 - **Releases** ship SHA-256 sums and signed build-provenance attestations.

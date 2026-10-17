@@ -33,6 +33,34 @@
           "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/mmproj-F16.gguf" }
       ]
     },
+    "llm-plus": {
+      "title": "Gemma 4 26B A4B", "group": "models",
+      "description": "The Plus tier's main model (32 GB of RAM or a GPU with 16 GB+): a mixture of experts with about 4B parameters active per word, so it stays quick on integrated graphics.",
+      "items": [
+        { "type": "file", "path": "models/llm/gemma-4-26b-a4b/gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf", "size": 14249047104, "sha256": "a7c5bc715f5ff8e99a3e8901ce7d2b42b402c669bf24f7c5250747633d0f5891",
+          "url": "https://huggingface.co/unsloth/gemma-4-26B-A4B-it-qat-GGUF/resolve/7b92b5b28818151e8669af2e45e88d6086f490dd/gemma-4-26B-A4B-it-qat-UD-Q4_K_XL.gguf" },
+        { "type": "file", "path": "models/llm/gemma-4-26b-a4b/mmproj-F16.gguf", "size": 1193058784, "sha256": "d00f211a7d4f7fb19bd9b75d8e9342eccffb5920b08fd9562167560fdfcc5dd1",
+          "url": "https://huggingface.co/unsloth/gemma-4-26B-A4B-it-qat-GGUF/resolve/7b92b5b28818151e8669af2e45e88d6086f490dd/mmproj-F16.gguf" }
+      ]
+    },
+    "llm-max": {
+      "title": "Qwen3.6 35B A3B", "group": "models",
+      "description": "The Max tier's main model (48 GB+ of RAM, or a GPU with 24 GB+): a mixture of experts with about 3B parameters active per word, fast on a big GPU or on plenty of system memory.",
+      "items": [
+        { "type": "file", "path": "models/llm/qwen3.6-35b-a3b/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf", "size": 22134528992, "sha256": "ac0e2c1189e055faa36eff361580e79c5bd6f8e76bffb4ce547f167d53e31a61",
+          "url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/a483e9e6cbd595906af30beda3187c2663a1118c/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf" }
+      ]
+    },
+    "llm-max-dense": {
+      "title": "Qwen3.8 27B", "group": "models",
+      "description": "A dense 27B model that reads photos too. Pick it over Qwen3.6 35B A3B only with a GPU that has 24 GB+ or Apple silicon with 48 GB+: without one it is several times slower.",
+      "items": [
+        { "type": "file", "path": "models/llm/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_M.gguf", "size": 16464440224, "sha256": "322e194ff79741c7baa497c240f677f54b201b0efab44ca8e50f122b39123482",
+          "url": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/4ca720788d1e01f1bff70c033e0d0028fd02e502/Qwen3.8-27B-UD-Q4_K_M.gguf" },
+        { "type": "file", "path": "models/llm/qwen3.8-27b/mmproj-F16.gguf", "size": 927607488, "sha256": "cbb841a9ee0636b2ec172f5bb8df2ea8dfeb01e90fe7c6126581d662a0b4e43e",
+          "url": "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/4ca720788d1e01f1bff70c033e0d0028fd02e502/mmproj-F16.gguf" }
+      ]
+    },
     "voice": {
       "title": "Voice: Whisper small + Kokoro", "group": "models",
       "description": "Speech recognition (Whisper small) and natural speech (Kokoro) for talking with Mimi and Scribe.",
