@@ -1,6 +1,7 @@
 // Markdown → safe HTML, with inline citation pills.
 import DOMPurify from 'dompurify';
 import { Marked, type Token } from 'marked';
+import { i18n, t } from '$lib/i18n/index.svelte';
 
 const md = new Marked({ gfm: true, breaks: false });
 
@@ -30,7 +31,7 @@ function sanitize(html: string, maxCite: number): string {
 							.split(',')
 							.map((s) => parseInt(s.trim(), 10))
 							.filter((n) => n >= 1 && n <= maxCite);
-						return list.length ? list.map((n) => `<button class="cite" data-cite="${n}" aria-label="Source ${n}">${n}</button>`).join('') : m;
+						return list.length ? list.map((n) => `<button class="cite" data-cite="${n}" aria-label="${t('chat.sourceN', { n })}">${n}</button>`).join('') : m;
 					})
 		)
 		.join('');
@@ -45,7 +46,8 @@ export function render(text: string, maxCite = 0): string {
 export type Block = { key: string; html: string };
 
 // Rendered top-level blocks, shared by every message: a finished paragraph is parsed and
-// sanitized once, however many times the answer around it grows.
+// sanitized once, however many times the answer around it grows. The key includes the
+// language, because citation pills carry a label in it.
 const blockCache = new Map<string, string>();
 const CACHE_MAX = 600;
 
@@ -66,11 +68,12 @@ export function renderBlocks(text: string, maxCite = 0, streaming = false): Bloc
 	if (!text) return [];
 	const tokens = md.lexer(text);
 	const links = tokens.links || {};
-	const real = tokens.filter((t) => t.type !== 'space');
+	const real = tokens.filter((x) => x.type !== 'space');
+	const lang = i18n.locale;
 	return real.map((tok, i) => {
 		const last = i === real.length - 1;
 		if (streaming && last) return { key: `${i}`, html: renderToken(tok, links, maxCite) };
-		const ck = `${maxCite}\u0000${tok.raw}`;
+		const ck = `${lang}\u0000${maxCite}\u0000${tok.raw}`;
 		let html = blockCache.get(ck);
 		if (html === undefined) {
 			html = renderToken(tok, links, maxCite);

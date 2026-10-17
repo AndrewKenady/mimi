@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Quote, ChevronDown, ArrowUpRight } from '@lucide/svelte';
 	import { sourceLabel } from '$lib/sources';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let {
 		preview,
@@ -27,11 +28,11 @@
 <aside class="pv" class:open class:demoted={collapsed} aria-labelledby="{uid}-h">
 	<button class="head" id="{uid}-h" aria-expanded={open} aria-controls="{uid}-b" onclick={() => (override = !open)}>
 		<span class="q" aria-hidden="true"><Quote size={13} strokeWidth={2.4} /></span>
-		<span class="eyebrow">From the source</span>
+		<span class="eyebrow">{t('chat.fromTheSource')}</span>
 		{#if collapsed}
 			<span class="what">{preview.title}<span class="faint">{' · '}{sourceLabel(preview)}</span></span>
 		{:else}
-			<span class="what faint">Quoted while Mimi reads — not Mimi’s answer</span>
+			<span class="what faint">{t('chat.quotedNotAnswer')}</span>
 		{/if}
 		<span class="chev" class:up={open} aria-hidden="true"><ChevronDown size={15} /></span>
 	</button>
