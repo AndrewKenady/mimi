@@ -4,6 +4,7 @@
   for unitless scales, the position between the two end labels.
 -->
 <script lang="ts">
+	import { fmtNumber, t } from '$lib/i18n/index.svelte';
 	let {
 		value,
 		min = 0,
@@ -30,7 +31,9 @@
 		local = value;
 	});
 	const pct = $derived(((local - min) / (max - min)) * 100);
-	const valuetext = $derived(fmt ? fmt(local) : left && right ? `${Math.round(pct)}% of the way from ${left} to ${right}` : String(local));
+	const valuetext = $derived(
+		fmt ? fmt(local) : left && right ? t('settings.sliderPosition', { pct: fmtNumber(Math.round(pct) / 100, { style: 'percent' }), left, right }) : fmtNumber(local)
+	);
 </script>
 
 <div class="sl">

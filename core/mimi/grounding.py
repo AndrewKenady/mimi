@@ -24,29 +24,13 @@ It is a proxy, not a proof: lexical overlap can't follow multi-step reasoning or
 synonyms it doesn't know. Treat "unsupported" as "a human (or a judge model) should
 look", and "supported" as "nothing obviously wrong". See docs/EVALUATION.md.
 
-Intended chat.py integration (not wired yet)
---------------------------------------------
-After generation, `ChatService.send` already has the final answer and `state.sources`.
-The full passage text the model read lives only in the tool result (`ToolResult.text`,
-blocks of "[n] Title — Book\\n<passage>"); sources keep a 240-char `snippet`. To wire this:
-
-1. In `tools.search_library` / `read_article`, keep the passage per source number on the
-   turn, e.g. `st.passages[n] = p.text` (a new `TurnState.passages: dict[int, str]`; not
-   persisted, so the database doesn't grow).
-2. After `answer = sanitize_citations(...)`:
-
-       report = grounding.check_answer(answer, state.passages)          # ~ms, sync
-       # or, to use the bge-m3 server when it is already running:
-       # report = await grounding.check_answer_async(answer, state.passages, embed=svc.models.embed)
-       meta["grounding"] = report.summary()
-       flags = report.flags()       # only weak/unsupported/invalid citations
-       if flags:
-           yield {"event": "grounding", "data": {"flags": flags}}
-
-3. The UI marks the flagged [n] chips (e.g. a dotted underline with "This source may not
-   say this — check it"), using each flag's `start`/`end` offsets into the answer text.
-
-Keep it advisory: never rewrite or drop the answer based on this score.
+In chat
+-------
+`ChatService._grounding` (chat.py) runs `check_answer` on the passages the model read
+this turn and stores `report.summary()` in the message meta. The UI marks only
+`report.ui_flags()` (unsupported or invalid citations), with their reasons. An answer
+written in another language than its sources gets `number_flags` instead: only numbers
+can be compared across languages. It stays advisory: the answer is never rewritten.
 """
 
 from __future__ import annotations
@@ -814,6 +798,52 @@ def _cos_lookup(texts: list[str], vecs: Any) -> Callable[[str, str], float]:
         return _cosine(va, vb) if va is not None and vb is not None else 0.0
 
     return cos
+
+
+_NUM_TOKEN = re.compile(r"(?<![\w.,])\d(?:[\d.,\u00a0\u202f]*\d)?(?![\w])")
+
+
+def _number_readings(token: str) -> set[float]:
+    """Both ways to read a number written in English or in Spanish/French style:
+    "8,849" / "8.849" / "8 849" can be 8849, and "37,5" / "37.5" can be 37.5."""
+    out: set[float] = set()
+    for dec, grp in ((".", ","), (",", ".")):
+        t = token.replace("\u00a0", "").replace("\u202f", "").replace(grp, "")
+        try:
+            out.add(float(t.replace(dec, ".")))
+        except ValueError:
+            pass
+    return out
+
+
+def number_flags(answer: str, sources: Any) -> list[dict]:
+    """The citation check for an answer written in another language than its sources.
+
+    Words can't be compared across languages, but numbers can: a dose, a temperature or a
+    date means the same in Spanish as in the English passage it came from. So this flags
+    only cited sentences with a number the cited source doesn't contain (read either way,
+    "37,5" or "37.5"), and citations that point at no source. Flags have the shape of
+    GroundingReport.ui_flags(). It is deliberately lenient: anything it can't judge passes.
+    """
+    srcs = _normalize_sources(sources)
+    values = {n: [x.value for x in extract_numbers(t)] for n, t in srcs.items()}
+    out = []
+    for c in split_claims(answer):
+        if not c.citations:
+            continue
+        tokens = _NUM_TOKEN.findall(_CITE_ANY.sub(" ", c.text))
+        checks = []
+        for n in c.citations:
+            if n not in srcs:
+                checks.append((n, INVALID, ["citation points to no source"]))
+                continue
+            missing = [tok for tok in tokens if not any(math.isclose(r, v, rel_tol=1e-6) for r in _number_readings(tok) for v in values[n])]
+            checks.append((n, UNSUPPORTED if missing else SUPPORTED, ["number not in source: " + ", ".join(missing)] if missing else []))
+        if any(v == SUPPORTED for _, v, _ in checks):
+            continue  # another citation of the same sentence carries its numbers
+        out += [{"n": n, "verdict": v, "score": 0.0, "sentence": c.text, "start": c.start, "end": c.end, "reasons": r, "better_source": None}
+                for n, v, r in checks]
+    return out
 
 
 def check_answer(answer: str, sources: Any, *, embed: EmbedFn | None = None, thresholds: Thresholds = DEFAULT) -> GroundingReport:

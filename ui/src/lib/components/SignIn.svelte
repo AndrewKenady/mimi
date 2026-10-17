@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { app } from '$lib/app.svelte';
 	import { api, post } from '$lib/api';
+	import { t } from '$lib/i18n/index.svelte';
 	import Well from './Well.svelte';
 	import { ArrowRight, Lock, MonitorSmartphone } from '@lucide/svelte';
 
@@ -15,15 +16,17 @@
 	// `screen` is false while Mimi isn't open on the device, where nobody could tap Allow.
 	let pairing = $state<{ id: string; code: string; poll: string; expires: number; screen: boolean } | null>(null);
 	let pollTimer: ReturnType<typeof setTimeout> | undefined;
+	/** A message cut around its {placeholders}, so they can be filled with markup (a bold word). */
+	const parts = (msg: string) => msg.split(/(\{\w+\})/).filter(Boolean);
 
 	async function go(e: Event) {
 		e.preventDefault();
 		error = '';
-		if (mode === 'account' && !locked && !name.trim()) return (error = 'Enter your name.');
+		if (mode === 'account' && !locked && !name.trim()) return (error = t('auth.errName'));
 		busy = true;
 		try {
 			if (locked) await post('/api/auth/unlock', { pin: secret });
-			else if (mode === 'guest') await post('/api/auth/guest', { name: name.trim() || 'Guest' });
+			else if (mode === 'guest') await post('/api/auth/guest', { name: name.trim() || t('auth.guest') });
 			else if (!secret) return await startPairing();
 			else await post('/api/auth/login', { name: name.trim(), secret });
 			await app.load();
@@ -52,7 +55,7 @@
 			}
 			if (r.status === 'denied' || r.status === 'expired' || r.status === 'replaced' || Date.now() > p.expires) {
 				pairing = null;
-				error = r.status === 'denied' ? 'The request was declined on the Mimi device.' : 'The request timed out. Try again, or use a PIN.';
+				error = r.status === 'denied' ? t('auth.declined') : t('auth.timedOut');
 				return;
 			}
 			if (typeof r.device_screen === 'boolean') p.screen = r.device_screen;
@@ -71,50 +74,50 @@
 	{#if pairing}
 		<div class="panel" role="status" aria-live="polite">
 			<span class="pic" aria-hidden="true"><MonitorSmartphone size={30} /></span>
-			<h1>Check the Mimi screen</h1>
-			<p class="sub">Tap <b>Allow</b> on the Mimi device to sign in as {name.trim()}. It shows this code:</p>
-			<div class="code" role="img" aria-label="Code {pairing.code.split('').join(' ')}">{#each pairing.code.split('') as d}<span aria-hidden="true">{d}</span>{/each}</div>
+			<h1>{t('auth.checkScreen')}</h1>
+			<p class="sub">{#each parts(t('auth.tapAllow')) as p}{#if p === '{allow}'}<b>{t('auth.allow')}</b>{:else if p === '{name}'}{name.trim()}{:else}{p}{/if}{/each}</p>
+			<div class="code" role="img" aria-label={t('auth.code', { code: pairing.code.split('').join(' ') })}>{#each pairing.code.split('') as d}<span aria-hidden="true">{d}</span>{/each}</div>
 			{#if pairing.screen}
-				<p class="fine waiting"><span class="dot" aria-hidden="true"></span> Waiting for approval…</p>
+				<p class="fine waiting"><span class="dot" aria-hidden="true"></span> {t('auth.waiting')}</p>
 			{:else}
-				<p class="warn">Mimi isn't open on the device's screen right now, so nobody can tap Allow. Open or unlock Mimi there and this request will appear, or cancel and use your PIN.</p>
+				<p class="warn">{t('auth.noScreen')}</p>
 			{/if}
-			<button class="btn btn-ghost" onclick={cancelPairing}>Cancel</button>
+			<button class="btn btn-ghost" onclick={cancelPairing}>{t('auth.cancel')}</button>
 		</div>
 	{:else}
 	<form class="panel" onsubmit={go}>
 		<Well size={170} mood="idle" />
 		{#if locked}
-			<h1><Lock size={22} aria-hidden="true" /> Mimi is locked</h1>
-			<p class="sub">Enter the owner's PIN to continue.</p>
+			<h1><Lock size={22} aria-hidden="true" /> {t('auth.locked')}</h1>
+			<p class="sub">{t('auth.lockedSub')}</p>
 			<label class="field">
-				<span class="field-label">PIN</span>
+				<span class="field-label">{t('auth.pin')}</span>
 				<input class="input big" type="password" inputmode="numeric" bind:value={secret} maxlength="8" autocomplete="current-password" data-autofocus aria-invalid={!!error} aria-describedby={error ? 'signin-err' : undefined} />
 			</label>
 		{:else}
-			<h1>Welcome to Mimi</h1>
-			<p class="sub">An AI that lives entirely on this device, with no internet needed.</p>
-			<div class="seg" role="group" aria-label="How to join">
+			<h1>{t('auth.welcome')}</h1>
+			<p class="sub">{t('auth.welcomeSub')}</p>
+			<div class="seg" role="group" aria-label={t('auth.howToJoin')}>
 				{#if app.boot?.guest_access !== false}
-					<button type="button" class:on={mode === 'guest'} aria-pressed={mode === 'guest'} onclick={() => (mode = 'guest')}>Join as guest</button>
+					<button type="button" class:on={mode === 'guest'} aria-pressed={mode === 'guest'} onclick={() => (mode = 'guest')}>{t('auth.joinAsGuest')}</button>
 				{/if}
-				<button type="button" class:on={mode === 'account'} aria-pressed={mode === 'account'} onclick={() => (mode = 'account')}>Sign in</button>
+				<button type="button" class:on={mode === 'account'} aria-pressed={mode === 'account'} onclick={() => (mode = 'account')}>{t('auth.signIn')}</button>
 			</div>
 			<label class="field">
-				<span class="field-label">{mode === 'guest' ? 'Your name (optional)' : 'Name'}</span>
+				<span class="field-label">{mode === 'guest' ? t('auth.yourNameOptional') : t('auth.name')}</span>
 				<input class="input big" bind:value={name} maxlength="40" autocomplete="username" data-autofocus aria-invalid={!!error && mode === 'account'} aria-describedby={error ? 'signin-err' : undefined} />
 			</label>
 			{#if mode === 'account'}
 				<label class="field">
-					<span class="field-label">PIN or password</span>
+					<span class="field-label">{t('auth.pinOrPassword')}</span>
 					<input class="input big" type="password" bind:value={secret} autocomplete="current-password" aria-describedby="signin-pin-hint" />
-					<span class="fine" id="signin-pin-hint">No PIN? Leave it blank and approve on the Mimi device.</span>
+					<span class="fine" id="signin-pin-hint">{t('auth.noPinHint')}</span>
 				</label>
 			{/if}
-			{#if mode === 'guest'}<p class="fine">Guest chats aren't saved and Mimi won't remember you.</p>{/if}
+			{#if mode === 'guest'}<p class="fine">{t('auth.guestNote')}</p>{/if}
 		{/if}
 		{#if error}<p class="err" id="signin-err" role="alert">{error}</p>{/if}
-		<button class="btn btn-primary btn-lg" disabled={busy}>{busy ? 'One moment…' : locked ? 'Unlock' : mode === 'account' && !secret ? 'Ask the Mimi device' : 'Continue'} <ArrowRight size={18} aria-hidden="true" /></button>
+		<button class="btn btn-primary btn-lg" disabled={busy}>{busy ? t('auth.oneMoment') : locked ? t('auth.unlock') : mode === 'account' && !secret ? t('auth.askDevice') : t('auth.continue')} <ArrowRight size={18} aria-hidden="true" /></button>
 	</form>
 	{/if}
 </div>
@@ -196,6 +199,7 @@
 	.code {
 		display: flex;
 		gap: var(--space-2);
+		max-width: 100%; /* six digits are wider than a phone: the boxes narrow instead */
 		margin: var(--space-1) 0 var(--space-1-5);
 	}
 	.code span {

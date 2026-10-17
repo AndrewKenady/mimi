@@ -265,3 +265,38 @@ def test_a_well_supported_answer_raises_no_flags(svc):
     evs = run_turn(svc, [SEARCH, good], content="How do you treat hypothermia?", mode="everyday")
     assert "grounding" not in [e["event"] for e in evs]
     assert evs[-1]["data"]["message"]["meta"]["grounding"]["citations"] >= 1
+
+
+def test_a_spanish_turn_searches_in_english_and_speaks_spanish(svc):
+    """The interface language words Core's status lines; numbers are still checked against English sources."""
+    from mimi import i18n
+
+    token = i18n.use("es")
+    try:
+        answer = {"text_pieces": ["Por debajo de 35,0 °C es hipotermia [1]. ", "Dale bebidas a 60 °C [1]."]}
+        evs = run_turn(svc, [SEARCH, answer], content="¿Cómo trato la hipotermia?", mode="everyday")
+    finally:
+        i18n._current.reset(token)
+    statuses = [e["data"] for e in evs if e["event"] == "status"]
+    assert [s["state"] for s in statuses] == ["thinking", "searching", "reading", "writing"]  # the question was grounded
+    assert [s["label"] for s in statuses] == [
+        "Pensando…", "Buscando “hypothermia treatment” en Wikipedia y WikiMed…",
+        "Leyendo “Hypothermia” (WikiMed) y 1 más…", "Escribiendo la respuesta…"]
+    tool_end = next(e["data"] for e in evs if e["event"] == "tool" and e["data"]["state"] == "end")
+    assert tool_end["label"] == "Buscó “hypothermia treatment” en Wikipedia y WikiMed" and tool_end["summary"] == "Leyó 2 artículos"
+    meta = evs[-1]["data"]["message"]["meta"]
+    assert meta["grounding"]["mode"] == "numbers" and meta["grounding"]["language"] == "es"
+    assert [(f["sentence"], f["reasons"]) for f in meta["grounding"]["flags"]] == [
+        ("Dale bebidas a 60 °C.", ["número que no está en la fuente: 60"])]
+
+
+def test_a_missing_chat_is_reported_with_a_stable_code(svc):
+    """Clients recognize it by code, so it can be worded in any language."""
+    from mimi import i18n
+
+    token = i18n.use("fr")
+    try:
+        evs = run_turn(svc, [], chat_id="c_missing", content="Bonjour ?", mode="everyday")
+    finally:
+        i18n._current.reset(token)
+    assert evs[0]["event"] == "error" and evs[0]["data"] == {"message": "Discussion introuvable", "code": "chat_not_found"}

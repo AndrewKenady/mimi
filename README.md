@@ -20,7 +20,7 @@ Small local models make things up, and in a field-medicine tool that matters mor
 
 - **Answers come from the library, with sources.** Factual questions must go through a search first, and every claim cites the article or PDF page it came from (*"First Aid, p. 133"*). Sources and a verbatim quote from the best passage appear within seconds, before the model has written a word.
 - **Every citation is checked.** After each answer, Mimi checks whether the cited passage actually supports the sentence: numbers, doses, names and negations included. A claim the source doesn't support gets a visible "check this" marker naming the reason, e.g. *number not in source: 45 °C*. The answer itself is never rewritten.
-- **Answer quality is measured, not asserted.** A 166-question golden set (field medicine, repair, travel, survival, plus adversarial traps like dangerous dosing and false premises) scores retrieval, key facts, forbidden claims and citation faithfulness, and compares models head to head. Model and retrieval changes need an eval run ([docs/EVALUATION.md](docs/EVALUATION.md)).
+- **Answer quality is measured, not asserted.** A 166-question golden set (field medicine, repair, travel, survival, plus adversarial traps like dangerous dosing and false premises) scores retrieval, key facts, forbidden claims and citation faithfulness, and compares models head to head. Model and retrieval changes need an eval run ([docs/EVALUATION.md](docs/EVALUATION.md)), and published runs appear on the [scoreboard](https://andrewkenady.github.io/mimi/scoreboard.html).
 - **The library is honest.** Every book is surveyed: can it be opened, can it be searched, how many items does it really have? PDF collections that other readers show as a blank page open as real document lists, and their text is indexed page by page so chat can cite them.
 
 | Sources first, while Mimi reads | PDF collections, searchable by page | Offline directions |
@@ -37,6 +37,7 @@ Small local models make things up, and in a field-medicine tool that matters mor
 - **Remembers you, transparently.** Suggested memories wait for your OK. Every one can be seen, edited, pinned, paused or erased.
 - **Shares.** Phones and laptops on the same network, or on Mimi's own Wi-Fi, open `https://mimi.local` and sign in.
 - **Extensible.** Slash commands (`/eli5`, `/translate spanish …`, `/steps`). Drop a Python file into `tools/` to give Mimi a new ability ([tools/README.md](tools/README.md)). It also works as an **MCP server**, so Claude Desktop and other MCP clients can use its offline library, places and directions ([docs/MCP.md](docs/MCP.md)).
+- **Speaks English, Spanish and French.** The whole interface, Mimi's own messages and its voice; answers come in the language you write in, still grounded in the (English) library.
 - **Controller-first and accessible.** A native full-screen app with a living "Well" orb, gamepad navigation, a command palette, and dark, light and OLED themes. Every theme passes WCAG AA contrast, and every main screen passes an automated WCAG 2.2 audit, both checked in CI.
 
 ## Install
@@ -79,11 +80,11 @@ Mimi picks the Plus or Max models by itself on hardware that can run them, and u
 
 Every push runs [CI](.github/workflows/ci.yml) (Core on Linux, Windows and macOS):
 
-- **Core:** 370 tests, from geocoding to the CA's name constraints and prompt-injection defenses, plus ruff.
+- **Core:** 396 tests, from geocoding to the CA's name constraints and prompt-injection defenses, plus ruff.
 - **UI:**
   - type checks;
   - a WCAG AA contrast audit of every theme × token pair;
-  - 31 Playwright end-to-end tests against the real Core API, with a scripted model, covering the honest library, sources-first chat, flagged citations and recovery;
+  - 32 Playwright end-to-end tests against the real Core API, with a scripted model, covering the honest library, sources-first chat, flagged citations and recovery;
   - axe accessibility scans of every main screen in dark and light;
   - pixel snapshots of key screens.
 - **Evaluation:** the scoring pipeline runs on fixtures and publishes its scoreboard.

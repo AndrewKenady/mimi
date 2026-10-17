@@ -55,13 +55,19 @@ Verdicts: **supported** (score ≥ 0.5 and no red flags), **weak**, **unsupporte
 
 **Evidence used by the eval.** Mimi's stored sources only keep a 240-character snippet, so `run.py` fetches the cited article's text (up to 20 000 characters). This asks "does the cited *article* support the claim?", which is what a user clicking the chip would check. It is more lenient than "does the *passage the model read* support it?". The chat.py integration below uses the exact passages.
 
-### Planned use in chat (not wired yet)
+### In chat
 
-`grounding` is pure Python, takes a few milliseconds, and has no dependencies, so chat.py can run it after every answer. The module docstring describes the steps: keep each passage's text on the turn (`TurnState.passages[n]`), call `check_answer(answer, state.passages)` (or `await check_answer_async(..., embed=svc.models.embed)`), store `report.summary()` in the message meta, and send `report.flags()` (weak, unsupported or invalid citations with character offsets and reasons) to the UI. The UI can then mark those `[n]` chips as "this source may not say this". It stays advisory and never rewrites an answer.
+chat.py runs the same check after every answer, on the exact passages the model read this turn (a few milliseconds, no dependencies). The summary is stored in the message meta, and the UI marks only citations that are *unsupported* or *invalid*, with the reason ("number not in source: 45 °C"). *Weak* citations are usually honest paraphrases, so they go into the eval data but not on screen: a warning has to be right nearly every time or people learn to ignore it. The answer itself is never rewritten.
+
+An answer in another language than its English sources (Spanish or French) gets a numbers-only check (`grounding.number_flags`): words can't be compared across languages, but a dose, a temperature or a date must still appear in the cited passage, read either way ("37,5" or "37.5").
 
 ## Optional LLM judge
 
 `score.py --judge-url` sends the question, answer and cited passages to any OpenAI-compatible chat endpoint and asks for the behavior, overall correctness and unsupported claims as JSON. Judge verdicts are stored next to the heuristic ones, the behavior from the judge is used when present, and the report shows how often judge and heuristic agree. Prefer a different and larger model than the one being graded: a model grading its own answers shares its own blind spots.
+
+## Publishing results
+
+Reports that `score.py` writes to `eval/reports/` are published on the project site's [scoreboard](https://andrewkenady.github.io/mimi/scoreboard.html) on the next site build (`eval/publish.py`, run by the Pages workflow). Each run records the device it ran on (from Mimi's own hardware report, or `run.py --device`), because timings only mean something per device. Until a real run is committed, the scoreboard says so and offers a clearly labeled preview built from the synthetic fixtures.
 
 ## How it informs decisions
 

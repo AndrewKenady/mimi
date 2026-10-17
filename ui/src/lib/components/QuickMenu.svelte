@@ -8,25 +8,27 @@
 	import { motion } from '$lib/motion';
 	import { inkOn } from '$lib/color';
 	import { DEFAULT_ACCENT } from '$lib/accents';
+	import { t } from '$lib/i18n/index.svelte';
 	import { ScanText, AudioLines, Map, MessageSquarePlus, QrCode, Moon, Sun, Maximize, LogOut, MonitorDown, Search, UserCog, NotebookPen, Brain, Settings } from '@lucide/svelte';
 
 	const light = $derived(document.documentElement.dataset.theme === 'light' || app.settings.user?.appearance?.theme === 'light');
 	const tiles = $derived(
 		[
-			{ label: 'Talk', icon: AudioLines, run: () => (app.voice = true), primary: true },
-			{ label: 'New chat', icon: MessageSquarePlus, run: () => goto('/chat') },
-			{ label: 'Lens', icon: ScanText, run: () => goto('/lens') },
-			{ label: 'Scribe', icon: NotebookPen, run: () => goto('/scribe'), hide: app.isGuest },
-			{ label: 'Map', icon: Map, run: () => goto('/map') },
-			{ label: 'Search', icon: Search, run: () => (app.palette = true) },
-			{ label: 'Memory', icon: Brain, run: () => goto('/memory'), hide: app.isGuest || app.features.memory === false },
-			{ label: 'Settings', icon: Settings, run: () => goto('/settings') },
-			{ label: 'Share', icon: QrCode, run: () => goto('/settings/sharing'), hide: !app.isOwner },
-			{ label: light ? 'Dark mode' : 'Light mode', icon: light ? Moon : Sun, run: () => app.setSetting('user', 'appearance', { theme: light ? 'dark' : 'light' }) },
-			{ label: 'Full screen', icon: Maximize, run: () => toggleFullscreen(), hide: !inShell && innerWidth <= 760 },
-			{ label: 'Exit to desktop', icon: MonitorDown, run: () => hostPost({ type: 'exit-to-desktop' }), hide: !inShell },
+			{ id: 'talk', label: t('shell.talk'), icon: AudioLines, run: () => (app.voice = true), primary: true },
+			{ id: 'new', label: t('shell.newChat'), icon: MessageSquarePlus, run: () => goto('/chat') },
+			{ id: 'lens', label: t('shell.lens'), icon: ScanText, run: () => goto('/lens') },
+			{ id: 'scribe', label: t('shell.scribe'), icon: NotebookPen, run: () => goto('/scribe'), hide: app.isGuest },
+			{ id: 'map', label: t('shell.map'), icon: Map, run: () => goto('/map') },
+			{ id: 'search', label: t('shell.search'), icon: Search, run: () => (app.palette = true) },
+			{ id: 'memory', label: t('shell.memory'), icon: Brain, run: () => goto('/memory'), hide: app.isGuest || app.features.memory === false },
+			{ id: 'settings', label: t('shell.settings'), icon: Settings, run: () => goto('/settings') },
+			{ id: 'share', label: t('shell.share'), icon: QrCode, run: () => goto('/settings/sharing'), hide: !app.isOwner },
+			{ id: 'theme', label: light ? t('shell.darkMode') : t('shell.lightMode'), icon: light ? Moon : Sun, run: () => app.setSetting('user', 'appearance', { theme: light ? 'dark' : 'light' }) },
+			{ id: 'fullscreen', label: t('shell.fullScreen'), icon: Maximize, run: () => toggleFullscreen(), hide: !inShell && innerWidth <= 760 },
+			{ id: 'exit', label: t('shell.exitToDesktop'), icon: MonitorDown, run: () => hostPost({ type: 'exit-to-desktop' }), hide: !inShell },
 			{
-				label: 'Sign out',
+				id: 'signout',
+				label: t('shell.signOut'),
 				icon: LogOut,
 				run: async () => {
 					await post('/api/auth/logout');
@@ -46,23 +48,23 @@
 
 {#if app.quick}
 	<div class="scrim" style="z-index: var(--z-sheet)" transition:fade={motion({ duration: 'fast' })} onclick={close} role="presentation"></div>
-	<div class="qm sheet" use:dialog={{ label: 'Quick menu', onclose: close, initialFocus: '.tile' }} transition:fly={motion({ y: 30, duration: 'slow' })}>
+	<div class="qm sheet" use:dialog={{ label: t('shell.quickMenu'), onclose: close, initialFocus: '.tile' }} transition:fly={motion({ y: 30, duration: 'slow' })}>
 		<div class="who">
 			<span class="av" style="--c:{app.me?.color}; --ink:{inkOn(app.me?.color || DEFAULT_ACCENT)}" aria-hidden="true">{app.me?.name?.charAt(0).toUpperCase()}</span>
 			<div>
 				<b>{app.me?.name}</b>
-				<small>{app.me?.role === 'owner' ? 'Owner' : app.me?.role === 'guest' ? 'Guest' : 'Member'}{app.boot?.local ? '' : ' · connected over the network'}</small>
+				<small>{app.me?.role === 'owner' ? t('shell.owner') : app.me?.role === 'guest' ? t('shell.guest') : t('shell.member')}{app.boot?.local ? '' : ` · ${t('shell.overNetwork')}`}</small>
 			</div>
 			{#if !app.isGuest}
-				<button class="btn btn-sm btn-ghost acct" onclick={() => run({ run: () => goto('/settings/accounts') })}><UserCog size={15} aria-hidden="true" /> Account</button>
+				<button class="btn btn-sm btn-ghost acct" onclick={() => run({ run: () => goto('/settings/accounts') })}><UserCog size={15} aria-hidden="true" /> {t('shell.account')}</button>
 			{/if}
 		</div>
 		<div class="grid">
-			{#each tiles as t (t.label)}
-				{@const Icon = t.icon}
-				<button class="tile" class:primary={t.primary} onclick={() => run(t)}>
+			{#each tiles as tile (tile.id)}
+				{@const Icon = tile.icon}
+				<button class="tile" class:primary={tile.primary} onclick={() => run(tile)}>
 					<Icon size={26} strokeWidth={1.7} aria-hidden="true" />
-					<span>{t.label}</span>
+					<span>{tile.label}</span>
 				</button>
 			{/each}
 		</div>
@@ -91,6 +93,16 @@
 		.tile {
 			height: 5.25rem !important;
 		}
+		/* A longer Spanish or French label can wrap to two lines on these shorter tiles: let
+		   the tiles grow to fit it, every row alike. */
+		.grid:not(:lang(en)) {
+			grid-auto-rows: 1fr;
+		}
+		.grid:not(:lang(en)) .tile {
+			height: auto !important;
+			min-height: 5.25rem;
+			padding-block: var(--space-2);
+		}
 	}
 	.who {
 		display: flex;
@@ -110,6 +122,7 @@
 		font-size: var(--fs-sm);
 	}
 	.av {
+		flex: none; /* stays round when the line beside it is long */
 		width: 2.625rem;
 		height: 2.625rem;
 		border-radius: var(--radius-round);
@@ -141,6 +154,13 @@
 			background var(--dur-fast) var(--ease-standard),
 			color var(--dur-fast) var(--ease-standard),
 			transform var(--dur-instant) var(--ease-standard);
+	}
+	/* Spanish and French labels run longer ("Pantalla completa", "Quitter vers le bureau"):
+	   keep them off the tile's edges and split two lines evenly. English labels all fit on
+	   one line already and keep their exact layout. */
+	.tile:not(:lang(en)) {
+		padding-inline: var(--space-1-5);
+		text-wrap: balance;
 	}
 	.tile:hover,
 	.tile:focus {

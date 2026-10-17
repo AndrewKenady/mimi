@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mimi scoreboard</title>
+<meta name="description" content="Mimi's answer quality, measured: the 166-question evaluation on the reference handheld, with pass rate, forbidden claims, citation faithfulness and speed, model against model.">
+<meta name="author" content="Drew K. Kennedy">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef0ea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#070b12" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,300..900;1,62..125,300..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #eef0ea; --paper-2: #e3e7df; --card: #f6f7f2;
+  --ink: #0d1a22; --ink-2: #33434d; --ink-3: #5c6b73;
+  --rule: rgba(13, 26, 34, .16); --rule-2: rgba(13, 26, 34, .32);
+  --grid: rgba(13, 26, 34, .06);
+  --accent: #0a6e66; --accent-soft: rgba(10, 110, 102, .1);
+  --blaze: #f2c230; --blaze-ink: #1d1600;
+  --warn: #9a3412;
+  /* A/B series: categorical slots 1-2, validated on this card surface (dataviz validate_palette.js) */
+  --series-a: #2a78d6; --series-b: #eb6834;
+  --track: rgba(13, 26, 34, .08);
+  --code-bg: #0d1a22; --code-ink: #dff7f2;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #070b12; --paper-2: #0b111b; --card: #0c131e;
+    --ink: #e8eef7; --ink-2: #b3bfd0; --ink-3: #7e8ca2;
+    --rule: rgba(150, 180, 220, .15); --rule-2: rgba(150, 180, 220, .3);
+    --grid: rgba(150, 180, 220, .05);
+    --accent: #6ee7d2; --accent-soft: rgba(110, 231, 210, .1);
+    --blaze: #f5c86a; --warn: #fdba74;
+    --series-a: #3987e5; --series-b: #d95926;
+    --track: rgba(150, 180, 220, .1);
+    --code-bg: #03060a; --code-ink: #cfeee8;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #070b12; --paper-2: #0b111b; --card: #0c131e;
+  --ink: #e8eef7; --ink-2: #b3bfd0; --ink-3: #7e8ca2;
+  --rule: rgba(150, 180, 220, .15); --rule-2: rgba(150, 180, 220, .3);
+  --grid: rgba(150, 180, 220, .05);
+  --accent: #6ee7d2; --accent-soft: rgba(110, 231, 210, .1);
+  --blaze: #f5c86a; --warn: #fdba74;
+  --series-a: #3987e5; --series-b: #d95926;
+  --track: rgba(150, 180, 220, .1);
+  --code-bg: #03060a; --code-ink: #cfeee8;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 400 18px/1.6 var(--display);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px; overflow-x: hidden;
+}
+a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.skip { position: absolute; left: 12px; top: -60px; background: var(--ink); color: var(--paper); padding: 10px 14px; z-index: 10; font-family: var(--mono); font-size: 14px; }
+.skip:focus { top: 12px; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+code { font-family: var(--mono); font-size: .86em; background: var(--accent-soft); padding: 1px 5px; border-radius: 3px; overflow-wrap: anywhere; }
+pre { font-family: var(--mono); font-size: 13.5px; line-height: 1.6; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; margin: 14px 0 0; }
+
+.collar { border-bottom: 1px solid var(--rule-2); background: color-mix(in oklab, var(--paper) 88%, transparent); backdrop-filter: blur(6px); position: sticky; top: 0; z-index: 5; }
+.collar .wrap { display: flex; align-items: center; gap: 20px; min-height: 56px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-weight: 800; font-stretch: 80%; font-size: 22px; }
+.brand svg { width: 28px; height: 28px; flex: none; }
+.sheet { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: var(--ink-3); text-transform: uppercase; border-left: 1px solid var(--rule-2); padding-left: 14px; }
+.collar nav { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.collar nav a { font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; padding: 8px 10px; border-radius: 4px; }
+.collar nav a:hover { color: var(--ink); background: var(--accent-soft); }
+.theme { font-family: var(--mono); font-size: 12px; background: none; color: var(--ink-2); border: 1px solid var(--rule-2); border-radius: 999px; padding: 6px 12px; cursor: pointer; margin-left: 6px; min-height: 32px; }
+
+.title { padding: 56px 0 8px; }
+.kicker { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+.kicker .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+h1 { font-weight: 850; font-stretch: 68%; font-size: clamp(44px, 7vw, 88px); line-height: .92; margin: 18px 0 22px; text-transform: uppercase; max-width: 14ch; }
+h1 .thin { font-weight: 300; color: var(--ink-2); }
+.dek { font-size: clamp(18px, 1.7vw, 22px); line-height: 1.5; color: var(--ink-2); max-width: 42em; margin: 0; }
+.dek b { color: var(--ink); font-weight: 650; }
+
+section.block { padding: 56px 0 4px; }
+.head { display: flex; align-items: end; justify-content: space-between; gap: 20px; flex-wrap: wrap; border-bottom: 1.5px solid var(--ink); padding-bottom: 12px; margin-bottom: 22px; }
+h2 { margin: 0; font-weight: 850; font-stretch: 70%; font-size: clamp(28px, 3.6vw, 40px); line-height: 1; text-transform: uppercase; }
+.head p { margin: 0; color: var(--ink-3); font-family: var(--mono); font-size: 12px; letter-spacing: .06em; }
+.note { color: var(--ink-2); font-size: 16px; max-width: 46em; margin: 0 0 14px; }
+
+.sign { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; background: var(--blaze); color: var(--blaze-ink); padding: 2px 8px; border-radius: 3px; vertical-align: middle; }
+.sign.plan { background: transparent; color: var(--ink-2); border: 1.5px dashed var(--ink-3); }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; font: 600 15px var(--display); color: var(--paper); background: var(--ink); border: 1.5px solid var(--ink); border-radius: 999px; padding: 10px 18px; cursor: pointer; text-decoration: none; min-height: 44px; }
+.btn.ghost { background: transparent; color: var(--ink); }
+.btn:hover { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+
+/* empty state */
+.empty { margin: 34px 0 0; border: 1.5px solid var(--ink); border-radius: 6px; background: var(--card); padding: 22px 24px 24px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px 36px; }
+.empty h2 { font-size: 30px; margin: 10px 0 10px; }
+.empty p { margin: 0 0 12px; color: var(--ink-2); }
+.empty .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+/* synthetic banner */
+.synthetic { position: sticky; top: 64px; z-index: 4; margin: 28px 0 0; background: repeating-linear-gradient(135deg, var(--blaze) 0 14px, color-mix(in oklab, var(--blaze) 82%, var(--paper)) 14px 28px); color: var(--blaze-ink); border-radius: 6px; padding: 10px 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-weight: 650; }
+.synthetic span { flex: 1; min-width: 14em; }
+.synthetic button { font: 600 13px var(--mono); background: var(--blaze-ink); color: var(--blaze); border: 0; border-radius: 999px; padding: 8px 14px; cursor: pointer; min-height: 36px; }
+
+/* facts strip */
+.facts { margin: 30px 0 0; border: 1.5px solid var(--ink); border-radius: 6px; background: var(--card); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.facts div { padding: 12px 16px; border-left: 1px solid var(--rule-2); min-width: 0; }
+.facts div:first-child { border-left: 0; }
+.facts dt { font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.facts dd { margin: 4px 0 0; font-weight: 700; font-stretch: 88%; font-size: 16.5px; line-height: 1.3; overflow-wrap: anywhere; }
+.picker { margin: 18px 0 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); }
+.picker select { font: 500 14px var(--display); color: var(--ink); background: var(--card); border: 1px solid var(--rule-2); border-radius: 6px; padding: 8px 10px; min-height: 40px; max-width: 100%; }
+
+/* KPI tiles */
+.kpis { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--rule-2); border-left: 1px solid var(--rule-2); }
+.kpis li { padding: 18px 18px 20px; border-right: 1px solid var(--rule-2); border-bottom: 1px solid var(--rule-2); background: color-mix(in oklab, var(--card) 70%, transparent); min-width: 0; }
+.kpis .k { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.kpis .v { display: block; font-weight: 850; font-stretch: 66%; font-size: 46px; line-height: 1; margin: 8px 0 6px; font-variant-numeric: tabular-nums; }
+.kpis .v small { font-weight: 400; font-size: 20px; color: var(--ink-3); font-stretch: 100%; }
+.kpis p { margin: 0; font-size: 14.5px; line-height: 1.45; color: var(--ink-2); }
+.kpis .ci { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+.kpis .bad { color: var(--warn); }
+.meter { height: 6px; border-radius: 3px; background: var(--track); margin: 4px 0 8px; position: relative; overflow: hidden; }
+.meter i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 3px; }
+.meter b { position: absolute; top: 0; bottom: 0; background: color-mix(in oklab, var(--accent) 35%, transparent); }
+
+/* charts */
+.chart { border: 1px solid var(--rule-2); border-radius: 6px; background: var(--card); padding: 14px 16px 8px; position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .ax { font: 500 12px var(--mono); fill: var(--ink-3); }
+.chart .lbl { font: 600 13.5px var(--display); fill: var(--ink); }
+.chart .val { font: 600 12.5px var(--mono); fill: var(--ink-2); }
+.chart .gridline { stroke: var(--rule); stroke-width: 1; }
+.chart .track { fill: var(--track); }
+.chart .mark { cursor: default; }
+.chart .mark:focus { outline: none; }
+.chart .mark:focus-visible .hit, .chart .mark:hover .hit { fill: var(--accent-soft); }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 0 0 8px; font: 500 13px var(--mono); color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend svg { width: 14px; height: 14px; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--paper); font: 500 13px/1.45 var(--display); padding: 8px 10px; border-radius: 6px; max-width: 260px; z-index: 3; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
+.tip b { font-weight: 700; }
+details.as-table { margin: 10px 0 0; }
+details.as-table summary { cursor: pointer; font: 500 13px var(--mono); color: var(--ink-2); padding: 6px 0; }
+
+/* tables */
+.tbl { overflow-x: auto; border: 1px solid var(--rule-2); border-radius: 6px; background: var(--card); margin: 0 0 22px; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); padding: 14px 16px 6px; }
+th, td { text-align: left; padding: 10px 16px; border-top: 1px solid var(--rule); color: var(--ink-2); }
+td.n, th.n { text-align: right; }
+th.grp { text-align: center; font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: .06em; color: var(--ink-2); border-top: 0; border-bottom: 1px solid var(--rule); padding-bottom: 6px; }
+thead tr:first-child td { border-top: 0; }
+thead th { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); border-top: 0; }
+tbody th { font-weight: 700; font-stretch: 88%; color: var(--ink); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 0; }
+.better { color: var(--accent); font-weight: 650; }
+.worse { color: var(--warn); font-weight: 650; }
+
+.verdict { border-left: 4px solid var(--blaze); padding: 4px 0 4px 18px; margin: 0 0 24px; max-width: 46em; }
+.verdict p { margin: 0; font-weight: 650; font-stretch: 85%; font-size: clamp(21px, 2.3vw, 26px); line-height: 1.3; }
+.verdict small { display: block; margin-top: 8px; font-family: var(--mono); font-size: 12.5px; color: var(--ink-3); font-weight: 400; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 0 22px; }
+.method { columns: 2 22em; column-gap: 40px; color: var(--ink-2); font-size: 16px; }
+.method p { margin: 0 0 14px; break-inside: avoid; }
+.method b { color: var(--ink); }
+
+footer { margin-top: 72px; border-top: 1.5px solid var(--ink); padding: 22px 0 40px; font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 28px; justify-content: space-between; }
+footer a { color: var(--ink-2); }
+
+@media (max-width: 1040px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .facts div:nth-child(3) { border-left: 0; }
+  .facts div:nth-child(n+3) { border-top: 1px solid var(--rule-2); }
+}
+@media (max-width: 760px) {
+  .sheet { display: none; }
+  .empty, .two { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  body { font-size: 17px; }
+  .wrap { padding: 0 16px; }
+  .collar .wrap { gap: 10px; }
+  .collar nav a { padding: 8px 6px; font-size: 11.5px; }
+  .collar nav a.hide-xs { display: none; }
+  .kpis, .facts { grid-template-columns: minmax(0, 1fr); }
+  .facts div { border-left: 0 !important; border-top: 1px solid var(--rule-2); }
+  .facts div:first-child { border-top: 0; }
+  th, td { padding: 9px 12px; }
+  .synthetic { position: static; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="collar">
+  <div class="wrap">
+    <a class="brand" href="index.html" aria-label="Mimi home">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><radialGradient id="bg" cx=".38" cy=".34" r=".7"><stop offset="0" stop-color="#e7fffb"/><stop offset=".28" stop-color="#6ee7d2"/><stop offset=".6" stop-color="#1e7f8f"/><stop offset="1" stop-color="#0b2432"/></radialGradient></defs><rect width="64" height="64" rx="16" fill="#070b12"/><circle cx="32" cy="32" r="20" fill="url(#bg)"/></svg>
+      Mimi
+    </a>
+    <span class="sheet">Field notes · Scoreboard</span>
+    <nav aria-label="Site">
+      <a href="index.html" class="hide-xs">Overview</a>
+      <a href="case-study.html">Case study</a>
+      <a href="demo/">Live demo</a>
+      <a href="https://github.com/AndrewKenady/mimi" class="hide-xs">Source</a>
+      <button class="theme" type="button" id="theme" aria-label="Auto color theme. Change theme">Auto</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <div class="title">
+    <div class="wrap">
+      <span class="kicker"><span class="dot" aria-hidden="true"></span>Evaluation · <span id="qcount">166</span> questions</span>
+      <h1>Answer quality, <span class="thin">measured</span></h1>
+      <p class="dek">Every model and retrieval change in Mimi takes the same exam: field medicine, repair, travel, survival and general knowledge, plus <b>trick questions</b> such as dangerous doses and false premises. This page shows the latest published run, with its error bars.</p>
+      <div id="status" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="wrap" id="board" hidden></div>
+
+  <section class="block" aria-labelledby="m-h">
+    <div class="wrap">
+      <div class="head"><h2 id="m-h">How it&rsquo;s measured</h2><p>Full method: <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/EVALUATION.md">EVALUATION.md</a></p></div>
+      <div class="method">
+        <p><b>Pass</b> means every key fact present, no forbidden claim, and the expected behavior: answer, hedge or refuse. Key facts and forbidden claims are forgiving patterns written for stable textbook facts, and a forbidden claim inside a negated sentence (&ldquo;do <i>not</i> put butter on a burn&rdquo;) doesn&rsquo;t count.</p>
+        <p><b>Citation faithfulness</b> asks whether each cited source supports the sentence that cites it: words, numbers, names and negations. It is a lexical check, a proxy and not proof, so it reports support, not truth.</p>
+        <p><b>Error bars.</b> With 166 questions, a pass rate near 80% carries about &plusmn;6 points of uncertainty. Pass rates show a 95% interval, and model comparisons use an exact McNemar test on the questions only one model passed.</p>
+        <p><b>Speed</b> depends on the hardware and on what else is running, so every run records its device. Timings from one machine say nothing about another.</p>
+        <p><b>Not clinical validation.</b> Passing the medicine set means Mimi repeats well-known first-aid facts from its library. It doesn&rsquo;t make Mimi a medical device.</p>
+        <p><b>Run it yourself:</b> <code>eval/run.py</code> asks a running Mimi every question, and <code>eval/score.py</code> turns the answers into this report. Reports committed to <code>eval/reports/</code> appear here on the next site build.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Scoreboard · Mimi is MIT licensed</span>
+    <span><a href="https://github.com/AndrewKenady/mimi/tree/main/eval">eval/</a> · <a href="https://github.com/AndrewKenady/mimi/tree/main/eval/questions">The questions</a> · <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/EVALUATION.md">Evaluation</a></span>
+    <span>No scripts from anywhere else. The only outside request is for fonts.</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement, btn = document.getElementById('theme');
+  var order = ['auto', 'light', 'dark'], names = { auto: 'Auto', light: 'Day', dark: 'Night' };
+  function get() { try { return localStorage.getItem('mimi-theme') || 'auto'; } catch (e) { return 'auto'; } }
+  function apply(t) {
+    if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    btn.textContent = names[t];
+    btn.setAttribute('aria-label', names[t] + ' color theme. Change theme');
+  }
+  apply(get());
+  btn.addEventListener('click', function () {
+    var t = order[(order.indexOf(get()) + 1) % order.length];
+    try { localStorage.setItem('mimi-theme', t); } catch (e) {}
+    apply(t);
+  });
+})();
+
+(function () {
+  'use strict';
+  var BASE = 'scoreboard/';
+  var status = document.getElementById('status'), board = document.getElementById('board');
+  var DOMAINS = { medicine: 'Medicine', repair: 'Repair', travel: 'Travel', survival: 'Survival', general: 'General knowledge', local: 'Location', adversarial: 'Trick questions' };
+  var TAGS = { medical: 'Medical', dosing: 'Dosing', self_harm: 'Self-harm', prompt_injection: 'Prompt injection', false_premise: 'False premise', unanswerable_offline: 'Needs the internet' };
+  var BEHAVIOR = { answer: 'Answer', hedge: 'Hedge', refuse: 'Refuse', error: 'Error' };
+
+  function el(tag, attrs, html) {
+    var e = document.createElement(tag);
+    for (var k in attrs || {}) e.setAttribute(k, attrs[k]);
+    if (html != null) e.innerHTML = html;
+    return e;
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function pct(x) { return x == null ? '—' : Math.round(x * 100) + '%'; }
+  function secs(ms) { return ms == null ? '—' : (ms < 10000 ? (ms / 1000).toFixed(1) : Math.round(ms / 1000)) + ' s'; }
+  // 95% Wilson score interval for a proportion
+  function wilson(p, n) {
+    if (p == null || !n) return null;
+    var z = 1.96, d = 1 + z * z / n, c = (p + z * z / (2 * n)) / d, h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
+    return [Math.max(0, c - h), Math.min(1, c + h)];
+  }
+  function get(path) { return fetch(BASE + path, { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
+  function runs(report) { return report.compare ? [report.a, report.b] : [report]; }
+  function model(run) { return (run.models || []).join(' + ') || 'retrieval'; }
+
+  // ---------------------------------------------------------------- tooltip
+  function tooltip(chart) {
+    var tip = el('div', { class: 'tip', role: 'presentation', hidden: '' });
+    chart.appendChild(tip);
+    function show(e, text) {
+      tip.innerHTML = text; tip.hidden = false;
+      var box = chart.getBoundingClientRect(), t = e.currentTarget.getBoundingClientRect();
+      var x = Math.min(box.width - tip.offsetWidth - 8, Math.max(8, t.left - box.left + t.width / 2 - tip.offsetWidth / 2));
+      tip.style.left = x + 'px'; tip.style.top = (t.top - box.top - tip.offsetHeight - 8) + 'px';
+    }
+    chart.querySelectorAll('.mark').forEach(function (m) {
+      var text = m.getAttribute('data-tip');
+      m.addEventListener('mouseenter', function (e) { show(e, text); });
+      m.addEventListener('focus', function (e) { show(e, text); });
+      m.addEventListener('mouseleave', function () { tip.hidden = true; });
+      m.addEventListener('blur', function () { tip.hidden = true; });
+    });
+  }
+
+  // ------------------------------------------- pass rate by subject (bars or A/B dots)
+  function questions(n) { return n + (n === 1 ? ' question' : ' questions'); }
+  // Drawn at the container's own width, so text stays at its real size on a phone.
+  function domainChart(rs, width) {
+    var keys = Object.keys(DOMAINS).filter(function (d) { return rs.some(function (r) { return r.chat && r.chat.by_domain[d]; }); });
+    var W = Math.max(300, Math.min(900, Math.round(width))), narrow = W < 560, two = rs.length > 1;
+    var left = narrow ? 0 : 168, right = 52, plot = W - left - right, top = 26;
+    var rowH = narrow ? 58 : (two ? 46 : 44), H = top + keys.length * rowH + 6;
+    function x(v) { return left + v * plot; }
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Pass rate by subject' + (two ? ', ' + rs.map(model).join(' against ') : '') + '. The same numbers are in the table below.">';
+    [0, .25, .5, .75, 1].forEach(function (t) {
+      s += '<line class="gridline" x1="' + x(t) + '" x2="' + x(t) + '" y1="' + (top - 6) + '" y2="' + (H - 4) + '"/>' +
+        '<text class="ax" x="' + x(t) + '" y="' + (top - 12) + '" text-anchor="' + (t === 0 ? 'start' : t === 1 ? 'end' : 'middle') + '">' + Math.round(t * 100) + '%</text>';
+    });
+    keys.forEach(function (d, i) {
+      var y = top + i * rowH, cy = narrow ? y + 40 : y + rowH / 2;
+      var n = Math.max.apply(null, rs.map(function (r) { var g = r.chat && r.chat.by_domain[d]; return g ? g.n : 0; }));
+      s += narrow
+        ? '<text class="lbl" x="0" y="' + (y + 20) + '">' + DOMAINS[d] + ' <tspan class="ax">· ' + questions(n) + '</tspan></text>'
+        : '<text class="lbl" x="0" y="' + (cy - 2) + '">' + DOMAINS[d] + '</text><text class="ax" x="0" y="' + (cy + 14) + '">' + questions(n) + '</text>';
+      if (!two) {
+        var g = rs[0].chat.by_domain[d], v = g.pass_rate || 0, ci = wilson(g.pass_rate, g.n);
+        s += '<g class="mark" tabindex="0" data-tip="<b>' + DOMAINS[d] + '</b><br>Pass rate ' + pct(v) + (ci ? '<br>95% interval ' + pct(ci[0]) + '–' + pct(ci[1]) : '') + '<br>' + questions(g.n) + '" aria-label="' + DOMAINS[d] + ': ' + pct(v) + '">';
+        s += '<rect class="hit" x="' + left + '" y="' + (cy - 14) + '" width="' + plot + '" height="28" fill="transparent" rx="4"/>';
+        s += '<rect class="track" x="' + left + '" y="' + (cy - 8) + '" width="' + plot + '" height="10" rx="4"/>';
+        s += '<rect x="' + left + '" y="' + (cy - 8) + '" width="' + Math.max(0, x(v) - left) + '" height="10" rx="4" style="fill:var(--accent)"/>';
+        if (ci) {  // the interval as a whisker under the bar, so it never reads as part of it
+          var wy = cy + 7;
+          s += '<path d="M' + x(ci[0]) + ' ' + (wy - 3) + 'v6M' + x(ci[0]) + ' ' + wy + 'H' + x(ci[1]) + 'M' + x(ci[1]) + ' ' + (wy - 3) + 'v6" style="stroke:var(--ink-3)" stroke-width="1.5" fill="none"/>';
+        }
+        s += '<text class="val" x="' + (W - right + 8) + '" y="' + (cy + 1) + '">' + pct(v) + '</text></g>';
+      } else {
+        var a = rs[0].chat.by_domain[d] || {}, b = rs[1].chat.by_domain[d] || {};
+        var va = a.pass_rate || 0, vb = b.pass_rate || 0, same = Math.abs(va - vb) < 0.02;
+        var ya = same ? cy - 5 : cy, yb = same ? cy + 5 : cy;  // nudge apart when they'd sit on top of each other
+        s += '<g class="mark" tabindex="0" data-tip="<b>' + DOMAINS[d] + '</b><br>' + esc(model(rs[0])) + ': ' + pct(va) + '<br>' + esc(model(rs[1])) + ': ' + pct(vb) + '" aria-label="' + DOMAINS[d] + ': ' + esc(model(rs[0])) + ' ' + pct(va) + ', ' + esc(model(rs[1])) + ' ' + pct(vb) + '">';
+        s += '<rect class="hit" x="' + left + '" y="' + (cy - 14) + '" width="' + plot + '" height="28" fill="transparent" rx="4"/>';
+        s += '<line x1="' + x(Math.min(va, vb)) + '" x2="' + x(Math.max(va, vb)) + '" y1="' + cy + '" y2="' + cy + '" style="stroke:var(--rule-2)" stroke-width="2"/>';
+        s += '<circle cx="' + x(va) + '" cy="' + ya + '" r="6" style="fill:var(--series-a);stroke:var(--card)" stroke-width="2"/>';
+        s += '<rect x="' + (x(vb) - 5) + '" y="' + (yb - 5) + '" width="10" height="10" transform="rotate(45 ' + x(vb) + ' ' + yb + ')" style="fill:var(--series-b);stroke:var(--card)" stroke-width="2"/>';
+        s += '<text class="val" x="' + (W - right + 8) + '" y="' + (cy + 4) + '">' + (same ? '=' : (va > vb ? '+' : '−') + Math.round(Math.abs(va - vb) * 100)) + '</text></g>';
+      }
+    });
+    s += '</svg>';
+    var legend = two
+      ? '<div class="legend"><span><svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" style="fill:var(--series-a)"/></svg>' + esc(model(rs[0])) + '</span><span><svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="2.5" width="9" height="9" transform="rotate(45 7 7)" style="fill:var(--series-b)"/></svg>' + esc(model(rs[1])) + '</span><span>Right: difference in points</span></div>'
+      : '<div class="legend"><span>Bar: pass rate</span><span>Whisker: 95% interval</span></div>';
+    var rows = keys.map(function (d) {
+      return '<tr><th scope="row">' + DOMAINS[d] + '</th>' + rs.map(function (r) { var g = r.chat.by_domain[d] || {}; return '<td class="n">' + pct(g.pass_rate) + '</td><td class="n">' + pct(g.key_fact_recall) + '</td><td class="n">' + (g.forbidden_violations || 0) + '</td>'; }).join('') + '<td class="n">' + ((rs[0].chat.by_domain[d] || {}).n || 0) + '</td></tr>';
+    }).join('');
+    var group = two ? '<tr><td></td>' + rs.map(function (r, j) { return '<th scope="colgroup" colspan="3" class="grp"><span class="dot" style="background:var(--series-' + 'ab'[j] + ')"></span>' + esc(model(r)) + '</th>'; }).join('') + '<td></td></tr>' : '';
+    var heads = rs.map(function () { return '<th class="n" scope="col">Pass</th><th class="n" scope="col">Key facts</th><th class="n" scope="col">Forbidden</th>'; }).join('');
+    return '<div class="chart" id="domain-chart">' + legend + s + '</div><details class="as-table"><summary>Show as a table</summary><div class="tbl"><table><caption>Pass rate by subject</caption><thead>' + group + '<tr><th scope="col">Subject</th>' + heads + '<th class="n" scope="col">Questions</th></tr></thead><tbody>' + rows + '</tbody></table></div></details>';
+  }
+
+  // ---------------------------------------------------------------- KPI row
+  function kpis(r) {
+    var o = r.chat.overall, ci = wilson(o.pass_rate, o.n);
+    var meter = function (v, c) { return '<div class="meter" aria-hidden="true">' + (c ? '<b style="left:' + c[0] * 100 + '%;width:' + (c[1] - c[0]) * 100 + '%"></b>' : '') + '<i style="width:' + (v || 0) * 100 + '%"></i></div>'; };
+    var tiles = [
+      ['Pass rate', pct(o.pass_rate), meter(o.pass_rate, ci) + '<span class="ci">95% interval ' + (ci ? pct(ci[0]) + '–' + pct(ci[1]) : '—') + ' · ' + questions(o.n) + '</span>'],
+      ['Forbidden claims', '<span class="' + (o.forbidden_violations ? 'bad' : '') + '">' + (o.forbidden_violations || 0) + '</span>', '<p>Dangerous or false statements, such as a wrong dose. The target is zero.</p>'],
+      ['Citation faithfulness', pct(o.faithfulness), meter(o.faithfulness) + '<p>How well the cited sources support the sentences that cite them.</p>'],
+      ['Right behavior', pct(o.behavior_accuracy), meter(o.behavior_accuracy) + '<p>Answered, hedged or refused when it should have.</p>'],
+      ['Key facts', pct(o.key_fact_recall), meter(o.key_fact_recall) + '<p>Share of the expected facts that the answers contain.</p>'],
+      ['Found the right article', pct(o.source_title_hit), meter(o.source_title_hit) + '<p>An expected article was among the sources it read.</p>'],
+      ['First words', secs(o.ttft_p50_ms) + ' <small>median</small>', '<p>Slowest tenth: ' + secs(o.ttft_p90_ms) + '. Time until the answer starts.</p>'],
+      ['Whole answer', secs(o.total_p50_ms) + ' <small>median</small>', '<p>Slowest tenth: ' + secs(o.total_p90_ms) + '. ' + (o.tok_s_p50 ? o.tok_s_p50 + ' tokens a second.' : '') + '</p>']
+    ];
+    return '<ul class="kpis">' + tiles.map(function (t) { return '<li><span class="k">' + t[0] + '</span><span class="v">' + t[1] + '</span>' + t[2] + '</li>'; }).join('') + '</ul>';
+  }
+
+  // ---------------------------------------------------------- head to head
+  function headToHead(report) {
+    var a = report.a.chat.overall, b = report.b.chat.overall, c = report.compare, ma = esc(model(report.a)), mb = esc(model(report.b));
+    var rows = [
+      ['Pass rate', 'pass_rate', pct, 1], ['Forbidden claims', 'forbidden_violations', String, -1], ['Citation faithfulness', 'faithfulness', pct, 1],
+      ['Right behavior', 'behavior_accuracy', pct, 1], ['Key facts', 'key_fact_recall', pct, 1], ['Found the right article', 'source_title_hit', pct, 1],
+      ['First words, median', 'ttft_p50_ms', secs, -1], ['Whole answer, median', 'total_p50_ms', secs, -1]
+    ].map(function (m) {
+      var va = a[m[1]], vb = b[m[1]], cls = va == null || vb == null || va === vb ? '' : ((va - vb) * m[3] > 0 ? 'better' : 'worse');
+      return '<tr><th scope="row">' + m[0] + '</th><td class="n ' + cls + '">' + m[2](va) + '</td><td class="n">' + m[2](vb) + '</td></tr>';
+    }).join('');
+    var p = c.mcnemar_p, diff = Math.round(((a.pass_rate || 0) - (b.pass_rate || 0)) * 100);
+    var lead = diff === 0 ? 'The two models pass the same share of questions.' :
+      (diff > 0 ? ma : mb) + ' passes ' + Math.abs(diff) + ' points more of the questions' + (p != null && p < 0.05 ? ', a difference unlikely to be chance.' : ', but that difference could still be chance.');
+    var flips = function (ids, who) { return ids.length ? '<p class="note"><b>Only ' + who + ' passed:</b> ' + ids.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(' ') + '</p>' : ''; };
+    return '<div class="verdict"><p>' + lead + '</p><small>Exact McNemar test on ' + (c.only_a_passed.length + c.only_b_passed.length) + ' questions only one model passed: p = ' + (p == null ? '—' : p.toFixed(3)) + ' · ' + c.paired_items + ' questions both answered</small></div>' +
+      '<div class="tbl"><table><caption>Head to head (highlighted where the first model is better)</caption><thead><tr><th scope="col">Measure</th><th class="n" scope="col"><span class="dot" style="background:var(--series-a)"></span>' + ma + '</th><th class="n" scope="col"><span class="dot" style="background:var(--series-b)"></span>' + mb + '</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      flips(c.only_a_passed, ma) + flips(c.only_b_passed, mb);
+  }
+
+  // ---------------------------------------------------------------- safety + behavior
+  function safety(rs) {
+    var tags = Object.keys(TAGS).filter(function (t) { return rs.some(function (r) { return r.chat && r.chat.by_tag[t]; }); });
+    if (!tags.length) return '';
+    var group = rs.length > 1 ? '<tr><td></td>' + rs.map(function (r, j) { return '<th scope="colgroup" colspan="2" class="grp"><span class="dot" style="background:var(--series-' + 'ab'[j] + ')"></span>' + esc(model(r)) + '</th>'; }).join('') + '<td></td></tr>' : '';
+    var heads = rs.map(function () { return '<th class="n" scope="col">Forbidden</th><th class="n" scope="col">Right behavior</th>'; }).join('');
+    var rows = tags.map(function (t) {
+      return '<tr><th scope="row">' + TAGS[t] + '</th>' + rs.map(function (r) { var g = r.chat.by_tag[t] || {}; return '<td class="n ' + (g.forbidden_violations ? 'worse' : '') + '">' + (g.forbidden_violations || 0) + '</td><td class="n">' + pct(g.behavior_accuracy) + '</td>'; }).join('') + '<td class="n">' + ((rs[0].chat.by_tag[t] || {}).n || 0) + '</td></tr>';
+    }).join('');
+    return '<div class="tbl"><table><caption>Safety-critical questions</caption><thead>' + group + '<tr><th scope="col">Tag</th>' + heads + '<th class="n" scope="col">Questions</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+  function behavior(r) {
+    var m = r.chat.behavior_matrix || {}, exp = ['answer', 'hedge', 'refuse'], got = ['answer', 'hedge', 'refuse', 'error'];
+    var rows = exp.map(function (e) { return '<tr><th scope="row">' + BEHAVIOR[e] + '</th>' + got.map(function (g) { var v = m[e + '->' + g] || 0; return '<td class="n' + (v && e !== g ? ' worse' : (v ? ' better' : '')) + '">' + v + '</td>'; }).join('') + '</tr>'; }).join('');
+    return '<div class="tbl"><table><caption>' + esc(model(r)) + ': expected behavior (rows) against what it did</caption><thead><tr><th scope="col">Expected</th>' + got.map(function (g) { return '<th class="n" scope="col">' + BEHAVIOR[g] + '</th>'; }).join('') + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+  function retrieval(rs) {
+    var with_r = rs.filter(function (r) { return r.retrieval; });
+    if (!with_r.length) return '';
+    var o = with_r[0].retrieval.overall;
+    var keys = Object.keys(o).filter(function (k) { return /^recall@|^mrr$/.test(k); });
+    return '<section class="block" aria-labelledby="r-h"><div class="head"><h2 id="r-h">Finding the right article</h2><p>library search only, no model</p></div><div class="tbl"><table><caption>Retrieval over ' + o.n + ' questions</caption><thead><tr>' + keys.map(function (k) { return '<th class="n" scope="col">' + esc(k.replace('recall@', 'Recall@').replace('mrr', 'MRR')) + '</th>'; }).join('') + '</tr></thead><tbody><tr>' + keys.map(function (k) { return '<td class="n">' + (k === 'mrr' ? (o[k] || 0).toFixed(2) : pct(o[k])) + '</td>'; }).join('') + '</tr></tbody></table></div></section>';
+  }
+
+  // ---------------------------------------------------------------- page
+  function facts(entry, report) {
+    var rs = runs(report), dev = entry.devices && entry.devices.length ? entry.devices.join('; ') : 'Not recorded';
+    var cells = [['Run', entry.run_date || '—'], ['Model' + (rs.length > 1 ? 's' : ''), rs.map(model).join(' vs ')], ['Device', dev], ['Mimi', (entry.mimi_versions || []).join(', ') || '—']];
+    return '<dl class="facts">' + cells.map(function (c) { return '<div><dt>' + c[0] + '</dt><dd>' + esc(c[1]) + '</dd></div>'; }).join('') + '</dl>';
+  }
+  function render(entry, report, synthetic) {
+    var rs = runs(report), chat = rs.filter(function (r) { return r.chat; });
+    var h = '';
+    if (synthetic) h += '<div class="synthetic" role="note"><span>Synthetic example: two made-up fixture models, scored by the real pipeline. These are not Mimi&rsquo;s results.</span><button type="button" id="hide-sample">Hide example</button></div>';
+    h += facts(entry, report);
+    if (chat.length) {
+      var tag = synthetic ? '<span class="sign">Synthetic</span> ' : '';
+      h += '<section class="block" aria-labelledby="o-h"><div class="head"><h2 id="o-h">' + (report.compare ? 'Head to head' : 'At a glance') + '</h2><p>' + tag + questions(chat[0].chat.overall.n) + ' answered</p></div>' + (report.compare ? headToHead(report) : kpis(chat[0])) + '</section>';
+      h += '<section class="block" aria-labelledby="d-h"><div class="head"><h2 id="d-h">By subject</h2><p>' + tag + 'pass rate' + (rs.length > 1 ? ', model against model' : ', with 95% intervals') + '</p></div><div id="domain-holder"></div></section>';
+      h += '<section class="block" aria-labelledby="s-h"><div class="head"><h2 id="s-h">Safety and behavior</h2><p>' + tag + 'forbidden claims are the number to watch</p></div>' + safety(chat) + '<div class="two">' + chat.map(behavior).join('') + '</div></section>';
+    }
+    h += retrieval(rs);
+    board.innerHTML = h;
+    board.hidden = false;
+    var holder = document.getElementById('domain-holder'), drawn = 0;
+    function draw() {
+      if (!holder || !holder.isConnected) return window.removeEventListener('resize', onResize);
+      var w = holder.clientWidth - 34;
+      if (Math.abs(w - drawn) < 8) return;
+      drawn = w;
+      var open = holder.querySelector('details.as-table[open]');
+      holder.innerHTML = domainChart(chat, w);
+      if (open) holder.querySelector('details.as-table').open = true;
+      tooltip(document.getElementById('domain-chart'));
+    }
+    var timer = 0;
+    function onResize() { clearTimeout(timer); timer = setTimeout(draw, 120); }
+    if (holder) { draw(); window.addEventListener('resize', onResize); }
+    var hide = document.getElementById('hide-sample');
+    if (hide) hide.addEventListener('click', function () { board.hidden = true; board.innerHTML = ''; showEmpty(lastIndex); });
+  }
+
+  var lastIndex = null;
+  function showEmpty(index) {
+    status.innerHTML = '<div class="empty"><div><span class="sign plan">Waiting for the first run</span><h2>No results published yet</h2>' +
+      '<p>The first full run happens on the reference handheld (an ONEXPLAYER F1: Ryzen 7 7840U, 16 GB). It takes 1.5 to 3 hours, and the results land here as soon as they&rsquo;re committed.</p>' +
+      '<p>Until then this page shows nothing rather than guesses.</p>' +
+      '<div class="actions"><button class="btn" type="button" id="show-sample">Preview the layout with synthetic data</button><a class="btn ghost" href="https://github.com/AndrewKenady/mimi/blob/main/docs/EVALUATION.md">Read the method</a></div></div>' +
+      '<div><p><b>On a Mimi device</b>, from the Mimi folder:</p><pre>python eval/run.py --retrieval-only\npython eval/run.py\npython eval/score.py eval/results/&lt;file&gt;.jsonl</pre></div></div>';
+    document.getElementById('show-sample').addEventListener('click', function () {
+      get(index.sample).then(function (sample) {
+        status.innerHTML = '';
+        render({ run_date: 'example', models: [], devices: ['None: synthetic fixtures'], mimi_versions: [] }, sample, true);
+        document.getElementById('hide-sample').focus();
+      }).catch(failed);
+    });
+  }
+  function failed() {
+    status.innerHTML = '<div class="empty"><div><h2>Couldn&rsquo;t load the scoreboard</h2><p>The results files didn&rsquo;t load. Reload the page, or read the reports in <a href="https://github.com/AndrewKenady/mimi/tree/main/eval/reports">eval/reports</a>.</p></div></div>';
+  }
+  function showReport(index, i) {
+    var entry = index.reports[i];
+    get(entry.file).then(function (report) {
+      var picker = '';
+      if (index.reports.length > 1) {
+        picker = '<label class="picker">Report <select id="pick">' + index.reports.map(function (e, j) { return '<option value="' + j + '"' + (j === i ? ' selected' : '') + '>' + esc(e.run_date + ' · ' + e.models.join(' vs ')) + '</option>'; }).join('') + '</select></label>';
+      }
+      status.innerHTML = picker;
+      render(entry, report, false);
+      var pick = document.getElementById('pick');
+      if (pick) pick.addEventListener('change', function () { showReport(index, Number(pick.value)); });
+    }).catch(failed);
+  }
+
+  get('index.json').then(function (index) {
+    lastIndex = index;
+    if (index.question_set) document.getElementById('qcount').textContent = index.question_set;
+    var real = index.reports.filter(function (e) { return !e.retrieval_only; });
+    if (!index.reports.length) return showEmpty(index);
+    showReport(index, index.reports.indexOf(real[0] || index.reports[0]));
+  }).catch(failed);
+})();
+</script>
+</body>
+</html>

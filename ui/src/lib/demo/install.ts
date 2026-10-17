@@ -5,6 +5,7 @@
 import { base } from '$app/paths';
 import { mount } from 'svelte';
 import { app } from '$lib/app.svelte';
+import { i18n, t } from '$lib/i18n/index.svelte';
 import { handle, R, S } from './core';
 import { installLinks } from './links';
 import { stripBase } from './paths';
@@ -62,7 +63,7 @@ function installFetch() {
 		if (url.origin !== location.origin) return realFetch(input, init);
 		if (url.pathname.startsWith('/maps/')) return mapFile(url, new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined)));
 		if (!CORE.test(url.pathname)) return realFetch(input, init);
-		if (!url.pathname.startsWith('/api/')) return new Response('Not part of the browser demo', { status: 404 });
+		if (!url.pathname.startsWith('/api/')) return new Response(t('demo.notPartShort'), { status: 404 });
 		const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
 		const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined) ?? undefined;
 		if (signal?.aborted) throw new DOMException('The user aborted a request.', 'AbortError');
@@ -71,23 +72,31 @@ function installFetch() {
 }
 
 /** Camera and microphone stay off: nothing in the demo would use them. Say so, once, plainly. */
-const CAMERA = "The camera isn't used in the browser demo. On a real Mimi, Lens reads photos on the device itself.";
-const MIC = "The microphone isn't used in the browser demo. On a real Mimi, voice and Scribe run on the device itself.";
+const CAMERA = () => t('demo.camera');
+const MIC = () => t('demo.mic');
 function installMedia() {
+	// What the app asked for last, and when: in Spanish or French its own toasts aren't worded as below.
+	let asked = { at: -Infinity, video: false };
 	const md = navigator.mediaDevices;
 	if (md) {
-		md.getUserMedia = async () => {
+		md.getUserMedia = async (c?: MediaStreamConstraints) => {
+			asked = { at: performance.now(), video: !!c?.video };
 			throw new DOMException('Not available in the browser demo', 'NotAllowedError');
 		};
 	}
 	// The app's own "no camera / no microphone" toasts become the demo's honest version.
-	const REWRITE: [RegExp, string][] = [
+	const REWRITE: [RegExp, () => string][] = [
 		[/^No camera available/, CAMERA],
 		[/^Microphone (unavailable|permission)/i, MIC],
 		[/^Could not (start|use) the microphone/i, MIC]
 	];
 	const toast = app.toast.bind(app);
-	app.toast = (text, ...rest) => toast(REWRITE.find(([re]) => re.test(text))?.[1] ?? text, ...rest);
+	app.toast = (text, ...rest) => {
+		const rewrite = REWRITE.find(([re]) => re.test(text))?.[1];
+		// In another language: an error toast right after the camera or mic was refused is that toast.
+		const refused = !rewrite && i18n.locale !== 'en' && rest[0] === 'error' && performance.now() - asked.at < 2000;
+		return toast(rewrite ? rewrite() : refused ? (asked.video ? CAMERA() : MIC()) : text, ...rest);
+	};
 }
 
 function trackPath() {
@@ -117,12 +126,13 @@ export async function installDemo() {
 		];
 	});
 	installMedia();
-	installLinks((text) => app.toast(text, 'info'));
+	// links.ts words its two notes in English; show them in the interface language.
+	installLinks((text) => app.toast(text.startsWith('Downloads') ? t('demo.downloads') : t('demo.deviceFile'), 'info'));
 	trackPath();
 	try {
 		if (sessionStorage.getItem('mimi.demo.signout')) {
 			sessionStorage.removeItem('mimi.demo.signout');
-			setTimeout(() => app.toast('The browser demo has one account, so you stay signed in as Ada.', 'info'), 900);
+			setTimeout(() => app.toast(t('demo.oneAccount', { name: R.get['/api/bootstrap'].body.me?.name ?? 'Ada' }), 'info'), 900);
 		}
 	} catch {
 		/* no session storage */

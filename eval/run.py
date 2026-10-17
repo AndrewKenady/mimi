@@ -77,6 +77,15 @@ class Mimi:
         except Exception:
             return ""
 
+    def device(self) -> str:
+        """"ONEXPLAYER F1 · AMD Ryzen 7 7840U · 16 GB · vulkan": timings only mean something per device."""
+        try:
+            hw = self._json("GET", "/api/system").get("hardware") or {}
+        except Exception:
+            return ""
+        ram = f"{hw['ram_installed_gb']:g} GB" if hw.get("ram_installed_gb") else ""
+        return " · ".join(str(x) for x in (hw.get("device"), hw.get("cpu"), ram, hw.get("backend")) if x)
+
     def location_known(self) -> bool | None:
         try:
             return bool(self._json("GET", "/api/location").get("current"))
@@ -254,7 +263,7 @@ def select(items: list[dict], args) -> list[dict]:
 
 def chat_row(mimi: Mimi, item: dict, rep: int, args, run_id: str, location_known: bool | None, version: str) -> dict:
     row: dict[str, Any] = {"run_id": run_id, "kind": "chat", "id": item["id"], "rep": rep, "domain": item["domain"],
-                           "question": item["question"], "started_at": _now(), "mimi_version": version,
+                           "question": item["question"], "started_at": _now(), "mimi_version": version, "device": args.device,
                            "location_known": location_known, "mode": args.mode, "think": args.think}
     try:
         got = mimi.ask(item["question"], mode=args.mode, think=args.think)
@@ -287,7 +296,7 @@ def chat_row(mimi: Mimi, item: dict, rep: int, args, run_id: str, location_known
 def retrieval_row(mimi: Mimi, item: dict, args, run_id: str, version: str) -> dict:
     q = item["question"] if args.query_field == "question" else (item.get("query") or item["question"])
     row: dict[str, Any] = {"run_id": run_id, "kind": "retrieval", "id": item["id"], "rep": 0, "domain": item["domain"],
-                           "question": item["question"], "query": q, "started_at": _now(), "mimi_version": version,
+                           "question": item["question"], "query": q, "started_at": _now(), "mimi_version": version, "device": args.device,
                            "model": "retrieval", "error": None}
     t0 = time.perf_counter()
     try:
@@ -314,6 +323,8 @@ def run(args, transport: httpx.BaseTransport | None = None, log=print) -> Path:
             mimi.login(args.user, args.pin or "")
         mimi.me()
         version = mimi.version()
+        args.device = args.device or mimi.device()
+        log(f"device: {args.device or 'unknown (pass --device)'}")
         if args.model and not args.retrieval_only:
             restore = (True, mimi.main_model_setting())
             log(f"switching the main model to {args.model} …")
@@ -379,6 +390,7 @@ def parser() -> argparse.ArgumentParser:
                    help="send one throwaway turn first so model loading isn't timed (default: on)")
     p.add_argument("--timeout", type=float, default=600, help="seconds to wait for one answer")
     p.add_argument("--token", default=None, help="session token (x-mimi-session)")
+    p.add_argument("--device", default=None, help="the hardware, recorded with every row (default: what Mimi reports)")
     p.add_argument("--user", default=None, help="sign in with this user name …")
     p.add_argument("--pin", default=None, help="… and this PIN or password")
     return p

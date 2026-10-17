@@ -4,7 +4,8 @@
 	import { upload } from '$lib/api';
 	import { Recorder, transcribe } from '$lib/audio';
 	import { ArrowUp, Square, Paperclip, Mic, X, FileText, Sparkles, Car, HeartPulse, Wrench, GraduationCap, BookOpen, Check, Loader, Slash } from '@lucide/svelte';
-	import { COMMANDS, expandCommand, matchCommands } from '$lib/commands';
+	import { COMMANDS, expandCommand, matchCommands, modeName } from '$lib/commands';
+	import { t } from '$lib/i18n/index.svelte';
 
 	type Att = { id: string; name: string; kind: string; url: string; preview?: string };
 	let {
@@ -14,7 +15,7 @@
 		mode = $bindable('everyday'),
 		value = $bindable(''),
 		attachments = $bindable<Att[]>([]),
-		placeholder = 'Ask Mimi anything…',
+		placeholder,
 		big = false,
 		autofocus = false
 	}: {
@@ -24,6 +25,7 @@
 		mode?: string;
 		value?: string;
 		attachments?: Att[];
+		/** Defaults to "Ask Mimi anything…" in the interface language. */
 		placeholder?: string;
 		big?: boolean;
 		autofocus?: boolean;
@@ -40,6 +42,7 @@
 	const rec = new Recorder();
 
 	const current = $derived(app.modes[mode] || app.modes.everyday || { name: 'Everyday', icon: 'sparkles' });
+	const currentId = $derived(app.modes[mode] ? mode : 'everyday');
 	const CurIcon = $derived(ICONS[current.icon] || Sparkles);
 	const canSend = $derived((value.trim().length > 0 || attachments.length > 0) && !uploading);
 
@@ -99,7 +102,7 @@
 		const r = expandCommand(text, app.modes);
 		if (r.mode) {
 			mode = r.mode;
-			app.toast(`Mode: ${app.modes[r.mode]?.name || r.mode}`);
+			app.toast(t('chat.modeSet', { name: app.modes[r.mode] ? modeName(r.mode, app.modes[r.mode]) : r.mode }));
 			if (!r.text) {
 				value = '';
 				return;
@@ -146,7 +149,7 @@
 				const r = await upload('/api/uploads', f);
 				attachments = [...attachments, { ...r, preview: r.kind === 'image' ? URL.createObjectURL(f) : undefined }];
 			} catch (e: any) {
-				app.toast(e.message || 'Upload failed', 'error');
+				app.toast(e.message || t('chat.uploadFailed'), 'error');
 			} finally {
 				uploading--;
 			}
@@ -172,7 +175,7 @@
 					if (text) value = (value ? value.trimEnd() + ' ' : '') + text;
 				}
 			} catch (e: any) {
-				app.toast(e.message || 'Dictation failed', 'error');
+				app.toast(e.message || t('chat.dictationFailed'), 'error');
 			} finally {
 				transcribing = false;
 				ta?.focus();
@@ -182,7 +185,7 @@
 				await rec.start();
 				dictating = true;
 			} catch {
-				app.toast('Microphone unavailable', 'error');
+				app.toast(t('chat.micUnavailable'), 'error');
 			}
 		}
 	}
@@ -198,7 +201,7 @@
 		if (e.dataTransfer?.files) addFiles(e.dataTransfer.files);
 	}}
 	role="group"
-	aria-label="Message composer"
+	aria-label={t('chat.composer')}
 >
 	{#if attachments.length || uploading}
 		<div class="atts">
@@ -206,15 +209,15 @@
 				<div class="att">
 					{#if a.preview}<img src={a.preview} alt="" />{:else}<span class="doc"><FileText size={16} /></span>{/if}
 					<span class="an">{a.name}</span>
-					<button class="rm" onclick={() => (attachments = attachments.filter((x) => x.id !== a.id))} aria-label="Remove {a.name}"><X size={13} /></button>
+					<button class="rm" onclick={() => (attachments = attachments.filter((x) => x.id !== a.id))} aria-label={t('chat.remove', { name: a.name })}><X size={13} /></button>
 				</div>
 			{/each}
-			{#if uploading}<div class="att"><span class="doc spin"><Loader size={16} /></span><span class="an">Uploading…</span></div>{/if}
+			{#if uploading}<div class="att"><span class="doc spin"><Loader size={16} /></span><span class="an">{t('chat.uploading')}</span></div>{/if}
 		</div>
 	{/if}
 	{#if cmdMatches.length}
 		<div class="menu cmds glass">
-			<div id="{uid}-cmds" role="listbox" aria-label="Commands">
+			<div id="{uid}-cmds" role="listbox" aria-label={t('chat.commands')}>
 				{#each cmdMatches as c, i (c.cmd)}
 					<!-- Driven from the message box (aria-activedescendant); a click picks it, the keyboard uses Tab/Enter. -->
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -234,7 +237,7 @@
 					</div>
 				{/each}
 			</div>
-			<p class="cmdtip" aria-hidden="true">Tab to pick · Esc to type a plain “/”</p>
+			<p class="cmdtip" aria-hidden="true">{t('chat.commandTip')}</p>
 		</div>
 	{/if}
 	{#if cmdActive}
@@ -246,18 +249,18 @@
 		onkeydown={onKey}
 		onpaste={onPaste}
 		rows="1"
-		placeholder={dictating ? 'Listening… tap the mic when you’re done' : transcribing ? 'Transcribing…' : placeholder}
-		aria-label="Message"
+		placeholder={dictating ? t('chat.listening') : transcribing ? t('chat.transcribing') : (placeholder ?? t('chat.placeholder'))}
+		aria-label={t('chat.message')}
 		aria-autocomplete={cmdMatches.length ? 'list' : undefined}
 		aria-controls={cmdMatches.length ? `${uid}-cmds` : undefined}
 		aria-activedescendant={cmdMatches.length ? `${uid}-cmd-${cmdIndex}` : undefined}
 	></textarea>
 	<div class="bar">
-		<button class="icon-btn sm" onclick={() => fileInput?.click()} title="Attach a photo or file" aria-label="Attach"><Paperclip size={18} /></button>
-		<input bind:this={fileInput} type="file" multiple accept="image/*,.pdf,.docx,.txt,.md,.csv,.html" hidden onchange={(e) => { const t = e.currentTarget; if (t.files) addFiles(t.files); t.value = ''; }} />
+		<button class="icon-btn sm" onclick={() => fileInput?.click()} title={t('chat.attachTitle')} aria-label={t('chat.attach')}><Paperclip size={18} /></button>
+		<input bind:this={fileInput} type="file" multiple accept="image/*,.pdf,.docx,.txt,.md,.csv,.html" hidden onchange={(e) => { const input = e.currentTarget; if (input.files) addFiles(input.files); input.value = ''; }} />
 		<div class="modewrap">
-			<button class="mode" onclick={() => (modeOpen = !modeOpen)} aria-haspopup="menu" aria-expanded={modeOpen} title="Mode">
-				<CurIcon size={15} />{current.name}
+			<button class="mode" onclick={() => (modeOpen = !modeOpen)} aria-haspopup="menu" aria-expanded={modeOpen} title={t('chat.mode')}>
+				<CurIcon size={15} />{modeName(currentId, current)}
 			</button>
 			{#if modeOpen}
 				<div class="menu glass" role="menu">
@@ -265,7 +268,7 @@
 						{@const I = ICONS[m.icon] || Sparkles}
 						<button role="menuitem" class="mi" class:on={id === mode} onclick={() => { mode = id; modeOpen = false; ta?.focus(); }}>
 							<I size={17} />
-							<span><b>{m.name}</b><small>{m.description}</small></span>
+							<span><b>{modeName(id, m)}</b><small>{t('chat.modeDescription', { id, description: m.description ?? '' })}</small></span>
 							{#if id === mode}<Check size={15} />{/if}
 						</button>
 					{/each}
@@ -274,9 +277,9 @@
 		</div>
 		<span class="grow"></span>
 		{#if app.features.voice !== false}
-			<button class="icon-btn sm" class:rec={dictating} onclick={dictate} disabled={transcribing} title="Dictate" aria-label="Dictate"><Mic size={18} /></button>
+			<button class="icon-btn sm" class:rec={dictating} onclick={dictate} disabled={transcribing} title={t('chat.dictate')} aria-label={t('chat.dictate')}><Mic size={18} /></button>
 		{/if}
-		<button class="send" class:stop={busy} disabled={!busy && !canSend} onclick={send} aria-label={busy ? 'Stop' : 'Send'}>
+		<button class="send" class:stop={busy} disabled={!busy && !canSend} onclick={send} aria-label={busy ? t('chat.stop') : t('chat.send')}>
 			{#if busy}<Square size={15} fill="currentColor" />{:else}<ArrowUp size={19} strokeWidth={2.4} />{/if}
 		</button>
 	</div>

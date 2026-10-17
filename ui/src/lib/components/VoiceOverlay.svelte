@@ -13,6 +13,7 @@
 	import { post, stream } from '$lib/api';
 	import { Recorder, Speaker, transcribe } from '$lib/audio';
 	import { plain } from '$lib/markdown';
+	import { t, type Key } from '$lib/i18n/index.svelte';
 	import Well from './Well.svelte';
 	import { X, Mic, Square, MessagesSquare, Keyboard, ArrowUp } from '@lucide/svelte';
 
@@ -36,10 +37,8 @@
 	});
 	let typed = $state('');
 	let typeBox: HTMLInputElement | undefined = $state();
-	// Status lines are calm and literal: Mimi may be used in a medical or emergency
-	// setting, where a joke while it works reads as not taking the question seriously.
-	const HEARING = 'Transcribing what you said…';
-	const THINKING = 'Working on an answer…';
+	// Status lines are calm and literal (see voice.transcribing, voice.thinking): Mimi may be used in a
+	// medical or emergency setting, where a joke while it works reads as not taking the question seriously.
 	let startedAt = 0;
 	let vadTimer: ReturnType<typeof setInterval> | undefined;
 	// Hands-free: after Mimi finishes speaking, listen again for a follow-up.
@@ -102,7 +101,7 @@
 		} catch (e: any) {
 			if (my !== turn || e?.name === 'AbortError') return;
 			phase = 'error';
-			hint = 'The microphone isn’t available here. You can type instead.';
+			hint = t('voice.micUnavailable');
 			openTyping();
 		}
 	}
@@ -144,7 +143,7 @@
 				clearInterval(vadTimer);
 				rec.cancel();
 				phase = 'idle';
-				hint = auto ? '' : "I didn't hear anything. Tap the mic and speak.";
+				hint = auto ? '' : t('voice.heardNothing');
 			} else if (now - startedAt > MAX_TURN) stopListening();
 		}, 100);
 	}
@@ -163,7 +162,7 @@
 		if (my !== turn || destroyed) return;
 		if (!blob || long < 400) {
 			phase = 'idle';
-			hint = 'Tap the mic and speak.';
+			hint = t('voice.tapAndSpeak');
 			return;
 		}
 		let text = '';
@@ -175,22 +174,22 @@
 		if (my !== turn || destroyed) return; // interrupted or closed while transcribing
 		if (!text) {
 			phase = 'idle';
-			hint = "I didn't catch that. Try again?";
+			hint = t('voice.didntCatch');
 			return;
 		}
 		heard = text;
 		await ask(text, my);
 	}
 
-	const FILLERS: Record<string, string> = {
-		search_library: 'Let me look that up.',
-		read_article: 'Let me look that up.',
-		search_my_files: 'Checking your files.',
-		nearby_places: "Let me see what's nearby.",
-		where_am_i: 'Checking where we are.',
-		get_directions: 'Let me work out the route.',
-		show_reference_image: 'Let me find a picture.'
-	};
+	const FILLERS = {
+		search_library: 'voice.fillerLookUp',
+		read_article: 'voice.fillerLookUp',
+		search_my_files: 'voice.fillerFiles',
+		nearby_places: 'voice.fillerNearby',
+		where_am_i: 'voice.fillerWhere',
+		get_directions: 'voice.fillerRoute',
+		show_reference_image: 'voice.fillerPicture'
+	} as const satisfies Record<string, Key>;
 
 	async function ask(text: string, my: number, retried = false) {
 		if (my !== turn || destroyed) return;
@@ -216,7 +215,7 @@
 					// A lookup adds a few seconds; say so out loud instead of going quiet.
 					if (!reply && !filled) {
 						filled = true;
-						speaker.say(FILLERS[ev.data.name] || 'One moment.');
+						speaker.say(t(FILLERS[ev.data.name as keyof typeof FILLERS] ?? 'voice.fillerWait'));
 					}
 				} else if (ev.event === 'delta') {
 					if (!marks.firstText) {
@@ -229,7 +228,7 @@
 					if (phase === 'thinking') phase = 'speaking';
 				} else if (ev.event === 'error') {
 					// the remembered voice chat was deleted (or belongs to someone else now): start a new one
-					if (chatId && !retried && !reply && /not found/i.test(ev.data.message || '')) {
+					if (chatId && !retried && !reply && ev.data.code === 'chat_not_found') {
 						stale = true;
 						break;
 					}
@@ -274,7 +273,7 @@
 		sessionStorage.removeItem('mimi.voiceChat');
 		chatId = null;
 		heard = reply = '';
-		hint = 'Starting fresh.';
+		hint = t('voice.startingFresh');
 	}
 
 	onMount(() => {
@@ -307,35 +306,45 @@
 	});
 
 	const status = $derived(
-		phase === 'listening' ? 'Listening…' : phase === 'transcribing' ? HEARING : phase === 'thinking' ? tool || THINKING : phase === 'speaking' ? '' : phase === 'error' ? '' : 'Tap the mic to talk'
+		phase === 'listening'
+			? t('voice.listening')
+			: phase === 'transcribing'
+				? t('voice.transcribing')
+				: phase === 'thinking'
+					? tool || t('voice.thinking')
+					: phase === 'speaking'
+						? ''
+						: phase === 'error'
+							? ''
+							: t('voice.tapToTalk')
 	);
 	// Controller and keyboard hints only for people using them (no "B to close" on a phone).
 	const how = $derived(app.input === 'touch' ? 'tap' : app.input === 'pad' ? 'press' : 'click');
 	const fine = $derived(
 		phase === 'listening'
-			? `Pause when you’re done, or ${how} the button to send`
+			? t(how === 'tap' ? 'voice.pauseTap' : how === 'press' ? 'voice.pausePress' : 'voice.pauseClick')
 			: phase === 'speaking'
-				? `${how === 'press' ? 'Press' : how === 'tap' ? 'Tap' : 'Click'} the button to interrupt`
+				? t(how === 'tap' ? 'voice.interruptTap' : how === 'press' ? 'voice.interruptPress' : 'voice.interruptClick')
 				: app.input === 'touch'
-					? 'Tap the mic to talk'
+					? t('voice.tapToTalk')
 					: app.input === 'pad'
-						? 'Press A on the mic to talk'
-						: 'Click the mic or press Space'
+						? t('voice.talkPad')
+						: t('voice.talkClick')
 	);
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions (unlocks audio on any tap; not an interaction of its own) -->
-<div class="voice" use:dialog={{ label: 'Voice conversation with Mimi', onclose: close }} transition:fade={motion({ duration: 'base' })} onpointerupcapture={() => speaker.unlock()}>
+<div class="voice" use:dialog={{ label: t('voice.dialog'), onclose: close }} transition:fade={motion({ duration: 'base' })} onpointerupcapture={() => speaker.unlock()}>
 	<div class="top">
-		<button class="icon-btn" onclick={newConversation} aria-label="New conversation" title="New conversation"><MessagesSquare size={20} aria-hidden="true" /></button>
+		<button class="icon-btn" onclick={newConversation} aria-label={t('voice.newConversation')} title={t('voice.newConversation')}><MessagesSquare size={20} aria-hidden="true" /></button>
 		<span class="brand" aria-hidden="true">Mimi</span>
-		<button class="icon-btn" onclick={close} aria-label="Close voice"><X size={22} aria-hidden="true" /></button>
+		<button class="icon-btn" onclick={close} aria-label={t('voice.close')}><X size={22} aria-hidden="true" /></button>
 	</div>
 
 	<div class="stage">
 		<Well size={Math.min(380, innerHeight * 0.42)} mood={wellState} getLevel={level} />
 		<div class="captions">
-			{#if heard}<p class="heard">“{heard}”</p>{/if}
+			{#if heard}<p class="heard">{t('voice.quoted', { text: heard })}</p>{/if}
 			{#if reply}<p class="reply" bind:this={replyEl}>{plain(reply)}</p>{/if}
 			<p class="status" aria-live="polite">{status}</p>
 			{#if hint}<p class="hint">{hint}</p>{/if}
@@ -348,19 +357,19 @@
 			class="talk"
 			class:on={phase === 'listening'}
 			onclick={toggle}
-			aria-label={phase === 'listening' ? 'Done talking' : phase === 'speaking' ? 'Interrupt and talk' : 'Start talking'}
+			aria-label={phase === 'listening' ? t('voice.doneTalking') : phase === 'speaking' ? t('voice.interrupt') : t('voice.startTalking')}
 		>
 			{#if phase === 'listening'}<Square size={26} />{:else}<Mic size={28} />{/if}
 		</button>
 		{#if typing}
 			<form class="typebox" onsubmit={sendTyped}>
-				<input bind:this={typeBox} bind:value={typed} placeholder="Type your question" aria-label="Type your question" enterkeyhint="send" />
-				<button class="send" disabled={!typed.trim()} aria-label="Send"><ArrowUp size={18} /></button>
+				<input bind:this={typeBox} bind:value={typed} placeholder={t('voice.typeQuestion')} aria-label={t('voice.typeQuestion')} enterkeyhint="send" />
+				<button class="send" disabled={!typed.trim()} aria-label={t('voice.send')}><ArrowUp size={18} /></button>
 			</form>
 		{:else}
-			<button class="typeit" onclick={openTyping}><Keyboard size={14} aria-hidden="true" /> Type instead</button>
+			<button class="typeit" onclick={openTyping}><Keyboard size={14} aria-hidden="true" /> {t('voice.typeInstead')}</button>
 		{/if}
-		<p class="fine">{fine}{#if app.input === 'pad'} · B to close{/if}</p>
+		<p class="fine">{fine}{#if app.input === 'pad'}{' · '}{t('voice.padClose')}{/if}</p>
 	</div>
 </div>
 
@@ -440,15 +449,20 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center;
+		justify-content: safe center;
 		gap: var(--space-3);
 		padding: 0 var(--space-6);
 		min-height: 0;
 	}
+	/* The captions take what the Well leaves: a long answer (or a long hint) scrolls inside its
+	   caption instead of running under the talk button and the type box. */
 	.captions {
 		max-width: 720px;
 		text-align: center;
 		min-height: 120px;
+		flex: 0 1 auto;
+		display: flex;
+		flex-direction: column;
 	}
 	.heard {
 		color: var(--text-3);
@@ -461,6 +475,8 @@
 		margin: 0;
 		color: var(--text);
 		max-height: 30vh;
+		min-height: 0;
+		flex: 0 1 auto;
 		overflow-y: auto;
 	}
 	.status {
@@ -509,5 +525,8 @@
 		color: var(--text-3);
 		font-size: var(--fs-sm);
 		margin: 0;
+		padding: 0 var(--space-4);
+		text-align: center;
+		text-wrap: balance;
 	}
 </style>

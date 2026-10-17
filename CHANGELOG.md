@@ -18,6 +18,14 @@ The release that makes Mimi checkable, installable anywhere and accessible.
   - an optional bge-m3 semantic rerank on a strict latency budget;
   - BM25 passage selection.
 
+### Spanish and French
+- **The whole interface speaks Spanish and French.** Settings → Appearance → Language is per person: Automatic follows the browser, and onboarding asks first. About 1,100 messages per language live in typed catalogs, so a missing translation fails the build. Numbers, dates, plurals and lists follow each language, and `<html lang>` switches with it so screen readers change voice.
+- **Answers stay grounded in any of the three.** A question in Spanish or French used to skip the forced library search unless it ended in "?". Now the factual-question check knows both languages. Mimi answers in your language and searches the English library in English.
+- **Citation checks across languages.** A Spanish or French answer can't be compared word for word with an English passage, so it gets a numbers-only check: a dose, a temperature or a date must be in the cited source, read either way ("37,5" or "37.5").
+- **Core's own words follow you.** Status lines, tool activity, citation reasons, book notes, error messages and turn-by-turn directions arrive in the interface language.
+- **Voice:** Kokoro's Spanish and French voices are listed, and a reply is read by a voice of its own language. Checked end to end with the real models: Whisper transcribes the spoken Spanish and French back and detects both languages.
+- The library and the eval set are still English; [docs/I18N.md](docs/I18N.md) has the conventions, a glossary and how to add a language.
+
 ### Speed you can feel
 - **Sources first.** Source cards and a verbatim "From the source" quote appear as soon as retrieval returns, while the model is still reading.
 - **An honest progress narrative.** Search → Read → Write, naming what it's reading, with elapsed time and an estimate only when this device's speed has been measured.
@@ -71,11 +79,12 @@ The release that makes Mimi checkable, installable anywhere and accessible.
   - It replays answers captured from the real API at the handheld's speed, with a "Skip the wait" switch, a guided tour and an honest reply to questions it has no recording of.
   - It includes a small offline map of Yellowstone with a recorded route.
   - Demo code is compiled out of the normal build.
+- **An answer-quality [scoreboard](https://andrewkenady.github.io/mimi/scoreboard.html)** on the site: pass rate with its 95% interval, forbidden claims, citation faithfulness, behavior and speed, by subject and model against model, from the reports committed to `eval/reports/`. Until the first full run lands it says so, and offers a clearly labeled preview built from the synthetic fixtures. Every run records the device it ran on.
 - **MCP server:** `python -m mimi mcp` exposes the offline library, places, directions and location to Claude Desktop and other MCP clients.
 - **CI:**
   - Core tests and lint on Linux, Windows and macOS;
   - UI type checks and the contrast audit;
-  - 31 end-to-end tests, axe scans and visual snapshots;
+  - 32 end-to-end tests (one switches the whole app to Spanish and French and back), axe scans and visual snapshots;
   - the eval scoreboard on fixtures;
   - a Windows shell build.
 - **Releases** ship SHA-256 sums and signed build-provenance attestations.
@@ -85,7 +94,9 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - Setup could unpack Windows' kiwix-tools into an empty folder, and still call it installed. Archives are now only flattened when every file shares one top folder, and an engine counts as installed only when its program is present.
 - Removing content or upgrading an engine while Mimi is running says to close Mimi first, instead of crashing halfway.
 - A fresh install crashed or failed 25 tests: selectolax 1.0 removed a module Core imports.
-- The library showed "21,673,012 articles· 118.7 GB" (missing space).
+- The library showed "21,673,012 articles· 118.7 GB" (missing space), and nine other places dropped the space before "·" the same way; an error with a partial answer read "…memory.The answer above is incomplete."
+- Voice input crashed on fresh installs: PyAV 19 removed an argument faster-whisper passes. PyAV is held below 19.
+- On phones the map's bottom sheet cut off the place list and the route card, the reader's top bar pushed "Ask Mimi" off screen, the pairing code ran past its panel, and a long spoken answer ran under the voice controls.
 - Points of interest on the map trailed behind it while panning or zooming, and never grew on hover.
 - The chat list on phones covered the conversation and never closed.
 - Saving a PIN always reported success.

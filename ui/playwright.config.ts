@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 // End-to-end tests drive the built UI against the real Core API with a scripted model and a
 // small fake library (e2e/fixture_core.py), so they run anywhere without models or content.
-const PORT = 7671;
+const PORT = Number(process.env.MIMI_E2E_PORT || 7671); // set MIMI_E2E_PORT to run two checkouts at once
 const python = process.env.MIMI_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
 
 export default defineConfig({

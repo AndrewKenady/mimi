@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 // The browser demo (npm run build:demo), served the way GitHub Pages serves it: the site at
 // /mimi/, the demo at /mimi/demo/, unknown paths answered by site/404.html.
-const PORT = 7690;
+const PORT = Number(process.env.MIMI_DEMO_PORT || 7690);
 
 export default defineConfig({
 	testDir: '.',

@@ -23,6 +23,7 @@ dependencies = [
   "pyserial",
   "pillow",
   "faster-whisper",
+  "av<19",  # faster-whisper 1.2.1 opens audio with metadata_errors=, which PyAV 19 removed
   "kokoro-onnx",
   "rapidocr",
   "onnxruntime",

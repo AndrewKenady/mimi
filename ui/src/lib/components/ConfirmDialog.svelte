@@ -10,6 +10,7 @@
 	import { dialog } from '$lib/dialog';
 	import { motion } from '$lib/motion';
 	import { app } from '$lib/app.svelte';
+	import { t } from '$lib/i18n/index.svelte';
 
 	const ARM_MS = 600;
 	const c = $derived(confirmState.current);
@@ -38,14 +39,14 @@
 			<h2 id="confirm-title">{c.title}</h2>
 			{#if c.body}<p id="confirm-body">{c.body}</p>{/if}
 			<div class="acts">
-				<button class="btn btn-lg" data-cancel onclick={() => confirmState.answer(false)}>{c.cancelLabel ?? 'Cancel'}</button>
+				<button class="btn btn-lg" data-cancel onclick={() => confirmState.answer(false)}>{c.cancelLabel ?? t('shell.cancel')}</button>
 				<button
 					class="btn btn-lg {danger ? 'btn-danger-solid' : 'btn-primary'}"
 					aria-disabled={armed !== c.id}
-					onclick={() => armed === c.id && confirmState.answer(true)}>{c.confirmLabel ?? 'Confirm'}</button
+					onclick={() => armed === c.id && confirmState.answer(true)}>{c.confirmLabel ?? t('shell.confirm')}</button
 				>
 			</div>
-			{#if app.input === 'pad'}<p class="hint" aria-hidden="true">B to cancel</p>{/if}
+			{#if app.input === 'pad'}<p class="hint" aria-hidden="true">{t('shell.padCancel')}</p>{/if}
 		</div>
 	{/key}
 {/if}

@@ -27,7 +27,7 @@ from urllib.parse import quote, unquote, urljoin
 import httpx
 from selectolax.parser import HTMLParser, Node
 
-from . import log
+from . import i18n, log
 from . import retrieval as R
 from .events import EventBus
 from .libindex import (Doc, DocIndex, MAX_PDF_BYTES, gutenberg_docs, is_document_path, kind_of_mime, lower_priority, nautilus_docs,
@@ -550,9 +550,10 @@ class KiwixClient:
         s = self._survey.get(b.name)
         h = dict(s.get("health") or {}) if s else {}
         if not h:
-            return {"status": "checking", "readable": None, "searchable": None, "note": "Checking this book…"}
+            return {"status": "checking", "readable": None, "searchable": None, "note": i18n.localize("Checking this book…")}
         if b.kind == "documents" and h.get("indexing") and self.index_state.get("book") == b.name:
             h["note"] = f"Reading documents so Mimi can search them ({self.index_state['done']} of {self.index_state['total']})…"
+        h["note"] = i18n.localize(h.get("note"))  # surveys are stored in English; read them in the asker's language
         return h
 
     async def collection(self, name: str) -> tuple[Book, list[Doc]] | None:

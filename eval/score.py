@@ -201,6 +201,7 @@ def summarize(items: list[dict], rows: list[dict], *, judge: Judge | None = None
         "run_date": (started[0][:10] if started else datetime.now().strftime("%Y-%m-%d")),
         "models": models, "run_ids": sorted({r.get("run_id") for r in rows if r.get("run_id")}),
         "mimi_versions": sorted({r.get("mimi_version") for r in rows if r.get("mimi_version")}),
+        "devices": sorted({r.get("device") for r in rows if r.get("device")}),
         "question_set": len(items), "unknown_ids": unknown, "judge": bool(judge), "embeddings": bool(embed),
     }
     if chat:
@@ -279,7 +280,7 @@ def render(s: dict) -> str:
     title = ", ".join(s["models"]) or "no rows"
     out = [f"# Mimi eval — {title} — {s['run_date']}", "",
            f"Results: `{s['source']}` · {len(s['rows'])} rows · question set: {s['question_set']} items · "
-           f"Mimi {', '.join(s['mimi_versions']) or '?'} · scored {s['generated_at']}"
+           f"Mimi {', '.join(s['mimi_versions']) or '?'} · {', '.join(s.get('devices') or []) or 'device not recorded'} · scored {s['generated_at']}"
            + (" · LLM judge on" if s["judge"] else "") + (" · embedding-assisted grounding" if s["embeddings"] else ""), ""]
     if s["unknown_ids"]:
         out += [f"> Rows for ids not in the question set were ignored: {', '.join(s['unknown_ids'][:10])}", ""]

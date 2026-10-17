@@ -8,9 +8,11 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, HTMLResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__, hardware, log
+from . import __version__, hardware, i18n, log
 from .awake import KeepAwake
 from .auth import SESSION_COOKIE, Auth, Ctx, FailureGuard, KnownDevices
 from .catalog import Catalog
@@ -278,6 +280,15 @@ def create_app(paths: Paths | None = None) -> FastAPI:
         if request.url.path.startswith("/api/"):
             resp.headers.setdefault("Cache-Control", "no-store")
         return resp
+
+    @app.exception_handler(StarletteHTTPException)
+    async def localized_errors(request: Request, exc: StarletteHTTPException):
+        # Core words its errors in English; the interface reads them in its own language (i18n.py).
+        if isinstance(exc.detail, str):
+            exc.detail = i18n.localize(exc.detail)
+        return await http_exception_handler(request, exc)
+
+    app.add_middleware(i18n.LocaleMiddleware)  # outermost: the request's language covers everything it runs
 
     ui = paths.ui_build
 

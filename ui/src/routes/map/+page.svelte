@@ -9,6 +9,7 @@
 	import { layers, namedFlavor } from '@protomaps/basemaps';
 	import { app } from '$lib/app.svelte';
 	import { ApiError, del, get, post } from '$lib/api';
+	import { fmtNumber, t, type Key } from '$lib/i18n/index.svelte';
 	import { Search, MapPin, Navigation, Crosshair, BookOpen, Sparkles, X, LocateFixed, Trees, Landmark, Building2, Waves, Mountain, Compass, Route, Loader, Radio, House, Signpost, Mailbox, Info, RotateCw } from '@lucide/svelte';
 
 	let el: HTMLDivElement;
@@ -47,16 +48,22 @@
 	});
 	const km = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) =>
 		Math.hypot((a.lat - b.lat) * 111.32, (a.lon - b.lon) * 111.32 * Math.cos((a.lat * Math.PI) / 180));
-	const KINDS = [
-		{ id: 'all', label: 'All', icon: Compass },
-		{ id: 'nature', label: 'Nature', icon: Trees },
-		{ id: 'history', label: 'History', icon: Landmark },
-		{ id: 'towns', label: 'Towns', icon: Building2 },
-		{ id: 'water', label: 'Water', icon: Waves },
-		{ id: 'mountains', label: 'Peaks', icon: Mountain }
+	const KINDS: { id: string; label: Key; icon: typeof Compass }[] = [
+		{ id: 'all', label: 'map.filterAll', icon: Compass },
+		{ id: 'nature', label: 'map.filterNature', icon: Trees },
+		{ id: 'history', label: 'map.filterHistory', icon: Landmark },
+		{ id: 'towns', label: 'map.filterTowns', icon: Building2 },
+		{ id: 'water', label: 'map.filterWater', icon: Waves },
+		{ id: 'mountains', label: 'map.filterPeaks', icon: Mountain }
 	];
 	const metric = $derived(app.settings.device?.general?.units === 'metric');
-	const fmtDist = (km: number) => (metric ? `${km.toFixed(1)} km` : `${(km * 0.621371).toFixed(1)} mi`);
+	// Rounded as toFixed() rounds (0.15 → 0.1) and without digit grouping ("1234.5 km"), as
+	// English has always shown it; Intl alone would round 0.15 up.
+	const num = (n: number, digits: number) => fmtNumber(+n.toFixed(digits), { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+	const fmtDist = (km: number) => (metric ? t('map.km', { n: num(km, 1) }) : t('map.mi', { n: num(km * 0.621371, 1) }));
+	/** A place kind or compass point from Core, in the interface language when it has a word for it. */
+	const kindOf = (k: string | undefined) => (k ? t('map.placeKind', { kind: k }) : '');
+	const dirOf = (d: string | undefined) => (d ? t('map.direction', { dir: d }) : '');
 
 	// The world map is drawn under the detailed regions. Where a region fully covers a world
 	// tile, that tile is served empty so the handheld doesn't draw both; abroad, MapLibre
@@ -132,7 +139,13 @@
 			maxBounds: !info.world_url && info.bounds ? [[info.bounds[0] - 20, info.bounds[1] - 10], [info.bounds[2] + 20, info.bounds[3] + 8]] : undefined,
 			attributionControl: { compact: true },
 			dragRotate: false,
-			pitchWithRotate: false
+			pitchWithRotate: false,
+			locale: {
+				'Map.Title': t('map.mapLabel'),
+				'NavigationControl.ZoomIn': t('map.zoomIn'),
+				'NavigationControl.ZoomOut': t('map.zoomOut'),
+				'AttributionControl.ToggleAttribution': t('map.toggleAttribution')
+			}
 		});
 		map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 		map.on('click', (e: maplibregl.MapMouseEvent) => {
@@ -148,7 +161,7 @@
 		if (to) {
 			const [lat, lon] = to.split(',').map(Number);
 			if (!isNaN(lat) && !isNaN(lon)) {
-				selected = { name: page.url.searchParams.get('name') || 'Destination', lat, lon, kind: 'destination', pin: true };
+				selected = { name: page.url.searchParams.get('name') || t('map.destination'), lat, lon, kind: 'destination', pin: true };
 				const dest = selected;
 				// No route (no location, no routing data, or none found): at least show where it is.
 				const go = async () => {
@@ -171,7 +184,7 @@
 	/** Route to `p`; true when a route is now on the map. */
 	async function directions(p: any): Promise<boolean> {
 		if (!app.location?.current) {
-			app.toast('Set your location first: tap “Set on map”, or connect a GPS.', 'info');
+			app.toast(t('map.setLocationFirst'), 'info');
 			return false;
 		}
 		const my = ++routeSeq;
@@ -184,7 +197,7 @@
 			drawRoute();
 			return true;
 		} catch (e: any) {
-			if (my === routeSeq) app.toast(e.message || 'No route found', 'error');
+			if (my === routeSeq) app.toast(e.message || t('map.noRoute'), 'error');
 			return false;
 		} finally {
 			if (my === routeSeq) routing = false;
@@ -247,7 +260,9 @@
 		if (m.at) map?.flyTo({ center: m.at, zoom: 15, speed: 1.6 });
 	}
 
-	const unit = $derived(route?.units === 'kilometers' ? 'km' : 'mi');
+	const unitKey = $derived(route?.units === 'kilometers' ? 'map.km' : 'map.mi');
+	/** A distance in the route's own units, with `digits` decimals or as Core sent it. */
+	const routeDist = (n: number, digits?: number) => t(unitKey, { n: digits === undefined ? fmtNumber(n, { useGrouping: false }) : num(n, digits) });
 	onDestroy(() => {
 		map?.remove();
 		maplibregl.removeProtocol('pmtiles');
@@ -300,22 +315,22 @@
 	}
 
 	// ---- search ----------------------------------------------------------
-	const PRECISION: Record<string, string> = { exact: 'Exact', interpolated: 'Approx. (within the block)', nearby: 'Nearby number', street: 'Street' };
+	const PRECISION: Record<string, Key> = { exact: 'map.precisionExact', interpolated: 'map.precisionInterpolated', nearby: 'map.precisionNearby', street: 'map.precisionStreet' };
 	const ADDRESSY = new Set(['address', 'street', 'postcode']);
 	const ZOOM: Record<string, number> = { address: 16, street: 15, coords: 14, postcode: 13 };
 	const iconFor = (r: any) => ({ address: House, street: Signpost, postcode: Mailbox, coords: Crosshair })[r.kind as string] ?? MapPin;
-	const tagFor = (r: any) => (r.kind === 'address' || r.kind === 'street' ? PRECISION[r.precision] : undefined);
+	const tagFor = (r: any) => (r.kind === 'address' || r.kind === 'street' ? (PRECISION[r.precision] && t(PRECISION[r.precision])) : undefined);
 
 	/** Second line of a result or the destination card: the rest of an address label, or a place's kind and region. */
 	function subFor(r: any, card = false): string {
-		if (r.kind === 'coords') return card ? 'Coordinates' : r.name;
+		if (r.kind === 'coords') return card ? t('map.coordinates') : r.name;
 		if (ADDRESSY.has(r.kind)) {
 			const label: string = r.label || '';
 			const rest = label.startsWith(r.name) ? label.slice(r.name.length).replace(/^[\s,]+/, '') : label;
-			const what = r.kind === 'postcode' ? (r.country === 'CA' ? 'Postal code' : 'ZIP code') : '';
+			const what = r.kind === 'postcode' ? (r.country === 'CA' ? t('map.postalCode') : t('map.zipCode')) : '';
 			return [what, rest || r.admin1].filter(Boolean).join(' · ');
 		}
-		return [r.kind || r.fdesc, r.admin1, r.country].filter(Boolean).join(' · ');
+		return [kindOf(r.kind || r.fdesc), r.admin1, r.country].filter(Boolean).join(' · ');
 	}
 
 	/** "44.4605, -110.8281", "44.4605 -110.8281", "44.4605N 110.8281W" or "N 44.4605, W 110.8281";
@@ -369,8 +384,8 @@
 
 	/** A failed request must not read as "No matches": the place may well exist. */
 	function whyFailed(e: unknown): string {
-		if (e instanceof ApiError) return `The offline search answered with an error (${e.status}). Try again in a moment.`;
-		return 'No answer from Mimi. Check the connection, then try again.';
+		if (e instanceof ApiError) return t('map.searchHttpError', { status: e.status });
+		return t('map.searchNoAnswer');
 	}
 
 	async function runSearch(text: string) {
@@ -393,7 +408,7 @@
 		results = found;
 		hi = -1; // a highlight belongs to the list it was made on
 		// Nothing found while address search was broken is a failure, not "No matches".
-		failed = err || (note && !found.length ? 'Street address search isn’t working right now, and no place by that name was found.' : '');
+		failed = err || (note && !found.length ? t('map.addressSearchDown') : '');
 		partial = found.length ? note : '';
 		searched = text;
 		searching = false;
@@ -483,15 +498,15 @@
 		app.location = s;
 		placeMe(lat, lon);
 		map?.flyTo({ center: [lon, lat], zoom: 11 });
-		app.toast(`Location set${s.description?.description ? ': ' + s.description.description : ''}`, 'ok');
+		app.toast(s.description?.description ? t('map.locationSetTo', { place: s.description.description }) : t('map.locationSet'), 'ok');
 		loadNearby();
 	}
 
 	function useDevice() {
-		if (!navigator.geolocation) return app.toast('This device has no location sensor available.', 'error');
+		if (!navigator.geolocation) return app.toast(t('map.noSensor'), 'error');
 		navigator.geolocation.getCurrentPosition(
 			(p) => setHere(p.coords.latitude, p.coords.longitude),
-			() => app.toast('Location permission was denied or unavailable offline. Tap the map to set it instead.', 'error'),
+			() => app.toast(t('map.locationDenied'), 'error'),
 			{ enableHighAccuracy: true, timeout: 10000 }
 		);
 	}
@@ -509,38 +524,38 @@
 		// A house number or a bare coordinate means nothing on its own; ask about the area instead.
 		const text =
 			p.kind === 'address' || p.kind === 'coords'
-				? `Tell me about the area around ${p.label || p.name}.`
+				? t('map.askArea', { place: p.label || p.name })
 				: ADDRESSY.has(p.kind)
-					? `Tell me about ${p.label || p.name}.`
-					: `Tell me about ${p.name}${p.admin1 ? ', ' + p.admin1 : ''}.`;
+					? t('map.askPlace', { place: p.label || p.name })
+					: t('map.askPlace', { place: `${p.name}${p.admin1 ? ', ' + p.admin1 : ''}` });
 		app.ask(text, { mode: 'road_trip' });
 		goto('/chat');
 	}
 </script>
 
-<svelte:head><title>Map · Mimi</title></svelte:head>
+<svelte:head><title>{t('map.pageTitle')}</title></svelte:head>
 
 <div class="wrap">
 	{#if info && !info.tiles}
 		<div class="nomap">
 			<MapPin size={30} />
-			<h2>Offline maps aren't installed yet</h2>
-			<p>Run the map download in scripts/setup to add OpenStreetMap tiles for your region.</p>
+			<h2>{t('map.noMapTitle')}</h2>
+			<p>{t('map.noMapBody')}</p>
 		</div>
 	{/if}
 	<div class="map" bind:this={el} class:picking></div>
 
 	<aside class="panel glass">
 		<div class="search" role="search">
-			{#if searching}<Loader size={17} class="spin" aria-label="Searching" />{:else}<Search size={17} />{/if}
+			{#if searching}<Loader size={17} class="spin" aria-label={t('map.searching')} />{:else}<Search size={17} />{/if}
 			<input
 				bind:this={searchInput}
-				placeholder={noAddresses ? 'Search places' : 'Search places or addresses'}
+				placeholder={noAddresses ? t('map.searchPlaceholder') : t('map.searchPlaceholderAddresses')}
 				bind:value={q}
 				oninput={onSearch}
 				onkeydown={onSearchKey}
 				role="combobox"
-				aria-label="Search places, addresses or coordinates"
+				aria-label={t('map.searchLabel')}
 				aria-autocomplete="list"
 				aria-expanded={results.length > 0}
 				aria-controls="map-results"
@@ -549,17 +564,17 @@
 				spellcheck="false"
 				enterkeyhint="search"
 			/>
-			{#if q}<button class="icon-btn sm" onclick={() => { clearSearch(); searchInput?.focus(); }} aria-label="Clear"><X size={15} /></button>{/if}
+			{#if q}<button class="icon-btn sm" onclick={() => { clearSearch(); searchInput?.focus(); }} aria-label={t('map.clear')}><X size={15} /></button>{/if}
 		</div>
 		{#if results.length}
-			<div class="results" id="map-results" role="listbox" aria-label="Search results" bind:this={resultsEl} data-scroll>
+			<div class="results" id="map-results" role="listbox" aria-label={t('map.searchResults')} bind:this={resultsEl} data-scroll>
 				{#each results as r, i (i)}
 					{@const I = iconFor(r)}
 					{@const tag = tagFor(r)}
 					<button id="map-res-{i}" class="res" class:hi={i === hi} role="option" aria-selected={i === hi} onclick={() => choose(r)} onmousemove={() => (hi = i)} onfocus={() => (hi = i)}>
 						<I size={15} />
 						<span class="rt">
-							<b>{r.kind === 'coords' ? 'Go to coordinates' : r.name}</b>
+							<b>{r.kind === 'coords' ? t('map.goToCoordinates') : r.name}</b>
 							<small class:plain={ADDRESSY.has(r.kind) || r.kind === 'coords'}>{subFor(r)}{#if r.distance_km != null}<span class="dist">{` · ${fmtDist(r.distance_km)}`}</span>{/if}</small>
 							{#if tag}<em class="ptag" class:exact={r.precision === 'exact'}>{tag}</em>{/if}
 						</span>
@@ -569,42 +584,42 @@
 			{#if partial}<p class="partial" role="status"><Info size={14} /> {partial}</p>{/if}
 		{:else if badCoords && searched === q.trim()}
 			<div class="empty" role="status">
-				<b>Those coordinates are off the map</b>
-				<p>Latitude comes first and runs from -90 to 90, then longitude from -180 to 180, like 44.4605, -110.8281.</p>
+				<b>{t('map.offMapTitle')}</b>
+				<p>{t('map.offMapBody')}</p>
 			</div>
 		{:else if failed && searched === q.trim()}
 			<div class="empty" role="alert">
-				<b>Search isn’t working right now</b>
+				<b>{t('map.searchDownTitle')}</b>
 				<p>{failed}</p>
-				<button class="btn btn-sm" onclick={retry} disabled={searching}>{#if searching}<Loader size={14} class="spin" />{:else}<RotateCw size={14} />{/if} Try again</button>
+				<button class="btn btn-sm" onclick={retry} disabled={searching}>{#if searching}<Loader size={14} class="spin" />{:else}<RotateCw size={14} />{/if} {t('map.tryAgain')}</button>
 			</div>
 		{:else if !searching && searched && searched === q.trim()}
 			<div class="empty" role="status">
-				<b>No matches for “{searched}”</b>
+				<b>{t('map.noMatches', { q: searched })}</b>
 				{#if noAddresses}
-					<p>Try a town, landmark or park. Coordinates work too: 44.4605, -110.8281.</p>
-					<p class="note"><Info size={14} /> Street addresses need the offline address index.</p>
+					<p>{t('map.noMatchesHint')}</p>
+					<p class="note"><Info size={14} /> {t('map.noAddressIndex')}</p>
 				{:else}
-					<p>Try a town, landmark, street, or a full address like “123 Main St, Springfield, IL”. Coordinates work too: 44.4605, -110.8281.</p>
+					<p>{t('map.noMatchesHintAddresses')}</p>
 				{/if}
 			</div>
 		{/if}
 
 		<section class="here">
-			<span class="label">You are here</span>
+			<span class="label">{t('map.youAreHere')}</span>
 			{#if loc}
 				<p class="where"><LocateFixed size={16} /> {desc?.description || desc?.label || `${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)}`}</p>
-				<small class="faint">From {loc.source === 'gps' ? 'GPS' : loc.source === 'device' ? (app.live ? 'this device’s live location' : 'a connected phone or browser') : 'the location you set'}</small>
+				<small class="faint">{t(loc.source === 'gps' ? 'map.fromGps' : loc.source === 'device' ? (app.live ? 'map.fromLive' : 'map.fromDevice') : 'map.fromManual')}</small>
 			{:else}
-				<p class="faint">Location unknown. No GPS is connected.</p>
+				<p class="faint">{t('map.locationUnknown')}</p>
 			{/if}
 			<div class="acts">
-				<button class="btn btn-sm" class:btn-primary={picking} onclick={() => (picking = !picking)}><Crosshair size={14} /> {picking ? 'Tap the map…' : 'Set on map'}</button>
-				<button class="btn btn-sm" onclick={useDevice}><Navigation size={14} /> Use device</button>
-				<button class="btn btn-sm" class:btn-primary={app.live} onclick={() => (app.live ? app.stopLive() : app.startLive())} title="Keep Mimi updated with this device's GPS while you travel">
-					<Radio size={14} /> {app.live ? 'Live: on' : 'Live GPS'}
+				<button class="btn btn-sm" class:btn-primary={picking} onclick={() => (picking = !picking)}><Crosshair size={14} /> {picking ? t('map.tapTheMap') : t('map.setOnMap')}</button>
+				<button class="btn btn-sm" onclick={useDevice}><Navigation size={14} /> {t('map.useDevice')}</button>
+				<button class="btn btn-sm" class:btn-primary={app.live} onclick={() => (app.live ? app.stopLive() : app.startLive())} title={t('map.liveHint')}>
+					<Radio size={14} /> {app.live ? t('map.liveOn') : t('map.liveGps')}
 				</button>
-				{#if loc?.source === 'manual' && app.isOwner}<button class="btn btn-sm btn-ghost" onclick={clearLocation}>Clear</button>{/if}
+				{#if loc?.source === 'manual' && app.isOwner}<button class="btn btn-sm btn-ghost" onclick={clearLocation}>{t('map.clear')}</button>{/if}
 			</div>
 		</section>
 
@@ -617,20 +632,20 @@
 							<small class="plain">{subFor(selected, true)}{#if selected.distance_km != null}{` · ${fmtDist(selected.distance_km)}`}{/if}</small>
 							{#if tagFor(selected)}<em class="ptag" class:exact={selected.precision === 'exact'}>{tagFor(selected)}</em>{/if}
 						{:else}
-							<small>{[selected.kind, selected.admin1].filter(Boolean).join(' · ')}{#if selected.distance_km != null}<span class="dist">{` · ${fmtDist(selected.distance_km)} ${selected.direction ?? ''}`}</span>{/if}</small>
+							<small>{[kindOf(selected.kind), selected.admin1].filter(Boolean).join(' · ')}{#if selected.distance_km != null}<span class="dist">{` · ${fmtDist(selected.distance_km)} ${dirOf(selected.direction)}`}</span>{/if}</small>
 						{/if}
 					</div>
-					<button class="icon-btn sm" onclick={() => (selected = null)} aria-label="Close"><X size={15} /></button>
+					<button class="icon-btn sm" onclick={() => (selected = null)} aria-label={t('map.close')}><X size={15} /></button>
 				</div>
 				<div class="acts">
 					{#if routeInfo?.available}
 						<button class="btn btn-sm btn-primary" onclick={() => directions(selected)} disabled={routing}>
-							{#if routing}<Loader size={14} class="spin" />{:else}<Route size={14} />{/if} Directions
+							{#if routing}<Loader size={14} class="spin" />{:else}<Route size={14} />{/if} {t('map.directions')}
 						</button>
 					{/if}
-					{#if selected.wiki_path}<a class="btn btn-sm" href="/library/read/wikipedia/{selected.wiki_path}"><BookOpen size={14} /> Read</a>{/if}
-					<button class="btn btn-sm" onclick={() => askAbout(selected)}><Sparkles size={14} /> Ask Mimi</button>
-					<button class="btn btn-sm btn-ghost" onclick={() => setHere(selected.lat, selected.lon, selected.name)}><MapPin size={14} /> I'm here</button>
+					{#if selected.wiki_path}<a class="btn btn-sm" href="/library/read/wikipedia/{selected.wiki_path}"><BookOpen size={14} /> {t('map.read')}</a>{/if}
+					<button class="btn btn-sm" onclick={() => askAbout(selected)}><Sparkles size={14} /> {t('map.askMimi')}</button>
+					<button class="btn btn-sm btn-ghost" onclick={() => setHere(selected.lat, selected.lon, selected.name)}><MapPin size={14} /> {t('map.imHere')}</button>
 				</div>
 			</section>
 		{/if}
@@ -640,34 +655,34 @@
 				<div class="rh">
 					<div>
 						<span class="rtime">{route.duration}</span>
-						<span class="rdist">{route.distance} {unit}{#if route.via?.length} · via {route.via.join(', ')}{/if}</span>
-						<small class="faint">to {route.to.name}{#if route.has_toll} · tolls{/if}{#if route.has_ferry} · ferry{/if} · offline estimate, no live traffic</small>
+						<span class="rdist">{routeDist(route.distance)}{#if route.via?.length}{' · '}{t('map.via', { roads: route.via.join(', ') })}{/if}</span>
+						<small class="faint">{t('map.routeTo', { name: route.to.name })}{#if route.has_toll}{' · '}{t('map.tolls')}{/if}{#if route.has_ferry}{' · '}{t('map.ferry')}{/if} · {t('map.offlineEstimate')}</small>
 					</div>
-					<button class="icon-btn sm" onclick={clearRoute} aria-label="Clear route"><X size={15} /></button>
+					<button class="icon-btn sm" onclick={clearRoute} aria-label={t('map.clearRoute')}><X size={15} /></button>
 				</div>
 				<ol class="steps" data-scroll>
 					{#each route.maneuvers as m, i (i)}
-						<li><button onclick={() => focusStep(m)}><span class="si">{i + 1}</span><span class="st">{m.instruction}</span>{#if m.distance > 0}<span class="sd">{m.distance.toFixed(m.distance < 10 ? 1 : 0)} {unit}</span>{/if}</button></li>
+						<li><button onclick={() => focusStep(m)}><span class="si">{i + 1}</span><span class="st">{m.instruction}</span>{#if m.distance > 0}<span class="sd">{routeDist(m.distance, m.distance < 10 ? 1 : 0)}</span>{/if}</button></li>
 					{/each}
 				</ol>
 			</section>
 		{:else if loc}
 			<section class="nearby">
-				<div class="nh"><span class="label">Nearby</span>{#if loadingNearby}<span class="faint small">Looking…</span>{/if}</div>
+				<div class="nh"><span class="label">{t('map.nearby')}</span>{#if loadingNearby}<span class="faint small">{t('map.looking')}</span>{/if}</div>
 				<div class="kinds">
 					{#each KINDS as k (k.id)}
 						{@const I = k.icon}
-						<button class="chip" class:active={kind === k.id} onclick={() => { kind = k.id; loadNearby(); }}><I size={13} />{k.label}</button>
+						<button class="chip" class:active={kind === k.id} onclick={() => { kind = k.id; loadNearby(); }}><I size={13} />{t(k.label)}</button>
 					{/each}
 				</div>
 				<div class="plist" data-scroll>
 					{#each places as p (p.name + p.lat)}
 						<button class="place" class:on={selected?.name === p.name} onclick={() => select(p)}>
 							<span class="pn">{p.name}</span>
-							<span class="pk">{p.kind || 'place'}<span class="dist">{` · ${fmtDist(p.distance_km)} ${p.direction ?? ''}`}</span></span>
+							<span class="pk">{kindOf(p.kind || 'place')}<span class="dist">{` · ${fmtDist(p.distance_km)} ${dirOf(p.direction)}`}</span></span>
 						</button>
 					{:else}
-						{#if !loadingNearby}<p class="faint small">Nothing notable within 30 km.</p>{/if}
+						{#if !loadingNearby}<p class="faint small">{t('map.nothingNearby')}</p>{/if}
 					{/each}
 				</div>
 			</section>
@@ -719,7 +734,10 @@
 		border: 1px solid var(--line-2);
 		box-shadow: var(--shadow-2);
 		z-index: var(--z-raised);
-		overflow: hidden;
+		/* When search results, a place and a route don't all fit, the panel scrolls rather
+		   than squeeze the route or the nearby list to nothing. */
+		overflow-x: hidden;
+		overflow-y: auto;
 	}
 	.search {
 		display: flex;
@@ -900,7 +918,7 @@
 	}
 	.nearby {
 		flex: 1;
-		min-height: 0;
+		min-height: 12rem;
 		display: flex;
 		flex-direction: column;
 	}
@@ -949,9 +967,21 @@
 		color: var(--text-3);
 		text-transform: capitalize;
 	}
+	/* English capitalizes each word of a place kind ("Hot Spring(s)"); Spanish and French
+	   write it in sentence case ("Aguas termales"). */
+	:global(:root:not(:lang(en))) .res small,
+	:global(:root:not(:lang(en))) .selh small,
+	:global(:root:not(:lang(en))) .pk {
+		text-transform: none;
+	}
+	:global(:root:not(:lang(en))) .res small::first-letter,
+	:global(:root:not(:lang(en))) .selh small::first-letter,
+	:global(:root:not(:lang(en))) .pk::first-letter {
+		text-transform: uppercase;
+	}
 	.route {
 		flex: 1;
-		min-height: 0;
+		min-height: 12rem;
 		display: flex;
 		flex-direction: column;
 		padding: var(--space-3) var(--space-3) var(--space-2) var(--space-4);
@@ -1105,6 +1135,17 @@
 			bottom: 8px;
 			width: auto;
 			max-height: 48%;
+		}
+		/* The sheet scrolls as a whole, so the place list, a selected place and a route stay
+		   reachable below "You are here" instead of being squeezed to nothing. */
+		.nearby,
+		.route {
+			flex: none;
+			min-height: 0;
+		}
+		.plist,
+		.steps {
+			overflow-y: visible;
 		}
 		/* phones: lift the zoom buttons clear of the bottom sheet */
 		:global(.maplibregl-ctrl-bottom-right) {

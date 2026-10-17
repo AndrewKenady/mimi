@@ -3,6 +3,7 @@
 // visitor changes (settings, chats, memories, location) for the session, so the interface
 // behaves like the real thing. Anything that needs a device (models, microphone, camera,
 // files) says so plainly instead of pretending.
+import { fmtNumber, t } from '../i18n/index.svelte';
 import recordedJson from './recorded.json';
 import { replay, stopReplay, type Turn } from './replay';
 import { emit } from './socket';
@@ -81,8 +82,9 @@ export const newId = (prefix: string) => prefix + Array.from(crypto.getRandomVal
 export const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
 const fail = (status: number, detail: string) => json({ detail }, status);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-/** Device-only features answer honestly; the app shows `detail` in a toast. */
-const NOT_HERE = (what: string) => fail(503, `${what} isn't available in the browser demo. On a real Mimi it runs on the device itself, offline.`);
+/** Device-only features answer honestly; the app shows `detail` in a toast. Like Core, the demo's own
+ *  words follow the interface language (the replies it recorded stay as recorded). */
+const NOT_HERE = (what: string) => fail(503, t('demo.notHere', { what }));
 
 async function replayRecord(r: Rec): Promise<Response> {
 	// Keep the recorded latency (library search reads the disk for ~1 s on the handheld).
@@ -114,8 +116,8 @@ function findDoc(alias: string, path: string) {
 /** Documents (PDFs) aren't shipped with the demo: say so in the reader instead of a broken frame. */
 function docNote(c: any, d: any) {
 	const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
-	const mb = d.size ? `${Math.round(d.size / 1048576)} MB` : '';
-	const facts = [d.author, d.pages ? `${d.pages.toLocaleString('en-US')} pages` : '', mb].filter(Boolean).map(esc).join(' · ');
+	const mb = d.size ? fmtNumber(Math.round(d.size / 1048576), { style: 'unit', unit: 'megabyte' }) : '';
+	const facts = [d.author, d.pages ? t('demo.pages', { n: d.pages }) : '', mb].filter(Boolean).map(esc).join(' · ');
 	return {
 		kind: 'article',
 		title: d.title,
@@ -128,9 +130,9 @@ function docNote(c: any, d: any) {
 		html:
 			(facts ? `<p><em>${facts}</em></p>` : '') +
 			(d.description ? `<p>${esc(d.description)}.</p>` : '') +
-			`<h2 id="in-the-demo">Not in the browser demo</h2>` +
-			`<p>On a real Mimi this PDF opens right here, offline, in the browser’s own viewer, and a citation to one of its pages jumps straight to that page.</p>` +
-			`<p>The demo doesn’t carry the ${esc(c.book.title)}’s files, so there is nothing to open. The list of documents, their sizes and page counts are recorded from Mimi.</p>`
+			`<h2 id="in-the-demo">${t('demo.docTitle')}</h2>` +
+			`<p>${t('demo.docOnReal')}</p>` +
+			`<p>${t('demo.docNoFiles', { book: esc(c.book.title) })}</p>`
 	};
 }
 
@@ -193,7 +195,7 @@ on('POST', /^\/api\/settings\/(device|user)\/([\w-]+)\/reset$/, ([, scope, secti
 	return json(s[scope][section]);
 });
 on('GET', /^\/api\/settings\/export$/, () => json({ ...(body('/api/settings/export') || {}), ...S.settings }));
-on('POST', /^\/api\/settings\/import$/, () => NOT_HERE('Importing settings'));
+on('POST', /^\/api\/settings\/import$/, () => NOT_HERE(t('demo.importingSettings')));
 
 // chats
 on('GET', /^\/api\/chats$/, (_, r) => {
@@ -308,7 +310,7 @@ on('DELETE', /^\/api\/memories$/, () => {
 // library
 on('GET', /^\/api\/library\/collection\/([^/]+)$/, ([, b], r) => {
 	const base = body(`/api/library/collection/${b}?offset=0&limit=120`);
-	if (!base) return fail(404, 'This collection is not in the library.');
+	if (!base) return fail(404, t('demo.noCollection'));
 	const q = (r.url.searchParams.get('q') || '').trim().toLowerCase();
 	const items = (base.items || []).filter((d: any) => !q || `${d.title} ${d.author || ''} ${d.description || ''}`.toLowerCase().includes(q));
 	const offset = Number(r.url.searchParams.get('offset') || 0);
@@ -326,14 +328,14 @@ on('GET', /^\/api\/library\/article\/([^/]+)\/(.*)$/, async ([, book, path], r) 
 	const title = p.split('/').pop()!.replace(/_/g, ' ');
 	const a = articles.find((x) => x.title === title);
 	if (a) return json(a);
-	return fail(404, "That article isn't part of the browser demo's recorded library.");
+	return fail(404, t('demo.noArticle'));
 });
 on('GET', /^\/api\/library\/home\/([^/]+)$/, ([, alias]) => {
 	const b = books().find((x: any) => x.alias === alias || x.name === alias);
 	if (!b) return fail(404, 'Not Found');
 	if (b.kind && b.kind !== 'articles') return json({ book: b.alias, path: '', kind: b.kind });
 	const a = articles.find((x) => x.book === b.name || x.alias === b.alias);
-	return a ? json({ book: b.alias, path: a.path, kind: 'articles' }) : fail(404, "That book's pages aren't part of the browser demo.");
+	return a ? json({ book: b.alias, path: a.path, kind: 'articles' }) : fail(404, t('demo.noBookPages'));
 });
 on('GET', /^\/api\/library\/random$/, () => {
 	const r0 = rec('/api/library/random');
@@ -407,10 +409,10 @@ on('GET', /^\/api\/location\/search$/, (_, r) => {
 on('POST', /^\/api\/route$/, async (_, r) => {
 	const to = r.body?.to;
 	const rt = R.route;
-	if (!rt || rt.status !== 200) return fail(503, "Offline directions aren't part of this demo.");
-	if (!S.location?.current) return fail(400, 'Set your location first (tap the map), or connect a GPS.');
+	if (!rt || rt.status !== 200) return fail(503, t('demo.noDirections'));
+	if (!S.location?.current) return fail(400, t('demo.setLocation'));
 	const d = to ? Math.hypot((to.lat - rt.to.lat) * 111, (to.lon - rt.to.lon) * 111 * Math.cos((to.lat * Math.PI) / 180)) : 1e9;
-	if (d > 6) return fail(422, `This demo has one recorded route: from Old Faithful to ${rt.to.name}. Search for ${rt.to.name} to see it.`);
+	if (d > 6) return fail(422, t('demo.oneRoute', { to: rt.to.name }));
 	await wait((rt.body?.ms || 300) / demo.speed() + 120);
 	return json(structuredClone(rt.body));
 });
@@ -450,21 +452,21 @@ on('POST', /^\/api\/auth\/logout$/, () => {
 });
 on('POST', /^\/api\/auth\/(login|guest|unlock|setup)$/, () => json({ ok: true, me: boot().me }));
 on('GET', /^\/api\/auth\/pair\/pending$/, () => json({ requests: [] }));
-on('POST', /^\/api\/auth\/pair/, () => NOT_HERE('Signing in other devices'));
+on('POST', /^\/api\/auth\/pair/, () => NOT_HERE(t('demo.signingInDevices')));
 
 // things that need the device
-on('POST', /^\/api\/uploads$/, () => NOT_HERE('Attaching files'));
-on('POST', /^\/api\/files$/, () => NOT_HERE('Adding your own files'));
+on('POST', /^\/api\/uploads$/, () => NOT_HERE(t('demo.attachingFiles')));
+on('POST', /^\/api\/files$/, () => NOT_HERE(t('demo.addingFiles')));
 on('DELETE', /^\/api\/files\/[^/]+$/, () => json({ ok: true }));
 on('GET', /^\/api\/files\/search$/, () => json({ results: [] }));
-on('POST', /^\/api\/voice\/(stt|tts)$/, ([, k]) => NOT_HERE(k === 'stt' ? 'Speech recognition' : 'Reading answers aloud'));
+on('POST', /^\/api\/voice\/(stt|tts)$/, ([, k]) => NOT_HERE(k === 'stt' ? t('demo.speechRecognition') : t('demo.readingAloud')));
 on('POST', /^\/api\/voice\/warm$/, () => json({ ok: true }));
-on('POST', /^\/api\/lens\/ocr$/, () => NOT_HERE('Reading photos'));
-on('POST', /^\/api\/scribe$/, () => NOT_HERE('Recording notes'));
+on('POST', /^\/api\/lens\/ocr$/, () => NOT_HERE(t('demo.readingPhotos')));
+on('POST', /^\/api\/scribe$/, () => NOT_HERE(t('demo.recordingNotes')));
 on('GET', /^\/api\/scribe\/[^/]+$/, () => fail(404, 'Not Found'));
-on('POST', /^\/api\/models\/(load|unload)$/, () => fail(503, "Models don't run in the browser demo: the answers here were recorded from a real Mimi."));
+on('POST', /^\/api\/models\/(load|unload)$/, () => fail(503, t('demo.noModels')));
 on('POST', /^\/api\/tools\/reload$/, () => json(body('/api/tools')));
-on('POST', /^\/api\/(system|share)\//, () => fail(503, "That changes the device itself, so it isn't part of the browser demo."));
+on('POST', /^\/api\/(system|share)\//, () => fail(503, t('demo.deviceOnly')));
 
 /** Answer one request the app made to Core. */
 export async function handle(r: Req): Promise<Response> {
@@ -477,7 +479,7 @@ export async function handle(r: Req): Promise<Response> {
 	if (r.method === 'GET' || r.method === 'HEAD') {
 		const hit = rec(path + r.url.search) ?? rec(path);
 		if (hit) return replayRecord(hit);
-		return fail(404, "That isn't part of the browser demo.");
+		return fail(404, t('demo.notPart'));
 	}
-	return fail(503, "That isn't part of the browser demo.");
+	return fail(503, t('demo.notPart'));
 }

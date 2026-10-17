@@ -262,3 +262,21 @@ def test_run_retrieval_only(tmp_path):
 def test_run_reports_sign_in_problems(tmp_path, capsys):
     rc = run.main(["--ids", "med-003", "--out", str(tmp_path / "x.jsonl")], transport=httpx.MockTransport(FakeMimi(signed_in=False)))
     assert rc == 2 and "not signed in" in capsys.readouterr().err
+
+
+def test_publish_lists_reports_newest_first_with_a_synthetic_sample(tmp_path):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("eval_publish", EVAL / "publish.py")
+    publish = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(publish)
+    reports, out = tmp_path / "reports", tmp_path / "site"
+    for name, argv in (("2026-10-01-a", []), ("2026-10-02-ab", ["--compare", str(EVAL / "fixtures" / "results-b.jsonl")])):
+        assert score.main([str(EVAL / "fixtures" / "results-a.jsonl"), *argv, "--out-dir", str(reports), "--name", name]) == 0
+    index = publish.publish(out, reports)
+    assert [(e["file"], e["kind"]) for e in index["reports"]] == [("2026-10-02-ab.json", "compare"), ("2026-10-01-a.json", "single")]
+    assert index["reports"][0]["models"] == ["fixture-model-a", "fixture-model-b"] and index["question_set"] == 166
+    assert (out / "2026-10-01-a.json").exists() and not (out / "2026-10-01-a.md").exists()
+    sample = json.loads((out / "sample.json").read_text())
+    assert sample["synthetic"] is True and sample["compare"]["paired_items"] > 0
+

@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { app } from '$lib/app.svelte';
+	import { t } from '$lib/i18n/index.svelte';
 	import { startGamepad } from '$lib/gamepad';
 	import { toggleFullscreen } from '$lib/host';
 	import NavRail from '$components/NavRail.svelte';
@@ -88,7 +89,7 @@
 	{/if}
 {/if}
 {#if app.offline && app.ready}
-	<div class="reconnect glass" role="status">Reconnecting to Mimi Core…</div>
+	<div class="reconnect glass" role="status">{t('shell.reconnecting')}</div>
 {/if}
 <ConfirmDialog />
 <Toasts />

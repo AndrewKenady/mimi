@@ -3,6 +3,7 @@
 	import { app } from '$lib/app.svelte';
 	import { del, get, patch, post, timeAgo } from '$lib/api';
 	import { confirmDialog } from '$lib/confirm.svelte';
+	import { t, type Key } from '$lib/i18n/index.svelte';
 	import Segmented from '$components/settings/Segmented.svelte';
 	import { Brain, Pin, PinOff, Trash2, Check, X, Plus, Search, Download, Pause, Play, Pencil, MessagesSquare } from '@lucide/svelte';
 
@@ -18,7 +19,7 @@
 	let editText = $state('');
 	let filter = $state<string>('all');
 
-	const CATS: Record<string, string> = { personal: 'About you', preference: 'Preferences', project: 'Projects', other: 'Other' };
+	const CATS: Record<string, Key> = { personal: 'memory.catPersonal', preference: 'memory.catPreference', project: 'memory.catProject', other: 'memory.catOther' };
 
 	async function load() {
 		try {
@@ -63,7 +64,7 @@
 	}
 	// One memory at a time is reversible: it disappears with an Undo, and is only
 	// deleted once the Undo has gone.
-	function remove(m: any, text = 'Forgotten') {
+	function remove(m: any, text = t('memory.forgotten')) {
 		app.deferDelete({ key: `memory:${m.id}`, text, commit: () => del(`/api/memories/${m.id}`), onDone: load });
 	}
 	async function pin(m: any) {
@@ -78,63 +79,63 @@
 	// Everything at once can't be undone: ask first.
 	async function wipe() {
 		const ok = await confirmDialog({
-			title: 'Erase every memory?',
-			body: `Mimi will forget all ${items.length} things it knows about you. This can’t be undone. You can export them first.`,
-			confirmLabel: 'Erase all',
+			title: t('memory.wipeTitle'),
+			body: t('memory.wipeBody', { n: items.length }),
+			confirmLabel: t('memory.wipeConfirm'),
 			tone: 'danger'
 		});
 		if (!ok) return;
 		await del('/api/memories');
-		app.toast('All memories erased', 'ok');
+		app.toast(t('memory.wiped'), 'ok');
 		load();
 	}
 </script>
 
-<svelte:head><title>Memory · Mimi</title></svelte:head>
+<svelte:head><title>{t('memory.pageTitle')}</title></svelte:head>
 
 <div class="page">
 	<div class="page-inner narrow">
 		<header class="head">
 			<div>
-				<h1 class="page-title">Memory</h1>
-				<p class="page-sub">What Mimi knows about you, so it can help without asking twice. It stays on this device, and you're in control of every word.</p>
+				<h1 class="page-title">{t('memory.heading')}</h1>
+				<p class="page-sub">{t('memory.intro')}</p>
 			</div>
 		</header>
 
-		<section class="controls card" aria-label="Memory settings">
+		<section class="controls card" aria-label={t('memory.settingsLabel')}>
 			<Segmented
-				label="Memory mode"
+				label={t('memory.modeLabel')}
 				value={mode}
 				options={[
-					['ask', 'Ask first'],
-					['auto', 'Automatic'],
-					['off', 'Off']
+					['ask', t('memory.modeAsk')],
+					['auto', t('memory.modeAuto')],
+					['off', t('memory.modeOff')]
 				]}
 				onchange={setMode}
 			/>
 			<p class="explain" aria-live="polite">
-				{#if mode === 'ask'}Mimi suggests things to remember, and you approve each one.{:else if mode === 'auto'}Mimi saves lasting facts on its own. You can review them here.{:else}Mimi won't save or use memories.{/if}
+				{#if mode === 'ask'}{t('memory.explainAsk')}{:else if mode === 'auto'}{t('memory.explainAuto')}{:else}{t('memory.explainOff')}{/if}
 			</p>
 			<div class="row">
-				<button class="btn btn-sm" onclick={togglePause} disabled={mode === 'off'}>{#if paused}<Play size={14} aria-hidden="true" /> Resume memory{:else}<Pause size={14} aria-hidden="true" /> Pause memory{/if}</button>
-				<a class="btn btn-sm btn-ghost" href="/api/memories/export?format=md" download><Download size={14} aria-hidden="true" /> Export</a>
+				<button class="btn btn-sm" onclick={togglePause} disabled={mode === 'off'}>{#if paused}<Play size={14} aria-hidden="true" /> {t('memory.resume')}{:else}<Pause size={14} aria-hidden="true" /> {t('memory.pause')}{/if}</button>
+				<a class="btn btn-sm btn-ghost" href="/api/memories/export?format=md" download><Download size={14} aria-hidden="true" /> {t('memory.export')}</a>
 				<span class="grow"></span>
 				{#if items.length}
-					<button class="btn btn-sm btn-ghost danger" onclick={wipe}><Trash2 size={14} aria-hidden="true" /> Erase all</button>
+					<button class="btn btn-sm btn-ghost danger" onclick={wipe}><Trash2 size={14} aria-hidden="true" /> {t('memory.eraseAll')}</button>
 				{/if}
 			</div>
-			{#if paused}<p class="paused" role="status"><Pause size={14} aria-hidden="true" /> Memory is paused. Mimi isn't using or saving memories right now.</p>{/if}
+			{#if paused}<p class="paused" role="status"><Pause size={14} aria-hidden="true" /> {t('memory.pausedNote')}</p>{/if}
 		</section>
 
 		{#if suggested.length}
-			<h2 class="label sect">Waiting for your OK</h2>
+			<h2 class="label sect">{t('memory.waiting')}</h2>
 			<ul class="list">
 				{#each suggested as m (m.id)}
 					<li class="mem card sug">
 						<Brain size={17} class="mi" aria-hidden="true" />
 						<span class="mt">{m.text}</span>
-						<button class="btn btn-sm btn-primary" onclick={() => accept(m)} aria-label="Keep: {m.text}"><Check size={14} aria-hidden="true" /> Keep</button>
-						<button class="icon-btn sm" onclick={() => remove(m, 'Suggestion discarded')} aria-label="Discard: {m.text}" title="Discard"><X size={15} aria-hidden="true" /></button>
+						<button class="btn btn-sm btn-primary" onclick={() => accept(m)} aria-label={t('memory.keepItem', { text: m.text })}><Check size={14} aria-hidden="true" /> {t('memory.keep')}</button>
+						<button class="icon-btn sm" onclick={() => remove(m, t('memory.discarded'))} aria-label={t('memory.discardItem', { text: m.text })} title={t('memory.discard')}><X size={15} aria-hidden="true" /></button>
 					</li>
 				{/each}
 			</ul>
@@ -143,14 +144,14 @@
 		<div class="toolbar">
 			<label class="search">
 				<Search size={15} aria-hidden="true" />
-				<span class="sr-only">Search memories</span>
-				<input type="search" placeholder="Search memories" bind:value={q} oninput={load} />
+				<span class="sr-only">{t('memory.search')}</span>
+				<input type="search" placeholder={t('memory.searchPlaceholder')} bind:value={q} oninput={load} />
 			</label>
-			<div class="filters" role="group" aria-label="Show">
-				<button class="chip" aria-pressed={filter === 'all'} onclick={() => (filter = 'all')}>All</button>
-				{#each Object.entries(CATS) as [k, l]}<button class="chip" aria-pressed={filter === k} onclick={() => (filter = k)}>{l}</button>{/each}
+			<div class="filters" role="group" aria-label={t('memory.show')}>
+				<button class="chip" aria-pressed={filter === 'all'} onclick={() => (filter = 'all')}>{t('memory.all')}</button>
+				{#each Object.entries(CATS) as [k, l]}<button class="chip" aria-pressed={filter === k} onclick={() => (filter = k)}>{t(l)}</button>{/each}
 			</div>
-			<button class="btn btn-sm btn-primary" onclick={() => (adding = !adding)} aria-expanded={adding}><Plus size={15} aria-hidden="true" /> Add</button>
+			<button class="btn btn-sm btn-primary" onclick={() => (adding = !adding)} aria-expanded={adding}><Plus size={15} aria-hidden="true" /> {t('memory.add')}</button>
 		</div>
 
 		{#if adding}
@@ -162,25 +163,25 @@
 				}}
 			>
 				<label class="field grow">
-					<span class="field-label">Something to remember</span>
-					<input class="input" placeholder="e.g. I'm allergic to penicillin" bind:value={newText} data-autofocus />
+					<span class="field-label">{t('memory.newLabel')}</span>
+					<input class="input" placeholder={t('memory.newPlaceholder')} bind:value={newText} data-autofocus />
 				</label>
 				<label class="field cat">
-					<span class="field-label">Kind</span>
-					<select class="input" bind:value={newCat}>{#each Object.entries(CATS) as [k, l]}<option value={k}>{l}</option>{/each}</select>
+					<span class="field-label">{t('memory.kind')}</span>
+					<select class="input" bind:value={newCat}>{#each Object.entries(CATS) as [k, l]}<option value={k}>{t(l)}</option>{/each}</select>
 				</label>
-				<button class="btn btn-primary" disabled={!newText.trim()}>Save</button>
+				<button class="btn btn-primary" disabled={!newText.trim()}>{t('memory.save')}</button>
 			</form>
 		{/if}
 
 		{#each groups as [cat, list] (cat)}
-			<h2 class="label sect">{CATS[cat]}</h2>
+			<h2 class="label sect">{t(CATS[cat])}</h2>
 			<ul class="list">
 				{#each list as m (m.id)}
 					<li class="mem card">
 						{#if editId === m.id}
 							<label class="field grow">
-								<span class="sr-only">Edit memory</span>
+								<span class="sr-only">{t('memory.editLabel')}</span>
 								<input
 									class="input"
 									bind:value={editText}
@@ -190,27 +191,27 @@
 									}}
 								/>
 							</label>
-							<button class="btn btn-sm btn-primary" onclick={() => saveEdit(m)}>Save</button>
-							<button class="btn btn-sm btn-ghost" onclick={() => (editId = null)}>Cancel</button>
+							<button class="btn btn-sm btn-primary" onclick={() => saveEdit(m)}>{t('memory.save')}</button>
+							<button class="btn btn-sm btn-ghost" onclick={() => (editId = null)}>{t('memory.cancel')}</button>
 						{:else}
 							<span class="mt">
-								<span>{#if m.pinned}<Pin size={13} class="pin" aria-label="Pinned" />{/if}{m.text}</span>
+								<span>{#if m.pinned}<Pin size={13} class="pin" aria-label={t('memory.pinned')} />{/if}{m.text}</span>
 								<small>
-									{timeAgo(m.created_at)}{#if m.use_count} · used {m.use_count}×{/if}
-									{#if m.source_chat_id} · <a href="/chat/{m.source_chat_id}"><MessagesSquare size={11} aria-hidden="true" /> from a chat</a>{/if}
+									{timeAgo(m.created_at)}{#if m.use_count}{' · '}{t('memory.used', { n: m.use_count })}{/if}
+									{#if m.source_chat_id}{' · '}<a href="/chat/{m.source_chat_id}"><MessagesSquare size={11} aria-hidden="true" /> {t('memory.fromChat')}</a>{/if}
 								</small>
 							</span>
-							<button class="icon-btn sm" onclick={() => pin(m)} title={m.pinned ? 'Unpin' : 'Always use'} aria-label={m.pinned ? 'Unpin' : 'Pin: always use'} aria-pressed={!!m.pinned}>{#if m.pinned}<PinOff size={15} aria-hidden="true" />{:else}<Pin size={15} aria-hidden="true" />{/if}</button>
+							<button class="icon-btn sm" onclick={() => pin(m)} title={m.pinned ? t('memory.unpin') : t('memory.alwaysUse')} aria-label={m.pinned ? t('memory.unpin') : t('memory.pinItem')} aria-pressed={!!m.pinned}>{#if m.pinned}<PinOff size={15} aria-hidden="true" />{:else}<Pin size={15} aria-hidden="true" />{/if}</button>
 							<button
 								class="icon-btn sm"
 								onclick={() => {
 									editId = m.id;
 									editText = m.text;
 								}}
-								aria-label="Edit: {m.text}"
-								title="Edit"><Pencil size={15} aria-hidden="true" /></button
+								aria-label={t('memory.editItem', { text: m.text })}
+								title={t('memory.edit')}><Pencil size={15} aria-hidden="true" /></button
 							>
-							<button class="icon-btn sm" onclick={() => remove(m)} aria-label="Forget: {m.text}" title="Forget"><Trash2 size={15} aria-hidden="true" /></button>
+							<button class="icon-btn sm" onclick={() => remove(m)} aria-label={t('memory.forgetItem', { text: m.text })} title={t('memory.forget')}><Trash2 size={15} aria-hidden="true" /></button>
 						{/if}
 					</li>
 				{/each}
@@ -219,7 +220,7 @@
 			{#if !loading && !suggested.length}
 				<div class="empty">
 					<Brain size={28} aria-hidden="true" />
-					<p>No memories yet. Tell Mimi something like <i>“Remember that I drive a 2014 Tacoma”</i>, or add one yourself.</p>
+					<p>{t('memory.emptyBefore')}<i>{t('memory.emptyExample')}</i>{t('memory.emptyAfter')}</p>
 				</div>
 			{/if}
 		{/each}
@@ -313,7 +314,9 @@
 		min-width: 220px;
 	}
 	.add .cat {
-		width: 170px;
+		/* 170px, or wider when a kind's name needs it ("À propos de vous") */
+		width: auto;
+		min-width: 170px;
 	}
 	.list {
 		display: flex;
