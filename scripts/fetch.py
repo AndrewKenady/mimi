@@ -163,24 +163,38 @@ def fetch_bytes(url: str, timeout: float = 120) -> bytes:
 
 
 def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
+    return _hash_file(path, hashlib.sha256())
+
+
+def md5_file(path: Path) -> str:
+    return _hash_file(path, hashlib.md5())
+
+
+def _hash_file(path: Path, h) -> str:
     with open(path, "rb") as f:
         while b := f.read(CHUNK * 4):
             h.update(b)
     return h.hexdigest()
 
 
-def verify_file(path: Path, sha256: str | None, size: int | None) -> None:
-    """Raise IntegrityError if `path` isn't exactly the file the manifest describes."""
+def verify_file(path: Path, sha256: str | None, size: int | None, md5: str | None = None) -> None:
+    """Raise IntegrityError if `path` isn't exactly the file the manifest describes.
+
+    ``md5`` is for sources that publish nothing better (Geofabrik's OpenStreetMap extracts)."""
     actual = path.stat().st_size
     if size is not None and actual != size:
         raise IntegrityError(f"{path.name}: expected {size:,} bytes, got {actual:,}")
+    if (sha256 or md5) and actual > 2 * GB:
+        say(f"    verifying {path.name} ({fmt_size(actual)}) …")
     if sha256:
-        if actual > 2 * GB:
-            say(f"    verifying {path.name} ({fmt_size(actual)}) …")
         got = sha256_file(path)
         if got.lower() != sha256.lower():
             raise IntegrityError(f"{path.name}: sha256 mismatch (expected {sha256}, got {got})")
+    if md5:
+        got = md5_file(path)
+        if got.lower() != md5.lower():
+            raise IntegrityError(f"{path.name}: MD5 mismatch (expected {md5}, got {got}); a new extract may have been "
+                                 f"published while it downloaded, so run the same command again")
 
 
 class _Progress:
@@ -269,7 +283,7 @@ def _aria2(aria2: Path, urls: list[str], part: Path, sha256: str | None) -> None
 
 
 def download(url: str, dest: Path, *, sha256: str | None = None, size: int | None = None, mirrors: list[str] | tuple = (),
-             dry: bool = False, retries: int = 4, label: str | None = None) -> bool:
+             dry: bool = False, retries: int = 4, label: str | None = None, md5: str | None = None) -> bool:
     """Download url to dest, atomically and verified. Returns True if dest is in place (or would be, when dry).
 
     An existing dest is trusted only if its size matches the manifest; a file left
@@ -329,12 +343,44 @@ def download(url: str, dest: Path, *, sha256: str | None = None, size: int | Non
     if not done:
         raise DownloadError(f"could not download {shown}:\n    " + "\n    ".join(errors[-4:]))
     try:
-        verify_file(part, sha256, size)
+        verify_file(part, sha256, size, md5)
     except IntegrityError:
         part.unlink(missing_ok=True)
         raise
     os.replace(part, dest)
     return True
+
+
+# --------------------------------------------------------------------------- OpenStreetMap extracts
+GEOFABRIK = "https://download.geofabrik.de/{}-latest.osm.pbf"
+CONTINENTS = ("africa", "antarctica", "asia", "australia-oceania", "central-america", "europe", "north-america", "russia",
+              "south-america")
+
+
+def geofabrik_url(region: str) -> str:
+    """us -> north-america/us; europe/germany stays as is."""
+    path = region if region.split("/")[0] in CONTINENTS else f"north-america/{region}"
+    return GEOFABRIK.format(path)
+
+
+def osm_extract_path(region: str, dest_dir: Path | None = None) -> Path:
+    """Where the extract for a Geofabrik path is kept while builds read it ({cache}/osm, as build_routing.py uses)."""
+    return (dest_dir or cache_dir() / "osm") / Path(geofabrik_url(region)).name
+
+
+def download_osm_extract(region: str, dest_dir: Path | None = None, dry: bool = False) -> Path:
+    """One Geofabrik extract (resumable via .part), checked against Geofabrik's published .md5 before use.
+
+    The routing graph, the fuel/hospital table and (outside the US and Canada) the address
+    index are all built from this one file, so it is downloaded once per run."""
+    url = geofabrik_url(region)
+    dest = osm_extract_path(region, dest_dir)
+    if dest.exists() and not dest.with_name(dest.name + ".aria2").exists():
+        say(f"  ✓ {_rel(dest)}")
+        return dest
+    md5 = None if dry else fetch_bytes(url + ".md5").decode().split()[0]
+    download(url, dest, md5=md5, dry=dry, label=f"{_rel(dest)} (OpenStreetMap, Geofabrik)")
+    return dest
 
 
 def _rel(p: Path) -> str:
@@ -645,9 +691,10 @@ class Item:
     region: dict
     size: int | None = None  # bytes it will take (download or build output)
     exact: bool = False  # size is known exactly (pinned file)
-    temporary: bool = False  # an input deleted after its pack is built
+    temporary: bool = False  # an input deleted once every build that reads it is done
     label: str = ""
     notes: list[str] = field(default_factory=list)
+    extra_args: list[str] = field(default_factory=list)  # set by run(), e.g. a build's keep_inputs flag
 
     @property
     def kind(self) -> str:
@@ -671,6 +718,8 @@ class Item:
             return [c / "maps" / "tiles.pmtiles", c / "maps" / "tiles.json"]
         if k == "build":
             return [self.path(o) for o in s["outputs"]]
+        if k == "osm":
+            return [osm_extract_path(r) for r in self.region.get("geofabrik") or []]
         raise ValueError(k)
 
     def installed(self) -> bool:
@@ -696,6 +745,9 @@ class Item:
             return same_area and int(meta.get("maxzoom", 0)) >= s["maxzoom"]
         if k == "build":
             return all(self.path(o).exists() for o in s["outputs"])
+        if k == "osm":
+            t = self.targets()
+            return bool(t) and all(p.exists() and not p.with_name(p.name + ".aria2").exists() for p in t)
         return False
 
     def conflict(self) -> str | None:
@@ -804,7 +856,19 @@ class Item:
         return [f"--bbox={','.join(str(x) for x in self.region['bbox'])}", f"--maxzoom={self.spec['maxzoom']}"]
 
     def measure(self) -> int | None:
-        """Ask pmtiles how big this map extract will be (a few seconds, no download)."""
+        """Ask pmtiles how big this map extract will be (a few seconds, no download), or
+        Geofabrik how big its OpenStreetMap extracts are today."""
+        if self.kind == "osm":
+            total = 0
+            for r in self.region.get("geofabrik") or []:
+                try:
+                    req = urllib.request.Request(geofabrik_url(r), method="HEAD", headers={"User-Agent": USER_AGENT})
+                    with urllib.request.urlopen(req, timeout=60) as resp:
+                        total += int(resp.headers["Content-Length"])
+                except (urllib.error.URLError, OSError, http.client.HTTPException, KeyError, TypeError, ValueError):
+                    return None
+            self.size = total or None
+            return self.size
         exe = tool("pmtiles")
         if not exe or self.kind not in ("world", "tiles"):
             return None
@@ -838,12 +902,18 @@ class Item:
         self._extract_map(c / "tiles.pmtiles", self.map_args(), c / "tiles.json",
                           {"bounds": reg["bbox"], "maxzoom": z, "region": reg["name"], "title": reg["title"]}, dry)
 
+    def _fetch_osm(self, dry: bool) -> None:
+        for r in self.region.get("geofabrik") or []:
+            download_osm_extract(r, dry=dry)
+
     def build_args(self) -> list[str]:
         reg, c = self.region, content_root()
         out: list[str] = []
         for a in self.spec["args"]:
             if a == "{geofabrik}":
                 out += reg.get("geofabrik") or []
+            elif a == "{osm}":  # the region's OpenStreetMap extracts (an "osm" item downloads them)
+                out += [str(osm_extract_path(r)) for r in reg.get("geofabrik") or []]
             elif a == "{inputs}":  # the pack's downloaded inputs, as --flag path pairs
                 for it in pack_items(self.pack, reg):
                     if it.kind == "file" and it.spec.get("arg"):
@@ -858,7 +928,7 @@ class Item:
         if self.installed():
             say(f"  ✓ {', '.join(s['outputs'])}")
             return
-        cmd = [mimi_python(), str(ROOT / s["script"]), *self.build_args()]
+        cmd = [mimi_python(), str(ROOT / s["script"]), *self.build_args(), *self.extra_args]
         say(f"  ⚙ {' '.join(s['outputs'])}: {Path(s['script']).name} {' '.join(cmd[2:])}")
         if dry:
             return
@@ -901,6 +971,9 @@ def pack_items(pack_id: str, region: dict) -> list[Item]:
     for s in p["items"]:
         if s.get("countries") and not countries.intersection(s["countries"]):
             continue
+        # "if_region": {"addresses": "osm"} keeps an item only where the region's entry says so
+        if any(region.get(k) != v for k, v in (s.get("if_region") or {}).items()):
+            continue
         it = Item(pack=pack_id, group=p["group"], spec=s, region=region, temporary=bool(s.get("temporary")))
         k = s["type"]
         if k == "file":
@@ -923,6 +996,10 @@ def pack_items(pack_id: str, region: dict) -> list[Item]:
             it.label = ", ".join(s["outputs"])
             if s.get("download_mb"):
                 it.notes.append(f"downloads ~{fmt_size(s['download_mb'] * MB)} of source data")
+        elif k == "osm":
+            names = ", ".join(r.rsplit("/", 1)[-1] for r in region.get("geofabrik") or [])
+            it.label = f"OpenStreetMap extract: {names}"
+            it.notes.append("from Geofabrik, MD5-checked; deleted once the builds that read it are done")
         items.append(it)
     return items
 
@@ -931,7 +1008,10 @@ def pack_problem(pack_id: str, region: dict) -> str | None:
     """Why a pack can't be installed for this region (None if it can)."""
     p = all_packs()[pack_id]
     if p.get("requires_region") and not region.get(p["requires_region"]):
-        return f"{p['title']} is only available for regions with that data (US and Canada)"
+        if pack_id == "addresses":
+            return (f"{p['title']} isn't set up for {region.get('title') or 'this area'}: it needs a named region with "
+                    "address data (content.py regions)")
+        return f"{p['title']} isn't available for {region.get('title') or 'this area'}"
     if pack_id == "routing" and not region.get("geofabrik"):
         return "routing needs OpenStreetMap extracts, which are set up for named regions only (content.py regions)"
     if pack_id == "places" and not region.get("countries"):
@@ -955,22 +1035,52 @@ def plan(pack_ids: list[str], region: dict, groups: list[str] | None = None) -> 
             items = [i for i in items if i.kind != kind or i is best]
     seen: set = set()
     for it in items:
-        key = (it.kind, json.dumps(it.spec, sort_keys=True))
+        # one region has one set of OpenStreetMap extracts, whichever packs read them
+        key = ("osm",) if it.kind == "osm" else (it.kind, json.dumps(it.spec, sort_keys=True))
         if key not in seen:
             seen.add(key)
             out.append(it)
     return out
 
 
+def reads(build: Item, inp: Item) -> bool:
+    """Does this build read that temporary input? A downloaded file feeds its own pack's build;
+    the region's OpenStreetMap extract feeds every build that names it (any pack)."""
+    if inp.kind == "osm":
+        return "osm" in (build.spec.get("inputs") or []) or "{osm}" in (build.spec.get("args") or [])
+    return build.pack == inp.pack
+
+
+def todo(items: list[Item]) -> list[Item]:
+    """What a run still has to do: items not installed, and the temporary inputs of builds that
+    aren't (an input already on disk stays in the list, so the run deletes it afterwards)."""
+    builds = [b for b in items if b.kind == "build"]
+    out = []
+    for it in items:
+        if it.temporary:
+            if any(not b.installed() for b in builds if reads(b, it)):
+                out.append(it)
+        elif not it.installed():
+            out.append(it)
+    return out
+
+
 def run(items: list[Item], dry: bool = False) -> list[str]:
-    """Fetch/build everything in order; returns error messages (one per failed pack)."""
+    """Fetch/build everything in order; returns error messages (one per failed pack).
+
+    A temporary input (a download only a build needs) is deleted once every build in the run
+    that reads it has succeeded; it is kept when one fails, so running again resumes. A build
+    that would delete its inputs early (routing frees the extract before its disk-hungry tile
+    build) is passed its ``keep_inputs`` flag while a later build still needs them."""
     errors: list[str] = []
     failed: set[str] = set()
-    by_pack: dict[str, list[Item]] = {}
-    for it in items:
-        by_pack.setdefault(it.pack, []).append(it)
+    builds = [i for i in items if i.kind == "build"]
+    inputs = [i for i in items if i.temporary]
+    readers = {id(t): [b for b in builds if reads(b, t)] for t in inputs}
+    pos = {id(x): n for n, x in enumerate(items)}
+    done: set[int] = set()
     current = None
-    for it in items:
+    for n, it in enumerate(items):
         if it.pack in failed:
             continue
         if it.pack != current:
@@ -978,18 +1088,24 @@ def run(items: list[Item], dry: bool = False) -> list[str]:
             say(f"[{it.pack}] {all_packs()[it.pack]['title']}")
         try:
             if it.kind == "build":
+                mine = [t for t in inputs if any(b is it for b in readers[id(t)])]
+                later = any(b.pack not in failed and pos[id(b)] > n for t in mine for b in readers[id(t)])
+                it.extra_args = [it.spec["keep_inputs"]] if later and it.spec.get("keep_inputs") else []
                 it.fetch(dry)
+                done.add(id(it))
                 if not dry:
-                    for t in by_pack[it.pack]:  # the build's inputs aren't needed any more
-                        if t.temporary:
+                    for t in mine:  # delete an input once nothing left in this run reads it
+                        if all(id(b) in done for b in readers[id(t)]):
                             for p in t.targets():
                                 p.unlink(missing_ok=True)
-            elif it.temporary and all(i.installed() for i in by_pack[it.pack] if i.kind == "build"):
-                continue  # its pack is built already: don't fetch the inputs again
+            elif it.temporary and all(b.installed() for b in readers[id(it)]):
+                continue  # what reads it is built already: don't fetch the input again
             else:
                 it.fetch(dry)
         except (DownloadError, subprocess.CalledProcessError, OSError) as e:
             failed.add(it.pack)
+            if it.temporary:  # every pack whose build needed it can't go on either
+                failed.update(b.pack for b in readers[id(it)])
             errors.append(f"{it.pack}: {e}")
             say(f"  ✗ {e}")
     return errors

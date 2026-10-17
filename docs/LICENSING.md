@@ -58,7 +58,7 @@ need a commercially redistributable build.
 
 | Data | License | Attribution shown |
 |---|---|---|
-| OpenStreetMap (map tiles, routing graph, street names) | ODbL 1.0 | "© OpenStreetMap contributors" on the map |
+| OpenStreetMap (map tiles, routing graph, street names, fuel stations and health services in `pois.sqlite`, address points outside the US and Canada) | ODbL 1.0 | "© OpenStreetMap contributors" on the map |
 | Protomaps basemap (tiles build, style) | Data ODbL; style BSD-3-Clause | "Protomaps" on the map |
 | GeoNames | CC BY 4.0 | In the app's attributions |
 | Wikipedia coordinates (geotags) | CC BY-SA 4.0 | |

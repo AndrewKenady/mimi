@@ -33,6 +33,7 @@ else is newer.
 | macOS on Apple silicon | **Untested.** Engines are pinned; chat uses llama.cpp's Metal (GPU) build, falling back to the CPU build. |
 | Steam Deck (SteamOS 3, desktop mode) | **Untested**; see [Steam Deck](#steam-deck). |
 | Plus and Max tiers (32 GB+ RAM or a 16 GB+ GPU) | **Untested** on real hardware. The downloads are pinned and hashed, and the model settings follow the upstream recommendations, but no one has run these models in Mimi yet. |
+| Addresses outside the US and Canada; fuel stations and hospitals | **Tested** on small real OpenStreetMap areas (central Vaduz, Monaco, Andorra, San Marino, Jersey, Appenzell Innerrhoden, central Heidelberg); not yet on a whole country of the regions below. See [Regions](#regions). |
 | Intel Macs, 32-bit, Windows on ARM | Not supported. |
 
 Tried it somewhere new? Open an issue with what worked and what didn't. It helps others.
@@ -42,7 +43,7 @@ Tried it somewhere new? Open an issue with what worked and what didn't. It helps
 | Tier | Download | What you get | Needs |
 |---|---|---|---|
 | **lite** (default) | **≈ 16–24 GB**, depending on the map region (UK 17 GB, US 20 GB, US + Canada 24 GB) | Qwen3.5 4B (chat, tools, reads photos), BGE-M3 search, Whisper small + Kokoro voice · WikiMed, iFixit, survival guides (post-disaster, first aid, water, food, knots), Wikivoyage, the most-read Wikipedia articles (text) · world map to country/city level, your region down to streets, places database | 8 GB RAM, any 64-bit CPU from about 2015 |
-| **standard** | **≈ 210–245 GB**, plus a few hours of local builds | lite + Gemma 4 12B and Qwen3.5 9B, Whisper turbo · all of Wikipedia with pictures, Wiktionary, Stack Exchange (DIY, mechanics, outdoors, cooking, gardening, ham radio, electronics, physics, Super User), TED talks, Gutenberg · the world at town level, your region with every street, Wikipedia on the map, offline driving directions, street-address search (US/Canada) | 16 GB RAM (the reference device); a GPU helps |
+| **standard** | **≈ 210–245 GB**, plus a few hours of local builds | lite + Gemma 4 12B and Qwen3.5 9B, Whisper turbo · all of Wikipedia with pictures, Wiktionary, Stack Exchange (DIY, mechanics, outdoors, cooking, gardening, ham radio, electronics, physics, Super User), TED talks, Gutenberg · the world at town level, your region with every street, Wikipedia on the map, offline driving directions with the nearest fuel stations, hospitals, clinics and pharmacies, street-address search | 16 GB RAM (the reference device); a GPU helps |
 | **plus** | standard **+ 15 GB** | standard + Gemma 4 26B A4B (a mixture of experts with about 4B active parameters, so it stays quick on integrated graphics) | 32 GB RAM, or a GPU with 16 GB+ |
 | **max** | standard **+ 22 GB** | standard + Qwen3.6 35B A3B (about 3B active parameters) | 48 GB+ RAM, or a GPU with 24 GB+ |
 | **none** | ≈ 100 MB | Code and engines only; add packs one by one | |
@@ -65,23 +66,43 @@ and everything else (models, books) are the same everywhere.
 
 | Region | Map, lite (zoom 13) | Map, standard (zoom 14) | Directions (built) | Street addresses |
 |---|---|---|---|---|
-| `us` (lower 48, default for lite) | 4.2 GB | 8.8 GB | ~14 GB | yes |
-| `canada` | 5.3 GB | 10 GB | ~4 GB | yes |
-| `us-canada` (default for standard) | 7.8 GB | 15.6 GB | ~18 GB | yes |
-| `uk` (with Ireland) | 0.8 GB | 1.5 GB | ~2 GB | no |
-| `germany` | 1.8 GB | 3.5 GB | ~3.5 GB | no |
-| `france` | 2.3 GB | 4.5 GB | ~3.8 GB | no |
-| `australia` | 0.5 GB | 1.0 GB | ~0.9 GB | no |
-| `new-zealand` | 0.2 GB | 0.3 GB | ~0.3 GB | no |
+| `us` (lower 48, default for lite) | 4.2 GB | 8.8 GB | ~14 GB | yes (TIGER) |
+| `canada` | 5.3 GB | 10 GB | ~4 GB | yes (NAR) |
+| `us-canada` (default for standard) | 7.8 GB | 15.6 GB | ~18 GB | yes (TIGER, NAR) |
+| `uk` (with Ireland) | 0.8 GB | 1.5 GB | ~2 GB | OpenStreetMap |
+| `germany` | 1.8 GB | 3.5 GB | ~3.5 GB | OpenStreetMap |
+| `france` | 2.3 GB | 4.5 GB | ~3.8 GB | OpenStreetMap |
+| `australia` | 0.5 GB | 1.0 GB | ~0.9 GB | OpenStreetMap |
+| `new-zealand` | 0.2 GB | 0.3 GB | ~0.3 GB | OpenStreetMap |
 | `japan` | 0.9 GB | 1.7 GB | ~2 GB | no |
 | any area: `--bbox W,S,E,N` | measured before download | | no | no |
 
 Map sizes were measured on the August 2026 map build; direction sizes are estimates.
 Maps work anywhere on Earth (Protomaps is global). Driving directions are built on your
-machine from OpenStreetMap extracts (Geofabrik) for named regions. **Street-address search
-exists only for the US and Canada**, because it is built from US Census TIGER and the
-Statistics Canada address register; elsewhere you can still search places, towns,
-landmarks and coordinates.
+machine from OpenStreetMap extracts (Geofabrik) for named regions.
+
+**Near me.** Towns, parks, peaks and landmarks come from GeoNames and Wikipedia (the
+`places` and `geowiki` packs). The nearest **fuel stations, hospitals (with whether they
+have an emergency department), clinics, pharmacies and ambulance stations** come from the
+same OpenStreetMap extract as driving directions, so they arrive with the `routing` pack
+(`maps/pois.sqlite`, a few MB for most regions); nothing extra is downloaded. Without it
+(Lite), Mimi says it has no fuel data and can only offer GeoNames' list of hospitals. If
+you installed directions before this version, `content add routing` builds just the new
+table, which downloads the extract once more.
+
+**Street addresses.** In the US and Canada they come from US Census TIGER and the
+Statistics Canada address register, as before. In the UK, Germany, France, Australia and
+New Zealand they come from OpenStreetMap's address points in the region's extract (the
+one directions use: with the standard tier it is downloaded once for both). Search
+understands the local forms: "Hauptstraße 5, 10115 Berlin", "Hauptstr. 5" or
+"Hauptstrasse 5", "10 rue de la Paix, 75002 Paris", "Calle Mayor 12, Madrid", "Via Roma 1,
+Milano", "10 Downing Street, London SW1A 2AA", "Sydney NSW 2000". Coverage is whatever
+OpenStreetMap has mapped: close to complete in Germany, patchy in parts of the UK. This
+was tested end to end on real OpenStreetMap data for Liechtenstein (Vaduz), Switzerland
+(Appenzell Innerrhoden), Monaco, Andorra, San Marino, Jersey and central Heidelberg, not
+yet on a whole country of the five regions. Japan has no address search: its addresses
+are numbered blocks rather than house numbers on named streets. Everywhere, you can still
+search places, towns, landmarks and coordinates.
 
 ## Linux and macOS
 
@@ -102,7 +123,7 @@ Useful options (`python3 scripts/install.py --help` lists them all):
 |---|---|
 | `--tier lite\|standard\|none` | how much content (default lite) |
 | `--region NAME` / `--bbox W,S,E,N` | map region |
-| `--no-routing`, `--no-addresses` | skip the long standard-tier builds |
+| `--no-routing`, `--no-addresses` | skip the long standard-tier builds (no routing also means no fuel/hospital table) |
 | `--desktop` | add Mimi to the app menu (Linux) |
 | `--dry-run` | show the plan and the disk-space check, change nothing |
 

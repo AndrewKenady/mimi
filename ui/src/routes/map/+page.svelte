@@ -9,8 +9,8 @@
 	import { layers, namedFlavor } from '@protomaps/basemaps';
 	import { app } from '$lib/app.svelte';
 	import { ApiError, del, get, post } from '$lib/api';
-	import { fmtNumber, t, type Key } from '$lib/i18n/index.svelte';
-	import { Search, MapPin, Navigation, Crosshair, BookOpen, Sparkles, X, LocateFixed, Trees, Landmark, Building2, Waves, Mountain, Compass, Route, Loader, Radio, House, Signpost, Mailbox, Info, RotateCw } from '@lucide/svelte';
+	import { fmtNumber, i18n, t, type Key } from '$lib/i18n/index.svelte';
+	import { Search, MapPin, Navigation, Crosshair, BookOpen, Sparkles, X, LocateFixed, Trees, Landmark, Building2, Waves, Mountain, Compass, Route, Loader, Radio, House, Signpost, Mailbox, Info, RotateCw, Fuel, Hospital, Pill, Phone, Clock, Siren } from '@lucide/svelte';
 
 	let el: HTMLDivElement;
 	let map: maplibregl.Map | null = null;
@@ -28,6 +28,7 @@
 	let selEl: HTMLElement | undefined = $state();
 	let places = $state<any[]>([]);
 	let kind = $state('all');
+	let servicesHere = $state(false); // OpenStreetMap services data covers the last "nearby" point
 	let picking = $state(false);
 	let selected = $state<any>(null);
 	let loadingNearby = $state(false);
@@ -48,14 +49,22 @@
 	});
 	const km = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) =>
 		Math.hypot((a.lat - b.lat) * 111.32, (a.lon - b.lon) * 111.32 * Math.cos((a.lat * Math.PI) / 180));
-	const KINDS: { id: string; label: Key; icon: typeof Compass }[] = [
+	// Fuel stations, hospitals and pharmacies come from the OpenStreetMap services data that
+	// offline directions install, so their filters show only where it is. (Without it, chat
+	// still finds hospitals in GeoNames.)
+	const SERVICES = new Set(['fuel', 'hospital', 'clinic', 'pharmacy', 'ambulance', 'health']);
+	const KINDS: { id: string; label: Key; icon: typeof Compass; osm?: boolean }[] = [
 		{ id: 'all', label: 'map.filterAll', icon: Compass },
+		{ id: 'fuel', label: 'map.filterFuel', icon: Fuel, osm: true },
+		{ id: 'hospital', label: 'map.filterHospitals', icon: Hospital, osm: true },
+		{ id: 'pharmacy', label: 'map.filterPharmacies', icon: Pill, osm: true },
 		{ id: 'nature', label: 'map.filterNature', icon: Trees },
 		{ id: 'history', label: 'map.filterHistory', icon: Landmark },
 		{ id: 'towns', label: 'map.filterTowns', icon: Building2 },
 		{ id: 'water', label: 'map.filterWater', icon: Waves },
 		{ id: 'mountains', label: 'map.filterPeaks', icon: Mountain }
 	];
+	const kinds = $derived(KINDS.filter((k) => !k.osm || info?.services));
 	const metric = $derived(app.settings.device?.general?.units === 'metric');
 	// Rounded as toFixed() rounds (0.15 → 0.1) and without digit grouping ("1234.5 km"), as
 	// English has always shown it; Intl alone would round 0.15 up.
@@ -64,6 +73,12 @@
 	/** A place kind or compass point from Core, in the interface language when it has a word for it. */
 	const kindOf = (k: string | undefined) => (k ? t('map.placeKind', { kind: k }) : '');
 	const dirOf = (d: string | undefined) => (d ? t('map.direction', { dir: d }) : '');
+	/** A place's name; a fuel station or pharmacy mapped without one is called what it is. */
+	const nameOf = (p: any) => {
+		if (!p.unnamed) return p.name;
+		const k = kindOf(p.kind);
+		return k.charAt(0).toLocaleUpperCase(i18n.locale) + k.slice(1);
+	};
 
 	// The world map is drawn under the detailed regions. Where a region fully covers a world
 	// tile, that tile is served empty so the handheld doesn't draw both; abroad, MapLibre
@@ -286,6 +301,7 @@
 		try {
 			const r = await get(`/api/location/nearby?lat=${c.lat}&lon=${c.lon}&radius=30&kind=${kind}&limit=30`);
 			places = r.places;
+			servicesHere = !!r.services;
 			drawMarkers();
 		} finally {
 			loadingNearby = false;
@@ -299,7 +315,7 @@
 		for (const p of places) {
 			const d = document.createElement('button');
 			d.className = 'poi';
-			d.title = p.name;
+			d.title = nameOf(p);
 			d.append(document.createElement('span'));
 			d.onclick = (ev) => {
 				ev.stopPropagation();
@@ -327,7 +343,7 @@
 		if (ADDRESSY.has(r.kind)) {
 			const label: string = r.label || '';
 			const rest = label.startsWith(r.name) ? label.slice(r.name.length).replace(/^[\s,]+/, '') : label;
-			const what = r.kind === 'postcode' ? (r.country === 'CA' ? t('map.postalCode') : t('map.zipCode')) : '';
+			const what = r.kind === 'postcode' ? (r.country === 'US' ? t('map.zipCode') : t('map.postalCode')) : '';
 			return [what, rest || r.admin1].filter(Boolean).join(' · ');
 		}
 		return [kindOf(r.kind || r.fdesc), r.admin1, r.country].filter(Boolean).join(' · ');
@@ -527,7 +543,7 @@
 				? t('map.askArea', { place: p.label || p.name })
 				: ADDRESSY.has(p.kind)
 					? t('map.askPlace', { place: p.label || p.name })
-					: t('map.askPlace', { place: `${p.name}${p.admin1 ? ', ' + p.admin1 : ''}` });
+					: t('map.askPlace', { place: p.address ? `${nameOf(p)}, ${p.address}` : `${nameOf(p)}${p.admin1 ? ', ' + p.admin1 : ''}` });
 		app.ask(text, { mode: 'road_trip' });
 		goto('/chat');
 	}
@@ -627,7 +643,7 @@
 			<section class="sel card" bind:this={selEl}>
 				<div class="selh">
 					<div>
-						<b>{selected.name}</b>
+						<b>{nameOf(selected)}</b>
 						{#if ADDRESSY.has(selected.kind) || selected.kind === 'coords'}
 							<small class="plain">{subFor(selected, true)}{#if selected.distance_km != null}{` · ${fmtDist(selected.distance_km)}`}{/if}</small>
 							{#if tagFor(selected)}<em class="ptag" class:exact={selected.precision === 'exact'}>{tagFor(selected)}</em>{/if}
@@ -637,6 +653,14 @@
 					</div>
 					<button class="icon-btn sm" onclick={() => (selected = null)} aria-label={t('map.close')}><X size={15} /></button>
 				</div>
+				{#if SERVICES.has(selected.kind) && (selected.emergency || selected.address || selected.opening_hours || selected.phone)}
+					<ul class="svc">
+						{#if selected.emergency}<li class:er={selected.emergency === 'yes'}><Siren size={13} />{selected.emergency === 'yes' ? t('map.emergencyYes') : t('map.emergencyNo')}</li>{/if}
+						{#if selected.address}<li><MapPin size={13} />{selected.address}</li>{/if}
+						{#if selected.opening_hours}<li title={t('map.hoursAsMapped')}><Clock size={13} /><span class="hours">{selected.opening_hours}</span></li>{/if}
+						{#if selected.phone}<li><Phone size={13} /><a href="tel:{selected.phone.split(';')[0].replace(/[^\d+]/g, '')}">{selected.phone.split(';')[0]}</a></li>{/if}
+					</ul>
+				{/if}
 				<div class="acts">
 					{#if routeInfo?.available}
 						<button class="btn btn-sm btn-primary" onclick={() => directions(selected)} disabled={routing}>
@@ -668,9 +692,9 @@
 			</section>
 		{:else if loc}
 			<section class="nearby">
-				<div class="nh"><span class="label">{t('map.nearby')}</span>{#if loadingNearby}<span class="faint small">{t('map.looking')}</span>{/if}</div>
+				<div class="nh"><span class="label">{SERVICES.has(kind) ? t('map.nearest') : t('map.nearby')}</span>{#if loadingNearby}<span class="faint small">{t('map.looking')}</span>{/if}</div>
 				<div class="kinds">
-					{#each KINDS as k (k.id)}
+					{#each kinds as k (k.id)}
 						{@const I = k.icon}
 						<button class="chip" class:active={kind === k.id} onclick={() => { kind = k.id; loadNearby(); }}><I size={13} />{t(k.label)}</button>
 					{/each}
@@ -678,12 +702,15 @@
 				<div class="plist" data-scroll>
 					{#each places as p (p.name + p.lat)}
 						<button class="place" class:on={selected?.name === p.name} onclick={() => select(p)}>
-							<span class="pn">{p.name}</span>
+							<span class="pn">{nameOf(p)}</span>
 							<span class="pk">{kindOf(p.kind || 'place')}<span class="dist">{` · ${fmtDist(p.distance_km)} ${dirOf(p.direction)}`}</span></span>
 						</button>
 					{:else}
-						{#if !loadingNearby}<p class="faint small">{t('map.nothingNearby')}</p>{/if}
+						{#if !loadingNearby}<p class="faint small">{SERVICES.has(kind) ? t('map.noServicesFound') : t('map.nothingNearby')}</p>{/if}
 					{/each}
+					{#if SERVICES.has(kind) && places.length && !loadingNearby}
+						<p class="faint small svcnote">{servicesHere ? t('map.servicesAsMapped') : t('map.servicesSparse')}{#if kind === 'hospital'}{' '}{t('map.emergencyFirst')}{/if}</p>
+					{/if}
 				</div>
 			</section>
 		{/if}
@@ -915,6 +942,39 @@
 		display: block;
 		color: var(--text-3);
 		text-transform: capitalize;
+	}
+	/* What OpenStreetMap knows about a fuel station or hospital: emergency department,
+	   address, hours (in OSM's own notation, shown as mapped) and phone. */
+	.svc {
+		list-style: none;
+		margin: var(--space-2) 0 0;
+		padding: 0;
+		display: grid;
+		gap: var(--space-1);
+		font-size: var(--fs-sm);
+		color: var(--text-2);
+	}
+	.svc li {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1-5);
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	.svc li :global(svg) {
+		flex: none;
+		color: var(--text-3);
+	}
+	.svc li.er,
+	.svc li.er :global(svg) {
+		color: var(--danger);
+		font-weight: var(--fw-medium);
+	}
+	.svc .hours {
+		font-variant-numeric: tabular-nums;
+	}
+	.svcnote {
+		margin: var(--space-2) var(--space-2) 0;
 	}
 	.nearby {
 		flex: 1;

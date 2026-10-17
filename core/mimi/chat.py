@@ -835,7 +835,8 @@ def _pending_label(name: str, args: dict) -> str:
         "search_my_files": lambda: tr("Searching your files for “{q}”…", q=q),
         "remember": lambda: tr("Noting that…"),
         "where_am_i": lambda: tr("Checking location…"),
-        "nearby_places": lambda: tr("Looking around…"),
+        "nearby_places": lambda: (tr("Looking for {noun}…", noun=tr(tools.SERVICE_WORDS[args["kind"]]))
+                                  if args.get("kind") in tools.SERVICE_WORDS else tr("Looking around…")),
         "calculate": lambda: tr("Calculating…"),
         "get_directions": lambda: tr("Planning a route to {dest}…", dest=args.get("destination") or tr("there")),
     }

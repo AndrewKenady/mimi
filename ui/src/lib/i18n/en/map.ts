@@ -4,6 +4,9 @@ export default {
 
 	// Nearby filters
 	filterAll: 'All',
+	filterFuel: 'Fuel',
+	filterHospitals: 'Hospitals',
+	filterPharmacies: 'Pharmacies',
 	filterNature: 'Nature',
 	filterHistory: 'History',
 	filterTowns: 'Towns',
@@ -15,8 +18,9 @@ export default {
 	mi: '{n} mi',
 	/** A compass point from Core: N, NE, E, SE, S, SW, W, NW. */
 	direction: (p: { dir: string }) => p.dir,
-	/** What a place is, as Core names it ("town", "hot spring(s)", "national park"…). Unknown kinds stay as Core wrote them. */
-	placeKind: (p: { kind: string }) => p.kind,
+	/** What a place is, as Core names it ("town", "hot spring(s)", "national park"…). Unknown kinds stay as Core wrote them.
+	 *  Services from OpenStreetMap come as ids: fuel, hospital, clinic, pharmacy, ambulance. */
+	placeKind: (p: { kind: string }) => ({ fuel: 'fuel station', ambulance: 'ambulance station' })[p.kind] ?? p.kind,
 
 	// Search
 	searching: 'Searching',
@@ -92,6 +96,15 @@ export default {
 	nearby: 'Nearby',
 	looking: 'Looking…',
 	nothingNearby: 'Nothing notable within 30 km.',
+	/** Heading for fuel stations, hospitals and pharmacies: the list is nearest first, however far. */
+	nearest: 'Nearest',
+	noServicesFound: 'None in the offline map data within 250 km.',
+	servicesAsMapped: 'From OpenStreetMap, as mapped. Hours and phone numbers may have changed.',
+	servicesSparse: 'No detailed data for this area, so this list may be incomplete.',
+	emergencyFirst: 'In an emergency, call the local emergency number first.',
+	emergencyYes: 'Emergency department',
+	emergencyNo: 'No emergency department',
+	hoursAsMapped: 'Opening hours as mapped in OpenStreetMap',
 
 	// MapLibre's own controls (English is MapLibre's default wording)
 	mapLabel: 'Map',
