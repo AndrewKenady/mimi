@@ -63,7 +63,7 @@ COUNTRY_NAMES = {"US": "United States", "CA": "Canada"}
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Great-circle distance in kilometres."""
+    """Great-circle distance in kilometers."""
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dp = p2 - p1
     dl = math.radians(lon2 - lon1)
@@ -384,7 +384,7 @@ _EVENT_WORDS = frozenset(("festival", "expo", "convention", "conference", "tourn
 _kw("event", _cats(C), -25, *_EVENT_WORDS)
 
 # Articles that are geotagged but are not places you can visit: broadcast call
-# signs ("CJRT-FM"), organisations filed under their headquarters, districts.
+# signs ("CJRT-FM"), organizations filed under their headquarters, districts.
 _NOT_A_PLACE = re.compile(
     r"^[CKWX][A-Z]{2,3}(-(FM|AM|TV|LP|DT|CD|LD)\b|\s*\((AM|FM|TV)\))"
     r"|\((?:[^()]*\s)?(TV channel|TV station|radio station|radio network|company|newspaper|magazine|band"
@@ -439,7 +439,7 @@ def _title_keyword(title: str) -> tuple[str, frozenset[str], int] | None:
 
 
 # ---------------------------------------------------------------------------
-# Name normalisation (for de-duplication and exact-match ranking)
+# Name normalization (for de-duplication and exact-match ranking)
 # ---------------------------------------------------------------------------
 
 _ABBREV = {"st": "saint", "ste": "sainte", "mt": "mount", "ft": "fort", "natl": "national", "hist": "historic"}
@@ -492,7 +492,7 @@ class _Item:
 
 
 def _parse_kinds(kinds: str | Iterable[str] | None) -> frozenset[str] | None:
-    """Normalise the ``kinds`` filter. None means everything."""
+    """Normalize the ``kinds`` filter. None means everything."""
     if kinds is None:
         return None
     if isinstance(kinds, str):
@@ -524,7 +524,7 @@ def _parse_kinds(kinds: str | Iterable[str] | None) -> frozenset[str] | None:
 class GeoData:
     """Read-only access to ``places.sqlite`` and ``geowiki.sqlite`` in ``maps_dir``.
 
-    Thread-safe (queries are serialised per database). Use as a context manager
+    Thread-safe (queries are serialized per database). Use as a context manager
     or call :meth:`close` when done.
     """
 
@@ -847,12 +847,12 @@ class GeoData:
         Returns ``{place, admin1, country, lat, lon, fcode, kind, population,
         distance_km, distance_mi, bearing_deg, direction, description,
         description_mi, locality, nearest_city, source}``. ``locality`` is a
-        closer named neighbourhood or hamlet, and ``nearest_city`` a bigger
+        closer named neighborhood or hamlet, and ``nearest_city`` a bigger
         reference city; either may be None. Returns {} when nothing is known
         nearby (for example, no databases).
 
         Choice of ``place``: if the point lies within the rough built-up radius
-        of a town or city, that place is used. Neighbourhoods (feature code
+        of a town or city, that place is used. Neighborhoods (feature code
         PPLX, or small places inside a larger city of the same state or
         province) are reported as ``locality`` instead. Otherwise it is the
         nearest populated place with a known population, falling back to any
@@ -950,7 +950,7 @@ class GeoData:
         d, radius, row = place
         res = self._describe(lat, lon, row, d, inside and (d < 1.0 or d < 0.5 * radius))
 
-        # a closer named locality (neighbourhood / hamlet)
+        # a closer named locality (neighborhood / hamlet)
         loc = next((c for c in cands if c[2][0] != row[0] and c[0] < min(d, 5.0)), None)
         res["locality"] = self._brief(lat, lon, loc[2], loc[0]) if loc else None
         # a bigger reference city, if the answer is a small place
@@ -1071,7 +1071,7 @@ class GeoData:
             results = self._search(name_part, region, near)
         else:
             # "toronto on" = Toronto, Ontario, but "mammoth ca" is more likely Mammoth
-            # Cave than Mammoth, California: try both readings, favour the regional one.
+            # Cave than Mammoth, California: try both readings, favor the regional one.
             best: dict[tuple, dict] = {}
             for r in self._search(query, None, near):
                 best[(r["source"], r["name"], r["lat"], r["lon"])] = r
@@ -1332,7 +1332,7 @@ def _geonames_town(fcode: str | None, pop: int, weight: int, kind: str, cc: str 
     """Weight and human label for a populated place."""
     if pop > 0:
         weight = max(weight, int(20 + 12 * math.log10(pop + 1)))
-        if fcode == "PPLX":  # neighbourhoods are context, not destinations
+        if fcode == "PPLX":  # neighborhoods are context, not destinations
             weight = min(weight, 30)
     if fcode == "PPLC":
         kind = "national capital"
@@ -1341,7 +1341,7 @@ def _geonames_town(fcode: str | None, pop: int, weight: int, kind: str, cc: str 
     elif fcode in _HISTORIC_PPL:
         kind = "historical settlement" if fcode != "PPLQ" else "abandoned settlement (ghost town)"
     elif fcode == "PPLX":
-        kind = "neighbourhood"
+        kind = "neighborhood"
     elif pop >= 100_000:
         kind = "city"
     elif pop >= 1_000:

@@ -1,5 +1,5 @@
 // Motion helpers. CSS and Svelte transitions share one set of tokens (--dur-* in
-// app.css), and both honour reduced motion — the OS setting or Mimi's own toggle.
+// app.css), and both honor reduced motion — the OS setting or Mimi's own toggle.
 //
 //   <div transition:fly={motion({ y: 24, duration: 'slow' })}>
 //   el.scrollIntoView({ behavior: scrollBehavior() })

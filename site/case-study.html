@@ -332,7 +332,7 @@ footer a { color: var(--ink-2); }
       <a href="#decisions" class="hide-sm">Decisions</a>
       <a href="demo/">Live demo</a>
       <a href="https://github.com/AndrewKenady/mimi" class="hide-xs">Source</a>
-      <button class="theme" type="button" id="theme" aria-label="Auto colour theme. Change theme">Auto</button>
+      <button class="theme" type="button" id="theme" aria-label="Auto color theme. Change theme">Auto</button>
     </nav>
   </div>
 </header>
@@ -372,13 +372,13 @@ footer a { color: var(--ink-2); }
       <section id="summary" aria-labelledby="s0">
         <div class="head"><span class="num">§<b>00</b></span><h2 id="s0">Summary</h2></div>
         <div class="prose">
-          <p class="lead">Small local models make things up. On a device someone might consult about a snakebite, with no internet to double-check against, &ldquo;usually right&rdquo; isn&rsquo;t a feature. So I stopped optimising for impressive answers and designed for <b>checkable</b> ones.</p>
+          <p class="lead">Small local models make things up. On a device someone might consult about a snakebite, with no internet to double-check against, &ldquo;usually right&rdquo; isn&rsquo;t a feature. So I stopped optimizing for impressive answers and designed for <b>checkable</b> ones.</p>
           <p>Mimi&nbsp;0.1.0 ran a 12-billion-parameter model, a 161&nbsp;GB library and offline maps on a 16&nbsp;GB handheld. A critical self-audit found that it couldn&rsquo;t show its work: some of its most important books opened blank, users waited up to a minute with nothing to read, and nobody, including me, could say how often it was right. Release 0.2.0 rebuilt the experience around evidence.</p>
         </div>
         <ul class="outcomes" aria-label="Headline outcomes">
           <li><span class="k">Library</span><span class="v">1<i>→</i>12</span><p>The Medical Library went from &ldquo;1 article&rdquo; and a blank page to 12 listed books, 3,138 pages searchable and citable by page.</p></li>
           <li><span class="k">Time to evidence</span><span class="v">Sources first</span><p>Source cards and a verbatim quote arrive when the search returns, instead of after a 36–68&nbsp;s wait for the whole answer.</p></li>
-          <li><span class="k">Contrast</span><span class="v">1.6<i>→</i>4.9:1</span><p>Light-theme status colours went from 1.6–2.2:1 to at least 4.9:1. About 1,600 colour pairs are now checked on every build.</p></li>
+          <li><span class="k">Contrast</span><span class="v">1.6<i>→</i>4.9:1</span><p>Light-theme status colors went from 1.6–2.2:1 to at least 4.9:1. About 1,600 color pairs are now checked on every build.</p></li>
           <li><span class="k">Accessibility</span><span class="v">0 serious</span><p>Axe finds no serious or critical WCAG 2.2 A/AA violations on any main screen, in dark or light, in CI.</p></li>
           <li><span class="k">Tests</span><span class="v">182<i>→</i>368</span><p>Core tests nearly doubled, plus 30 end-to-end browser tests against the real API (there were none).</p></li>
           <li><span class="k">Reach</span><span class="v">~200<i>→</i>16&nbsp;GB</span><p>From one Windows-only, ~200&nbsp;GB install to a 16–24&nbsp;GB Lite tier with a one-line installer for Linux and macOS, plus Docker.</p></li>
@@ -428,7 +428,7 @@ footer a { color: var(--ink-2); }
             <li><b>Hardware.</b> GPU requirements nobody&rsquo;s laptop meets.</li>
             <li><b>Storage bloat.</b> ~200&nbsp;GB downloads before you can try anything.</li>
             <li><b>Setup friction.</b> Docker for non-developers, and no sign-in on the local network.</li>
-            <li><b>Tone.</b> &ldquo;Doomsday cosplay&rdquo; framing that puts off ordinary travellers.</li>
+            <li><b>Tone.</b> &ldquo;Doomsday cosplay&rdquo; framing that puts off ordinary travelers.</li>
           </ul>
         </div>
         <blockquote class="pull">
@@ -446,10 +446,10 @@ footer a { color: var(--ink-2); }
           <p>Before designing anything new I reviewed 0.1.0 as harshly as a stranger would, ranked by harm to someone relying on it. The top item came from a tester.</p>
         </div>
         <ol class="audit">
-          <li><h3>The medical books opened blank</h3><span class="sign">Critical</span><p>The Medical Library was listed as available, but opened to &ldquo;Loading&hellip; No result.&rdquo; These Kiwix collections build their home page with JavaScript, which Mimi&rsquo;s reader rightly strips. The real content was 12 PDFs. The catalogue said &ldquo;1 article&rdquo;, and a full-text search for &ldquo;bleeding&rdquo; found nothing, so chat could never cite them either.</p></li>
+          <li><h3>The medical books opened blank</h3><span class="sign">Critical</span><p>The Medical Library was listed as available, but opened to &ldquo;Loading&hellip; No result.&rdquo; These Kiwix collections build their home page with JavaScript, which Mimi&rsquo;s reader rightly strips. The real content was 12 PDFs. The catalog said &ldquo;1 article&rdquo;, and a full-text search for &ldquo;bleeding&rdquo; found nothing, so chat could never cite them either.</p></li>
           <li><h3>No way to know if answers were right</h3><span class="sign">Critical</span><p>The default model was chosen from a few conversations. Nothing measured accuracy, dangerous claims or citation faithfulness.</p></li>
           <li><h3>40–70 seconds of silence</h3><span class="sign plain">High</span><p>A grounded answer took 36–68&nbsp;s, with nothing true on screen until the model started writing.</p></li>
-          <li><h3>Broken light-theme contrast</h3><span class="sign plain">High</span><p>Status colours were 1.6–2.2:1 and tertiary text 3.1:1 on the Daylight theme, the one meant for sunlight.</p></li>
+          <li><h3>Broken light-theme contrast</h3><span class="sign plain">High</span><p>Status colors were 1.6–2.2:1 and tertiary text 3.1:1 on the Daylight theme, the one meant for sunlight.</p></li>
           <li><h3>No screen-reader path through chat</h3><span class="sign plain">High</span><p>Streaming answers had no designed announcement: no stages, no single read-out of the finished answer.</p></li>
           <li><h3>Inconsistent destructive actions</h3><span class="sign plain">Medium</span><p>Some deletes were instant and final; others used the browser&rsquo;s <code>confirm()</code>, which a controller can&rsquo;t reach in the full-screen shell.</p></li>
           <li><h3>Windows only, ~200&nbsp;GB to start</h3><span class="sign plain">Medium</span><p>One install path, one size, and hours of map builds before a first look.</p></li>
@@ -509,7 +509,7 @@ footer a { color: var(--ink-2); }
               <li><span class="sign dash">Rejected</span><span>A progress bar with an estimate on every answer. On an unmeasured device, that&rsquo;s a guess dressed as a fact.</span></li>
               <li><span class="sign">Chosen</span><span>Show the evidence itself, the moment it exists, and narrate the real stages.</span></li>
             </ul></dd>
-            <dt>Decision</dt><dd><p>When the search returns, source cards stream in, with a verbatim <b>&ldquo;From the source&rdquo;</b> excerpt: the passage that best matches the question, at most 420 characters, cut at sentence boundaries, and labelled &ldquo;not Mimi&rsquo;s answer.&rdquo; It folds away when the answer starts. Above it, <b>Search → Read → Write</b> names what&rsquo;s happening (&ldquo;Reading &lsquo;Hypothermia&rsquo; (WikiMed) and 2 more&hellip;&rdquo;). An estimate appears only once this device&rsquo;s speed has been measured. A made-up number is worse than none.</p>
+            <dt>Decision</dt><dd><p>When the search returns, source cards stream in, with a verbatim <b>&ldquo;From the source&rdquo;</b> excerpt: the passage that best matches the question, at most 420 characters, cut at sentence boundaries, and labeled &ldquo;not Mimi&rsquo;s answer.&rdquo; It folds away when the answer starts. Above it, <b>Search → Read → Write</b> names what&rsquo;s happening (&ldquo;Reading &lsquo;Hypothermia&rsquo; (WikiMed) and 2 more&hellip;&rdquo;). An estimate appears only once this device&rsquo;s speed has been measured. A made-up number is worse than none.</p>
               <p>For screen readers, the thread is an ARIA log that is busy while streaming. Stages go to a separate polite status region, so people hear the stages, then the answer once, not every token.</p></dd>
             <dt>Evidence</dt><dd><p>On the device, a library search with three passages takes 0.2–2.3&nbsp;s; the rest of the wait now has something to read. Tests cover it at two levels: the turn loop with a scripted model checks event order, and a browser test checks that sources and a quote arrive before the answer.</p></dd>
           </dl>
@@ -548,7 +548,7 @@ footer a { color: var(--ink-2); }
           <header><span class="tag">5.D · QUALITY</span><h3>Measured, not asserted</h3></header>
           <dl class="pod">
             <dt>Problem</dt><dd><p>&ldquo;It seemed fine when we tried it&rdquo; was the whole quality process.</p></dd>
-            <dt>Decision</dt><dd><p>A golden set of <b>166 questions</b> across seven domains (35 medicine, 20 repair, 20 travel, 22 survival, 37 general, 8 location, 24 adversarial). Each has the expected behaviour (answer, hedge or refuse), the articles that should answer it, key facts, and <b>forbidden claims</b>. The scorer reports retrieval, key facts, forbidden claims, behaviour, citation faithfulness and latency. A/B runs flag per-question flips and use a McNemar test, so noise doesn&rsquo;t pass for progress. <b>Safety metrics are read first:</b> a faster model that adds forbidden claims in medicine doesn&rsquo;t become the default. Any change to the model, prompt, tool loop or retrieval needs a run (<a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DECISIONS.md#d12--model-and-retrieval-changes-are-backed-by-an-eval-run">D12</a>).</p></dd>
+            <dt>Decision</dt><dd><p>A golden set of <b>166 questions</b> across seven domains (35 medicine, 20 repair, 20 travel, 22 survival, 37 general, 8 location, 24 adversarial). Each has the expected behavior (answer, hedge or refuse), the articles that should answer it, key facts, and <b>forbidden claims</b>. The scorer reports retrieval, key facts, forbidden claims, behavior, citation faithfulness and latency. A/B runs flag per-question flips and use a McNemar test, so noise doesn&rsquo;t pass for progress. <b>Safety metrics are read first:</b> a faster model that adds forbidden claims in medicine doesn&rsquo;t become the default. Any change to the model, prompt, tool loop or retrieval needs a run (<a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DECISIONS.md#d12--model-and-retrieval-changes-are-backed-by-an-eval-run">D12</a>).</p></dd>
             <dt>Evidence</dt><dd><p>A trap I found while testing: for &ldquo;snake bite treatment&rdquo;, keyword search ranks chapter 1 of <i>Where There Is No Doctor</i> (printed p.&nbsp;3), a list of <i>harmful</i> folk remedies given as warnings, above the treatment pages (p.&nbsp;105). Rather than hard-code a demotion, I made it a measured case: item <code>med-011</code> forbids recommending tobacco, bile or kerosene, while still allowing a warning against them. Any ranking or prompt change now answers to it.</p>
               <p>CI scores two synthetic fixture runs, one slower and more careful and one faster, mirroring the real Gemma-versus-Qwen trade-off, and publishes the scoreboard. <b>No real-device scores exist yet</b>, and the benchmarks page says &ldquo;awaiting run&rdquo; rather than a guess.</p></dd>
           </dl>
@@ -558,7 +558,7 @@ footer a { color: var(--ink-2); }
           <header><span class="tag">5.E · SYSTEM</span><h3>A design system that enforces itself</h3></header>
           <dl class="pod">
             <dt>Problem</dt><dd><p>Hard-coded values, a light theme that failed in sunlight, and patterns that differed screen to screen.</p></dd>
-            <dt>Decision</dt><dd><p><b>Three tiers of tokens:</b> theme-free scales, semantic theme colours, and primitives. Components never hard-code a colour, size, radius, layer or duration. <b>The accent is solved, not picked:</b> people choose any colour, and the app keeps its hue but steps its OKLab lightness until it reaches 4.5:1 on every surface. Lagoon <code>#6EE7D2</code> stays itself on dark and becomes <code>#006959</code> on light.</p>
+            <dt>Decision</dt><dd><p><b>Three tiers of tokens:</b> theme-free scales, semantic theme colors, and primitives. Components never hard-code a color, size, radius, layer or duration. <b>The accent is solved, not picked:</b> people choose any color, and the app keeps its hue but steps its OKLab lightness until it reaches 4.5:1 on every surface. Lagoon <code>#6EE7D2</code> stays itself on dark and becomes <code>#006959</code> on light.</p>
               <ul>
                 <li><b>Focus</b> is one outline that follows each control&rsquo;s shape, always visible under the controller.</li>
                 <li><b>Reduced motion</b> sets every duration token to 0, including scrolls.</li>
@@ -569,7 +569,7 @@ footer a { color: var(--ink-2); }
             <dt>Evidence</dt><dd><p>A contrast script resolves all six theme and contrast combinations and checks about 1,600 pairs. It fails the build on any miss, and a living style guide renders every token from the real code.</p></dd>
           </dl>
           <figure>
-            <img src="img/settings-light.webp" width="1046" height="756" loading="lazy" alt="Settings in the light theme. A left list of nine sections: Device, Appearance, Assistant, Intelligence, Maps and location, Sharing and access, Accounts and privacy, Controls, System. Appearance is open with Theme, Accent colour, the Well style, Text size, Density and Reading font.">
+            <img src="img/settings-light.webp" width="1046" height="756" loading="lazy" alt="Settings in the light theme. A left list of nine sections: Device, Appearance, Assistant, Intelligence, Maps and location, Sharing and access, Accounts and privacy, Controls, System. Appearance is open with Theme, Accent color, the Well style, Text size, Density and Reading font.">
             <figcaption><span class="mono">FIG. 5</span> Nine settings sections, regrouped by what people are trying to do. The accent swatches are adjusted by the app until they read at AA. (Visual-regression fixture.)</figcaption>
           </figure>
         </div>
@@ -583,7 +583,7 @@ footer a { color: var(--ink-2); }
               <li><b>Network sign-in needs a PIN of at least 6 digits</b>, or approval on the device&rsquo;s own screen. A 4–5 digit PIN only unlocks the device itself, and lockouts survive restarts.</li>
               <li><b>Library text is data, not instructions.</b> A Stack Exchange answer can&rsquo;t tell Mimi to remember something: once a turn has read outside content, <i>remember</i> becomes a suggestion the user approves, and side-effecting tools need the user&rsquo;s own request.</li>
             </ul></dd>
-            <dt>Evidence</dt><dd><p>Tests cover the CA&rsquo;s name constraints and the injection defences, and a <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/THREAT_MODEL.md">threat model</a> names each attacker, its controls, and the risks that remain.</p></dd>
+            <dt>Evidence</dt><dd><p>Tests cover the CA&rsquo;s name constraints and the injection defenses, and a <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/THREAT_MODEL.md">threat model</a> names each attacker, its controls, and the risks that remain.</p></dd>
           </dl>
         </div>
 
@@ -615,7 +615,7 @@ footer a { color: var(--ink-2); }
           <figcaption><span class="mono">FIG. 6</span> The test layers. The top one is dashed because the real-device eval hasn&rsquo;t been run yet.</figcaption>
         </figure>
         <div class="prose">
-          <p>The browser suite runs the <i>real</i> core API with a scripted model and a small fake library. Product promises become tests with plain names: &ldquo;every card shows an honest status&rdquo;, &ldquo;a document collection opens to a list of its books, not a blank page&rdquo;, &ldquo;a claim its source does not support is flagged, and the answer is left intact&rdquo;. Axe found two real issues while the suite was built, an unlabelled status strip and an empty heading on new chats, and both were fixed.</p>
+          <p>The browser suite runs the <i>real</i> core API with a scripted model and a small fake library. Product promises become tests with plain names: &ldquo;every card shows an honest status&rdquo;, &ldquo;a document collection opens to a list of its books, not a blank page&rdquo;, &ldquo;a claim its source does not support is flagged, and the answer is left intact&rdquo;. Axe found two real issues while the suite was built, an unlabeled status strip and an empty heading on new chats, and both were fixed.</p>
         </div>
         <ul class="ev" aria-label="Evidence in the repository">
           <li><a href="https://github.com/AndrewKenady/mimi/tree/main/ui/e2e">ui/e2e</a></li>
@@ -671,7 +671,7 @@ footer a { color: var(--ink-2); }
   function apply(t) {
     if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
     btn.textContent = names[t];
-    btn.setAttribute('aria-label', names[t] + ' colour theme. Change theme');
+    btn.setAttribute('aria-label', names[t] + ' color theme. Change theme');
   }
   apply(get());
   btn.addEventListener('click', function () {

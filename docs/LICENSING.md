@@ -6,7 +6,7 @@ The repository contains no models, engines, maps or library content. The install
 (`scripts/install.py`, `scripts/setup.ps1`) and the content manager (`scripts/content.py`) download them
 from their original publishers, pinned with checksums in [`manifests/`](../manifests/) (`runtimes.json`,
 `packs.json`, the `lite.json` and `standard.json` tiers) and [`config/models.json`](../config/models.json),
-and each keeps its own licence. The licences below are as published upstream when these
+and each keeps its own license. The licenses below are as published upstream when these
 versions were pinned; check the upstream project for current terms before redistributing.
 
 **Mimi is non-commercial.** The code is MIT, but some content Mimi downloads (the TED
@@ -16,7 +16,7 @@ need a commercially redistributable build.
 
 ## Models
 
-| Component | Licence |
+| Component | License |
 |---|---|
 | Gemma 4 12B / 26B-A4B (Google) | Apache-2.0 |
 | Qwen3.5 4B / 9B, Qwen3.6 35B-A3B, Qwen3.8 27B | Apache-2.0 |
@@ -26,7 +26,7 @@ need a commercially redistributable build.
 
 ## Engines and tools
 
-| Component | Licence | Note |
+| Component | License | Note |
 |---|---|---|
 | llama.cpp | MIT | |
 | kiwix-tools (kiwix-serve) | GPL-3.0 | Used as unmodified binaries; source at github.com/kiwix/kiwix-tools |
@@ -45,7 +45,7 @@ need a commercially redistributable build.
 
 ## Library content (Kiwix ZIM files)
 
-| Collection | Licence |
+| Collection | License |
 |---|---|
 | Wikipedia, Wikivoyage, Wiktionary, WikiMed (mdwiki) | CC BY-SA |
 | Stack Exchange sites | CC BY-SA |
@@ -56,7 +56,7 @@ need a commercially redistributable build.
 
 ## Map and place data
 
-| Data | Licence | Attribution shown |
+| Data | License | Attribution shown |
 |---|---|---|
 | OpenStreetMap (map tiles, routing graph, street names) | ODbL 1.0 | "© OpenStreetMap contributors" on the map |
 | Protomaps basemap (tiles build, style) | Data ODbL; style BSD-3-Clause | "Protomaps" on the map |

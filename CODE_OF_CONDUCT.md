@@ -6,6 +6,6 @@ Mimi adopts the [Contributor Covenant, version 2.1](https://www.contributor-cove
 
 ## Reporting
 
-If someone's behaviour concerns you, report it privately to the maintainers by opening a [private security advisory](https://github.com/AndrewKenady/mimi/security/advisories/new) with "Conduct" in the title, or by contacting a maintainer directly through their GitHub profile. Reports are kept confidential.
+If someone's behavior concerns you, report it privately to the maintainers by opening a [private security advisory](https://github.com/AndrewKenady/mimi/security/advisories/new) with "Conduct" in the title, or by contacting a maintainer directly through their GitHub profile. Reports are kept confidential.
 
 The maintainers will review every report and respond in line with the enforcement guidelines of the Contributor Covenant: correction, warning, temporary ban or permanent ban, depending on the impact.

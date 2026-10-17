@@ -1,5 +1,5 @@
-// Colour maths for the design system: WCAG contrast, OKLab mixing, and the
-// "make this colour readable here" solver used for user-chosen accents.
+// Color math for the design system: WCAG contrast, OKLab mixing, and the
+// "make this color readable here" solver used for user-chosen accents.
 // Pure functions with no DOM access, so the contrast audit (scripts/contrast.mjs)
 // runs exactly the code the app runs.
 
@@ -33,7 +33,7 @@ export const toHex = (c: RGB | RGBA) =>
 		.map((v) => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0'))
 		.join('');
 
-/** Paint a translucent colour over an opaque one. */
+/** Paint a translucent color over an opaque one. */
 export function composite(fg: RGBA, bg: RGB | RGBA): RGB {
 	const a = fg[3];
 	return [0, 1, 2].map((i) => fg[i] * a + bg[i] * (1 - a)) as RGB;
@@ -75,7 +75,7 @@ function fromOklab([L, A, B]: RGB): RGB {
 	].map((v) => clamp(v, 0, 255)) as RGB;
 }
 
-/** `color-mix(in oklab, a p%, b)` for opaque colours. */
+/** `color-mix(in oklab, a p%, b)` for opaque colors. */
 export function mixOklab(a: RGB, b: RGB, p: number): RGB {
 	const x = toOklab(a);
 	const y = toOklab(b);
@@ -95,7 +95,7 @@ export function shade(hex: string, amount: number): string {
 	return toHex(c.slice(0, 3).map((v) => v + (t - v) * Math.abs(amount)) as RGB);
 }
 
-/** Move a colour's OKLab lightness by `dL` (-1..1), keeping hue and chroma (clipped to sRGB). */
+/** Move a color's OKLab lightness by `dL` (-1..1), keeping hue and chroma (clipped to sRGB). */
 export function shiftLightness(hex: string, dL: number): string {
 	const c = parseColor(hex);
 	if (!c) return hex;
@@ -104,7 +104,7 @@ export function shiftLightness(hex: string, dL: number): string {
 }
 
 /**
- * Nudge `hex` darker or lighter until it reaches `target` contrast against every colour in
+ * Nudge `hex` darker or lighter until it reaches `target` contrast against every color in
  * `against`. Only OKLab lightness moves (1% steps), so hue and chroma survive: the result is
  * the closest readable relative of the original, not a muddy shade of it.
  */
@@ -120,7 +120,7 @@ export function readable(hex: string, against: RGB[] | ((candidate: RGB) => RGB[
 	return toward === 'dark' ? '#000000' : '#ffffff';
 }
 
-/** Text colour for a filled swatch: a deep shade of the same hue, or white when that can't reach AA. */
+/** Text color for a filled swatch: a deep shade of the same hue, or white when that can't reach AA. */
 export function inkOn(hex: string, target = 4.5): string {
 	const c = parseColor(hex);
 	if (!c) return '#ffffff';

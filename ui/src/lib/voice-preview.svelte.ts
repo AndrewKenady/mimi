@@ -1,6 +1,6 @@
 // Voice samples for the voice pickers (onboarding, Settings). Only one sample ever
 // plays: starting another stops the current one (and cancels a sample still being
-// synthesised), so quick taps through the list never talk over each other.
+// synthesized), so quick taps through the list never talk over each other.
 
 export class VoicePreview {
 	/** id of the voice playing or loading, '' when quiet. */

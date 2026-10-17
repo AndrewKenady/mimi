@@ -17,7 +17,7 @@ export const WELL_STYLES = [
 	{ id: 'tide', label: 'Tide', hint: 'Your accent over deep teal water.' },
 	{ id: 'aurora', label: 'Aurora', hint: 'Your accent over violet depths.' },
 	{ id: 'ember', label: 'Ember', hint: 'Warm firelight, whatever the accent.' },
-	{ id: 'mono', label: 'Mono', hint: 'Quiet greys. Least distracting.' }
+	{ id: 'mono', label: 'Mono', hint: 'Quiet grays. Least distracting.' }
 ] as const;
 
 export type Appearance = {
@@ -52,7 +52,7 @@ export function applyTheme(a: Appearance, root: HTMLElement = document.documentE
 	if (a.well_style) root.dataset.well = a.well_style;
 	if (a.font_scale) root.style.setProperty('--font-scale', String(a.font_scale));
 
-	// The accent is the user's colour, adjusted (lightness only) until it is readable as
+	// The accent is the user's color, adjusted (lightness only) until it is readable as
 	// text on every surface of this theme: AA normally, AAA with high contrast.
 	const raw = a.accent || root.style.getPropertyValue('--accent-raw') || DEFAULT_ACCENT;
 	root.style.removeProperty('--accent');

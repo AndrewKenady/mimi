@@ -85,12 +85,12 @@ const THEMES = [
 	{ name: 'Midnight · high contrast', ctx: { theme: 'oled', contrast: 'high' } },
 	{ name: 'Daylight · high contrast', ctx: { theme: 'light', contrast: 'high' } }
 ];
-// Adversarial custom accents (the colour picker allows anything).
+// Adversarial custom accents (the color picker allows anything).
 const CUSTOM = ['#333333', '#ffffff', '#00ff00', '#ff0000', '#1e3a8a'];
 
 const rgb = (v, name) => {
 	const c = parseColor(v ?? '');
-	if (!c) throw new Error(`${name} is not a plain colour: ${v}`);
+	if (!c) throw new Error(`${name} is not a plain color: ${v}`);
 	return c;
 };
 
@@ -118,14 +118,14 @@ for (const { name, ctx } of THEMES) {
 		const fg = rgb(v[t], t);
 		for (const [b, bg] of bgs) worst = Math.min(worst, check(name, `${t} on ${b}`, fg, bg, minText));
 	}
-	// Status colours on their own soft tints (error tags, warning lines).
+	// Status colors on their own soft tints (error tags, warning lines).
 	for (const [t, p] of [['--danger', 0.1], ['--warn', 0.12]]) {
 		const c = rgb(v[t], t).slice(0, 3);
 		for (const [b, bg] of bgs) check(name, `${t} on its tint over ${b}`, c, tintOver(c, p, bg), minText);
 	}
 	check(name, '--danger-ink on --danger', rgb(v['--danger-ink'], '--danger-ink'), rgb(v['--danger'], '--danger'), 4.5);
 
-	// Accents: every preset and some hostile custom colours, through the app's solver.
+	// Accents: every preset and some hostile custom colors, through the app's solver.
 	const surf = bgs.slice(0, 5).map(([, c]) => c);
 	for (const hex of [...ACCENTS.map((a) => a.hex), ...CUSTOM]) {
 		const { accent, ink } = accentTokens(hex, { light: ctx.theme === 'light', surfaces: surf, target: high ? 7 : 4.5 });
@@ -140,7 +140,7 @@ for (const { name, ctx } of THEMES) {
 	summary.push(`  ${name.padEnd(28)} worst text pair ${worst.toFixed(2)}:1 (needs ${minText})`);
 }
 
-// Avatar initials sit on each person's colour; inkOn() picks the ink.
+// Avatar initials sit on each person's color; inkOn() picks the ink.
 for (const hex of [...ACCENTS.map((a) => a.hex), ...CUSTOM]) check('Avatars', `initial on ${hex}`, rgb(inkOn(hex), 'ink'), rgb(hex, 'c'), 4.5);
 
 console.log(`Mimi contrast audit — ${checks} pairs across ${THEMES.length} themes\n`);

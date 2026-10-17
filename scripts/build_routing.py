@@ -165,7 +165,7 @@ def lean_roads(src: Path) -> Path:
 def merge_pbfs(files: list[Path]) -> Path:
     """Stream-merge sorted extracts into one file, dropping the duplicates they share.
 
-    Neighbouring extracts (US and Canada) both contain the roads that cross the border.
+    Neighboring extracts (US and Canada) both contain the roads that cross the border.
     Valhalla builds from several files badly: North America built that way can crash
     with "Exceeding kMaxLinkEdges in ReclassifyLinks" (valhalla#3908, #3925), and the
     advice is to merge first. pyosmium's MergeInputReader holds everything in memory,

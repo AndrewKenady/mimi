@@ -28,9 +28,9 @@ export class Recorder {
 			audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }
 		});
 		if (gen !== this.gen) {
-			// cancelled while the permission prompt was up: don't leave the mic on
+			// canceled while the permission prompt was up: don't leave the mic on
 			stream.getTracks().forEach((t) => t.stop());
-			throw new DOMException('Cancelled', 'AbortError');
+			throw new DOMException('Canceled', 'AbortError');
 		}
 		this.stream = stream;
 		this.ctx = new AudioContext();

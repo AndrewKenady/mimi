@@ -13,7 +13,7 @@ answer):
 * numbers are checked separately and strictly: a number, dose, duration, temperature or
   year that is in the claim but not in the source is the classic hallucination, so a
   missing number caps the verdict ("Take 1000 mg" vs a source that says 500 mg);
-* names (capitalised runs: people, places, drugs) must appear in the source too, so a
+* names (capitalized runs: people, places, drugs) must appear in the source too, so a
   swapped name is caught even when every other word matches;
 * a polarity check catches "apply butter" cited to "do not apply butter";
 * an optional embedding hook (any callable that turns texts into vectors, e.g. Mimi's
@@ -458,7 +458,7 @@ def _words_to_digits(s: str, for_claim: bool) -> str:
 class Num:
     text: str
     value: float
-    unit: str | None          # normalised unit key
+    unit: str | None          # normalized unit key
     category: str | None
 
     @property
@@ -516,9 +516,9 @@ _CAP = re.compile(r"\b(?:[A-Z][\w'’.-]*[A-Za-z0-9]|[A-Z])\b")
 
 
 def extract_entities(s: str) -> list[str]:
-    """Capitalised runs that look like names ("Edmund Hillary", "Mount Everest", "CPR").
+    """Capitalized runs that look like names ("Edmund Hillary", "Mount Everest", "CPR").
 
-    A single capitalised word at the start of the sentence is ignored (it is just the
+    A single capitalized word at the start of the sentence is ignored (it is just the
     first word), unless it is an acronym.
     """
     s = _clean_claim(s)
@@ -533,7 +533,7 @@ def extract_entities(s: str) -> list[str]:
             gap = s[tokens[i - 1].end():m.start()]
             if re.search(r"[!?]", gap) or ("." in gap + prev[-1:] and len(prev.rstrip(".")) > 3):
                 starts.add(i)
-        if cur and i > 0:  # punctuation, or a full stop after a non-abbreviation, ends a name
+        if cur and i > 0:  # punctuation, or a period after a non-abbreviation, ends a name
             if re.search(r"[;:!?()\"“”]", gap) or ("." in gap + prev[-1:] and len(prev.rstrip(".")) > 3):
                 runs.append(cur)
                 cur = []
@@ -549,7 +549,7 @@ def extract_entities(s: str) -> list[str]:
         runs.append(cur)
     out = []
     for run in runs:
-        # the sentence's first word is capitalised anyway; drop it unless it's an acronym
+        # the sentence's first word is capitalized anyway; drop it unless it's an acronym
         if run[0][0] in starts and not (len(run[0][1]) >= 2 and run[0][1].isupper()):
             run = run[1:]
         while run and run[0][1].lower() in STOPWORDS:
@@ -600,7 +600,7 @@ def _prepare(n: int, text: str) -> _Source:
                    numbers=extract_numbers(text))
 
 
-def _normalise_sources(sources: Any) -> dict[int, str]:
+def _normalize_sources(sources: Any) -> dict[int, str]:
     if not sources:
         return {}
     if isinstance(sources, Mapping):
@@ -737,7 +737,7 @@ class _Run:
     def __init__(self, answer: str, sources: Any, th: Thresholds):
         self.th = th
         self.claims = split_claims(answer)
-        self.srcs = {n: _prepare(n, t) for n, t in _normalise_sources(sources).items()}
+        self.srcs = {n: _prepare(n, t) for n, t in _normalize_sources(sources).items()}
         # (claim index, source n) pairs we score; uncited factual claims are scored against their paragraph's citations
         self.pairs: list[tuple[int, int]] = []
         for c in self.claims:

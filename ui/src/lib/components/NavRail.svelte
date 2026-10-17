@@ -21,7 +21,7 @@
 	const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 	const initial = $derived((app.me?.name || '?').trim().charAt(0).toUpperCase());
 	// The brand mark doubles as Mimi's presence: it breathes while a model wakes up and
-	// greys out when Core can't be reached. It is the only orb in the rail.
+	// grays out when Core can't be reached. It is the only orb in the rail.
 	const presence = $derived(app.offline ? 'offline' : app.model?.status === 'loading' ? 'waking' : app.model?.status === 'error' ? 'error' : 'ok');
 	const presenceLabel = $derived(
 		presence === 'offline' ? 'Mimi can’t be reached' : presence === 'waking' ? `Waking up ${app.model?.model_name || 'the model'}…` : presence === 'error' ? 'The model needs attention' : `Mimi${app.model?.model_name ? ' · ' + app.model.model_name : ''}`

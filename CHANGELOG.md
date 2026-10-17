@@ -11,10 +11,10 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - **Every book shows an honest status:** Ready, Indexing…, Browse only, Search only or Can't open, with a plain-English reason and a real item count.
 - **A book whose download stopped partway is held back from the shelf** (its ZIM header shows it's incomplete), and the Library says which file and how much arrived, instead of listing a book that fails when opened.
 - **Citation checks in chat.** Each cited sentence is checked against the passage the model read: numbers, doses, names and negations included. Unsupported claims get a visible "check this" marker with the reason. Answers are never rewritten.
-- **Evaluation harness** (`eval/`): 166 golden questions across medicine, repair, travel, survival, general knowledge, location and adversarial traps. It scores retrieval, key facts, forbidden claims, behaviour, citation faithfulness and latency, and runs A/B model comparisons with a significance test.
+- **Evaluation harness** (`eval/`): 166 golden questions across medicine, repair, travel, survival, general knowledge, location and adversarial traps. It scores retrieval, key facts, forbidden claims, behavior, citation faithfulness and latency, and runs A/B model comparisons with a significance test.
 - **Better retrieval:**
   - reciprocal-rank fusion across books;
-  - intent-aware collection priors (medical questions favour WikiMed and the medical guides);
+  - intent-aware collection priors (medical questions favor WikiMed and the medical guides);
   - an optional bge-m3 semantic rerank on a strict latency budget;
   - BM25 passage selection.
 
@@ -39,8 +39,8 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 
 ### Design system and accessibility
 - **Token scales** for type, space, radius, elevation, layers and motion, documented in `docs/DESIGN_SYSTEM.md` with a living style guide at `/dev/design`.
-- **Every theme passes WCAG AA contrast**, checked on every build. The light theme's status colours went from 1.6–2.2:1 to at least 4.9:1, and high contrast now works in light mode.
-- **Screen readers:** chat is announced as a log, with status changes and the final answer read once rather than every token. Dialogs trap and restore focus, the command palette and slash menu are proper comboboxes, and all forms are labelled.
+- **Every theme passes WCAG AA contrast**, checked on every build. The light theme's status colors went from 1.6–2.2:1 to at least 4.9:1, and high contrast now works in light mode.
+- **Screen readers:** chat is announced as a log, with status changes and the final answer read once rather than every token. Dialogs trap and restore focus, the command palette and slash menu are proper comboboxes, and all forms are labeled.
 - **Controls:**
   - focus rings follow each control's shape;
   - reduced motion reaches every transition and scroll;
@@ -56,7 +56,7 @@ The release that makes Mimi checkable, installable anywhere and accessible.
   - phones and laptops need a PIN of at least 6 digits;
   - lockouts survive restarts, and a flood of wrong guesses can't lock out phones and laptops that have signed in before (they keep their own limit);
   - sessions expire after 30 idle days.
-- **Prompt-injection defences.** Library passages, attached files and plugin output reach the model as delimited, untrusted data. Once a turn has read outside content, `remember` only suggests a memory, and side-effecting tools need the user's own request.
+- **Prompt-injection defenses.** Library passages, attached files and plugin output reach the model as delimited, untrusted data. Once a turn has read outside content, `remember` only suggests a memory, and side-effecting tools need the user's own request.
 - **ZIM content is sandboxed.** The reader strips `javascript:` and similar links, frames and forms.
 - **Plugins:**
   - a versioned API, with manifests read without running code;

@@ -19,9 +19,9 @@
 		for (const el of ctl.querySelectorAll<HTMLElement>(CONTROLS)) {
 			if (el.closest('[role=radiogroup]') && el.getAttribute('role') !== 'radiogroup') continue; // the group is named, not each radio
 			const named = el.hasAttribute('aria-label') || el.closest('label') || (el.id && document.querySelector(`label[for="${el.id}"]`));
-			if (!named || el.dataset.rowLabelled) {
+			if (!named || el.dataset.rowLabeled) {
 				el.setAttribute('aria-labelledby', labelId);
-				el.dataset.rowLabelled = '1';
+				el.dataset.rowLabeled = '1';
 			}
 			if (hint) el.setAttribute('aria-describedby', hintId);
 			else if (el.getAttribute('aria-describedby') === hintId) el.removeAttribute('aria-describedby');

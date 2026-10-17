@@ -94,7 +94,7 @@ a password: it grants the owner's access until it expires (after 30 days unused)
   strangers. Results wrap that text in the same `<<<BEGIN UNTRUSTED …>>>` /
   `<<<END UNTRUSTED>>>` markers that Mimi's own chat uses, and the server's `instructions`
   tell the client to treat it as reference material. Your client's own prompt-injection
-  defences still apply.
+  defenses still apply.
 - **Read-only.** Every tool is annotated `readOnlyHint: true`. The server has no tool that
   writes memories, changes settings or runs community plugins.
 

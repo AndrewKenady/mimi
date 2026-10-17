@@ -225,7 +225,7 @@ def pdf_pages(data: bytes, max_pages: int = MAX_PDF_PAGES) -> list[tuple[int, st
     (Where There Is No Doctor's physical page 50 is its printed page 3); the
     page number is what `#page=N` in a PDF viewer needs. A label table with
     repeats (numbering restarting per chapter) can't identify a page, so then
-    every page is labelled by its physical number instead.
+    every page is labeled by its physical number instead.
     """
     import pypdf
 

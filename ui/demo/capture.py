@@ -73,7 +73,7 @@ DEST = {"lat": 43.4799, "lon": -110.7624, "name": "Jackson"}
 PLACE_SEARCHES = ["Jackson", "Old Faithful", "Grand Teton"]
 
 # Every GET the UI makes (ui/src: get(…)/api(…); then a Playwright crawl of each screen).
-# Query strings are written exactly as the UI builds them; keys are normalised anyway.
+# Query strings are written exactly as the UI builds them; keys are normalized anyway.
 ROUTES = [
     "/api/bootstrap", "/api/ping", "/api/health", "/api/auth/me",
     "/api/settings", "/api/settings/export",

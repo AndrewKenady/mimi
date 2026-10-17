@@ -189,7 +189,7 @@
 								</button>
 							{/each}
 						</div>
-						<div class="accents" role="radiogroup" aria-label="Accent colour" use:radioGroup>
+						<div class="accents" role="radiogroup" aria-label="Accent color" use:radioGroup>
 							{#each ACCENTS as c (c.hex)}
 								<button class="acc" role="radio" aria-checked={accent === c.hex} tabindex={accent === c.hex ? 0 : -1} class:on={accent === c.hex} style="--c:{c.hex}" onclick={() => pickAccent(c.hex)} aria-label={accentName(c.hex)} title={c.name}></button>
 							{/each}
@@ -457,7 +457,7 @@
 		color: var(--text);
 		box-shadow: var(--elev-glow);
 	}
-	/* Each swatch renders in its own theme: the tokens do the work, no copied colours. */
+	/* Each swatch renders in its own theme: the tokens do the work, no copied colors. */
 	.swatch {
 		width: 100%;
 		height: 64px;

@@ -43,7 +43,7 @@ class UploadService:
         d = self._dir(ctx.id)
         path = d / f"{uid}{ext}"
         if kind == "image":
-            data = _normalise_image(data) or data
+            data = _normalize_image(data) or data
             if not ext or ext not in (".jpg", ".jpeg", ".png", ".webp"):
                 path = d / f"{uid}.jpg"
         path.write_bytes(data)
@@ -78,7 +78,7 @@ class UploadService:
                 "created_at": meta["created_at"]}
 
 
-def _normalise_image(data: bytes) -> bytes | None:
+def _normalize_image(data: bytes) -> bytes | None:
     """Fix EXIF rotation and cap resolution so photos stay light."""
     try:
         from PIL import Image, ImageOps

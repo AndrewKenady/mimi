@@ -150,7 +150,7 @@
 			</section>
 
 			<section aria-labelledby="color">
-				<h2 id="color">Colour</h2>
+				<h2 id="color">Color</h2>
 				<p class="note">Semantic tokens only; components never name a hex value. Every text token is measured against every surface below. The audit (<code>npm run contrast</code>) fails the build under 4.5:1, or 7:1 with high contrast.</p>
 				<h3 class="label">Surfaces</h3>
 				<div class="surfaces">
@@ -181,7 +181,7 @@
 					{/each}
 				</div>
 				<h3 class="label">Accent presets, solved for this theme</h3>
-				<p class="note">The user picks a colour; Mimi keeps its hue and moves only its OKLab lightness until it reads as text on every surface. Ink on a filled accent is chosen the same way.</p>
+				<p class="note">The user picks a color; Mimi keeps its hue and moves only its OKLab lightness until it reads as text on every surface. Ink on a filled accent is chosen the same way.</p>
 				<ul class="accents">
 					{#each ACCENTS as a (a.hex)}
 						{@const t = accentTokens(a.hex, { light: theme === 'light', surfaces: SURFACES.map((s) => rgb(s)!).filter(Boolean), target: high ? 7 : 4.5 })}
@@ -328,7 +328,7 @@
 
 			<section aria-labelledby="well">
 				<h2 id="well">The Well: presence</h2>
-				<p class="note">Mimi's state is shown by one living object, not by spinners. It breathes when idle, ripples with your voice, swirls while thinking and pulses as Mimi speaks. The rail mark is the same water, small: it dims while a model wakes and greys out when Core can't be reached. Under reduced motion the water holds still.</p>
+				<p class="note">Mimi's state is shown by one living object, not by spinners. It breathes when idle, ripples with your voice, swirls while thinking and pulses as Mimi speaks. The rail mark is the same water, small: it dims while a model wakes and grays out when Core can't be reached. Under reduced motion the water holds still.</p>
 				<div class="well-demo card">
 					<Well size={200} {mood} />
 					<div>

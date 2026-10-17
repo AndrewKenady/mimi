@@ -146,7 +146,7 @@ def test_ca_key_is_private_at_rest(share):
         assert s.ca_notice() and sh.ca_problem(*s.ca_paths()) is None
 
 
-def test_leaf_names_are_sanitised():
+def test_leaf_names_are_sanitized():
     from mimi.share import leaf_dns_names, leaf_ips
 
     assert leaf_dns_names("My PC!") == ["mimi.local", "localhost", "mypc.local"]

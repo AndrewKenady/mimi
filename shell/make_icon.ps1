@@ -50,7 +50,7 @@ function New-Ellipse([float]$cx, [float]$cy, [float]$rx, [float]$ry) {
 }
 
 # Radial gradient over an elliptical path. $Stops are @(position, color) pairs where position 0
-# is the rim of the ellipse and 1 is its centre (GDI+ PathGradientBrush convention).
+# is the rim of the ellipse and 1 is its center (GDI+ PathGradientBrush convention).
 function New-RadialBrush($path, [System.Drawing.PointF]$center, [object[]]$stops) {
     $brush = New-Object System.Drawing.Drawing2D.PathGradientBrush($path)
     $brush.CenterPoint = $center
@@ -182,7 +182,7 @@ function ConvertTo-DibBytes([System.Drawing.Bitmap]$bitmap) {
     $writer = New-Object System.IO.BinaryWriter($stream)
     $writer.Write([int]40)                    # biSize
     $writer.Write([int]$w)                    # biWidth
-    $writer.Write([int]($h * 2))              # biHeight: colour + mask
+    $writer.Write([int]($h * 2))              # biHeight: color + mask
     $writer.Write([int16]1)                   # biPlanes
     $writer.Write([int16]32)                  # biBitCount
     $writer.Write([int]0)                     # biCompression = BI_RGB
@@ -228,7 +228,7 @@ foreach ($image in $images) {
     $writer.Write([byte]$dim)                 # height
     $writer.Write([byte]0)                    # palette size
     $writer.Write([byte]0)                    # reserved
-    $writer.Write([int16]1)                   # colour planes
+    $writer.Write([int16]1)                   # color planes
     $writer.Write([int16]32)                  # bits per pixel
     $writer.Write([int]$image.Bytes.Length)
     $writer.Write([int]$offset)

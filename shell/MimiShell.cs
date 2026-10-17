@@ -70,7 +70,7 @@ namespace Mimi.Shell
 
         public const string WebView2DownloadUrl = "https://developer.microsoft.com/microsoft-edge/webview2/";
 
-        /// <summary>#060A12 - the colour behind everything, so nothing ever flashes white.</summary>
+        /// <summary>#060A12 - the color behind everything, so nothing ever flashes white.</summary>
         public static readonly Color Background = Color.FromArgb(6, 10, 18);
     }
 
@@ -327,7 +327,7 @@ namespace Mimi.Shell
         /// <summary>--windowed: start in a normal, resizable 1280x800 window instead of full screen.</summary>
         public bool Windowed { get; private set; }
 
-        /// <summary>--startup: launched at sign-in. Same behaviour, but never forces itself to the front.</summary>
+        /// <summary>--startup: launched at sign-in. Same behavior, but never forces itself to the front.</summary>
         public bool Startup { get; private set; }
 
         /// <summary>--dev: DevTools, F5 and the full browser context menu.</summary>
@@ -613,7 +613,7 @@ namespace Mimi.Shell
                 BackColor = AppInfo.Background,
                 DefaultBackgroundColor = AppInfo.Background,   // no white flash while pages load
                 // Hidden until the first page has loaded: WebView2's initial about:blank paints
-                // Chromium's dark grey (#121212); the form's own background shows meanwhile.
+                // Chromium's dark gray (#121212); the form's own background shows meanwhile.
                 Visible = false,
             };
             view.KeyDown += OnWebViewKeyDown;
@@ -1475,7 +1475,7 @@ namespace Mimi.Shell
             return DefaultWindowedBounds(Screen.FromHandle(Handle));
         }
 
-        /// <summary>1280x800 (in device-independent pixels), centred, never bigger than the work area.</summary>
+        /// <summary>1280x800 (in device-independent pixels), centered, never bigger than the work area.</summary>
         private static Rectangle DefaultWindowedBounds(Screen screen)
         {
             Rectangle area = screen.WorkingArea;
@@ -1487,7 +1487,7 @@ namespace Mimi.Shell
 
         private void ApplyWindowTheme()
         {
-            // Dark title bar in --windowed mode, tinted to Mimi's background (caption colour: Windows 11).
+            // Dark title bar in --windowed mode, tinted to Mimi's background (caption color: Windows 11).
             try
             {
                 int on = 1;
@@ -1800,7 +1800,7 @@ namespace Mimi.Shell
                 }
                 catch (Exception)
                 {
-                    return false;   // refused, timed out or cancelled: not ready
+                    return false;   // refused, timed out or canceled: not ready
                 }
             }
         }

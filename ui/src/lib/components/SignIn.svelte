@@ -44,7 +44,7 @@
 		const p = pairing;
 		try {
 			const r = await api(`/api/auth/pair/${p.id}?poll=${encodeURIComponent(p.poll)}`);
-			if (pairing !== p) return; // cancelled meanwhile
+			if (pairing !== p) return; // canceled meanwhile
 			if (r.status === 'approved') {
 				pairing = null;
 				await app.load();

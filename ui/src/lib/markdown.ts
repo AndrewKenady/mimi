@@ -45,7 +45,7 @@ export function render(text: string, maxCite = 0): string {
 export type Block = { key: string; html: string };
 
 // Rendered top-level blocks, shared by every message: a finished paragraph is parsed and
-// sanitised once, however many times the answer around it grows.
+// sanitized once, however many times the answer around it grows.
 const blockCache = new Map<string, string>();
 const CACHE_MAX = 600;
 

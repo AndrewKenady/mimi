@@ -89,7 +89,7 @@
 		{/key}
 		<button class="pause" onclick={pause}><BellOff size={14} aria-hidden="true" /> Pause sign-in requests for 10 minutes</button>
 		<p class="fine">
-			Expires in {Math.max(0, Math.round(req.expires - now))} s{#if app.pairRequests.length > 1} · {app.pairRequests.length - 1} more waiting{/if}. Only allow devices you recognise.
+			Expires in {Math.max(0, Math.round(req.expires - now))} s{#if app.pairRequests.length > 1} · {app.pairRequests.length - 1} more waiting{/if}. Only allow devices you recognize.
 		</p>
 	</div>
 {/if}

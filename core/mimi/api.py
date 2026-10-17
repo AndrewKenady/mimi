@@ -919,7 +919,7 @@ def _kiwix_frame_headers(ctype: str) -> dict:
     PDFs and media may be framed by Mimi's own reader (the browser's PDF viewer
     in an <iframe>). Anything that could run script — HTML, SVG, XML, JS — is
     served with a CSP sandbox, so a ZIM page opened directly can't act as Mimi
-    (same origin, same cookies); the reader shows sanitised HTML instead.
+    (same origin, same cookies); the reader shows sanitized HTML instead.
     """
     t = ctype.split(";")[0].strip().lower()
     if t == "application/pdf" or t.startswith(("video/", "audio/")):

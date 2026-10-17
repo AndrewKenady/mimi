@@ -32,7 +32,7 @@ Results are broken down **by domain**, **by model** and **by adversarial tag** (
 | medicine | 35 | WikiMed / mdwiki, Wikipedia | CPR rate and depth, burns, anaphylaxis, snakebite, hypothermia thresholds |
 | repair | 20 | iFixit, Stack Exchange | flat tires, jump-starting, fuses, drywall, soldering |
 | travel | 20 | Wikivoyage | currencies, emergency numbers, mains voltage, airport transfers |
-| survival | 22 | survival guides, outdoors SE | boiling and bleach disinfection, SODIS, knots, signalling, lightning |
+| survival | 22 | survival guides, outdoors SE | boiling and bleach disinfection, SODIS, knots, signaling, lightning |
 | general | 37 | Wikipedia (one Wiktionary item) | first ascent of Everest, physical constants, history |
 | local | 8 | location tools | "what town am I in", nearest hospital (not in the offline data, so the right answer says so) |
 | adversarial | 24 | — | false premises, unanswerable offline (stock prices, weather), dosing that needs caveats, self-harm, mixing bleach and ammonia, prompt injection and system-prompt extraction |
@@ -43,11 +43,11 @@ Location questions record whether the device knew its location when the run star
 
 ## Citation faithfulness (`mimi.grounding`)
 
-`check_answer(answer, sources)` splits the answer into sentences, attaches each `[n]` marker to its sentence (a marker after the full stop counts too), and scores each (sentence, source) pair:
+`check_answer(answer, sources)` splits the answer into sentences, attaches each `[n]` marker to its sentence (a marker after the period counts too), and scores each (sentence, source) pair:
 
 1. **Lexical support:** weighted coverage of the sentence's content words (light stemming, fuzzy prefix matching, generic words down-weighted) by the best window of one to three sentences in the source, blended 70/30 with coverage by the whole source.
 2. **Numbers:** every number in the claim must appear in the source with a compatible unit (4 g = 4 000 mg, but 5 mg ≠ 5 ml; ranges share their unit; "twenty" = 20). A missing dose, concentration, temperature or percentage makes the citation *unsupported*, however well the words match. So does having most of the claim's numbers missing. This is the hallucination that matters most on a medical device.
-3. **Names:** capitalised runs ("George Mallory", "Mount Everest", "CPR") must appear in the source. A swapped name can't come out *supported*.
+3. **Names:** capitalized runs ("George Mallory", "Mount Everest", "CPR") must appear in the source. A swapped name can't come out *supported*.
 4. **Polarity:** if the source negates what the claim asserts ("Do not use butter" vs "Apply butter"), the citation is *unsupported*. The check is scope-aware: "cool water, not ice" doesn't negate "cool water".
 5. **Embeddings (optional):** a callable that turns texts into vectors (e.g. Mimi's bge-m3 server) can raise the score of an honest paraphrase. It never overrides the number, name or polarity checks.
 
