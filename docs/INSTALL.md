@@ -227,7 +227,9 @@ open NVK driver, which may work but hasn't been tried. Otherwise it runs on the 
 
 Download `mimi-<version>-usb-x86_64.img.xz` and its `.sha256` from the
 [release](https://github.com/AndrewKenady/mimi/releases) (or from the artifacts of a
-"USB image" workflow run). Writing it erases everything on the stick.
+"USB image" workflow run). No release carries one yet: the first image comes with the
+next tagged release, and until then you can [build it yourself](#building-your-own).
+Writing it erases everything on the stick.
 
 - **balenaEtcher** (Windows, macOS, Linux): *Flash from file*, pick the `.img.xz`, pick
   the stick, *Flash*. It unpacks the file as it writes.
