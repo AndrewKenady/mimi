@@ -1,6 +1,8 @@
 // Accent presets: the single list used by onboarding, Settings, the style guide and the
-// contrast audit. Names are what screen readers announce. No imports, so Node scripts
-// can load this file directly.
+// contrast audit. No imports, so Node scripts can load this file directly; that is also
+// why the names here stay English. They are the presets' ids for translation: the
+// interface takes ACCENTS and accentName from theme.ts, which name each preset in the
+// interface language (what screen readers announce).
 export const ACCENTS = [
 	{ hex: '#6EE7D2', name: 'Lagoon' },
 	{ hex: '#8AB4FF', name: 'Glacier' },

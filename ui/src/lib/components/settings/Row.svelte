@@ -76,6 +76,7 @@
 		font-size: var(--fs-sm);
 		line-height: var(--lh-sm);
 		margin-top: var(--space-0-5);
+		overflow-wrap: break-word; /* a long path or word breaks instead of running under the control */
 	}
 	.ctl {
 		flex: none;
