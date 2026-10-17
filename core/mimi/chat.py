@@ -23,7 +23,8 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 from . import db as dbm
-from . import grounding, log, persona, tools
+from . import grounding, i18n, log, persona, tools
+from .i18n import tr
 from .auth import Ctx
 from .llm import ModelError
 
@@ -45,15 +46,23 @@ def heuristic_title(text: str) -> str:
     for _ in range(3):  # "hey mimi, …" → "…"
         t = re.sub(r"^(hey|hi|hello|ok|okay|so|please|mimi)\b[,!.\s]+", "", t, flags=re.I)
     if len(t) <= 48:
-        return t[:1].upper() + t[1:] if t else "New chat"
+        return t[:1].upper() + t[1:] if t else tr("New chat")
     cut = t[:48].rsplit(" ", 1)[0]
     return (cut[:1].upper() + cut[1:]).rstrip(",;:") + "…"
 
 
 _CREATIVE = re.compile(r"\b(write|compose|draft|poem|story|haiku|joke|song|lyrics|limerick|rewrite|rephrase|translate|summari[sz]e (this|the following)|brainstorm|role.?play|pretend"
-                       r"|(good|cute|cool|funny|clever) names?|names? (for|ideas)|what should i (name|call)|gift ideas)\b", re.I)
-_CHITCHAT = re.compile(r"^\s*(hi|hey|hello|yo|thanks|thank you|ok(ay)?|cool|nice|good (morning|night|evening)|how are you|who are you|what can you do)\b[\s!.?]*$", re.I)
-_QUESTION = re.compile(r"(\?\s*$)|^\s*(who|what|when|where|why|which|how|is|are|was|were|can|could|does|do|did|should|tell me|explain|define|describe|list|compare|give me|show me|find)\b", re.I)
+                       r"|(good|cute|cool|funny|clever) names?|names? (for|ideas)|what should i (name|call)|gift ideas"
+                       r"|escribe|redacta|poema|cuento|chiste|canción|traduce|tradúceme|inventa|imagina"  # Spanish
+                       r"|écris|écrivez|rédige|rédigez|poème|blague|chanson|traduis|traduisez|invente|imagine)\b", re.I)  # French
+_CHITCHAT = re.compile(r"^\s*[¡¿]?\s*(hi|hey|hello|yo|thanks|thank you|ok(ay)?|cool|nice|good (morning|night|evening)|how are you|who are you|what can you do"
+                       r"|hola|buenas|buenos días|buenas (tardes|noches)|gracias|muchas gracias|vale|genial|qué tal|cómo estás|quién eres|qué puedes hacer"
+                       r"|bonjour|bonsoir|salut|merci|merci beaucoup|d'accord|super|ça va|comment ça va|qui es-tu|qui êtes-vous|que sais-tu faire)[\s!.?¡¿]*$", re.I)
+_QUESTION = re.compile(r"(\?\s*$)|^\s*[¿¡]|^\s*(who|what|when|where|why|which|how|is|are|was|were|can|could|does|do|did|should|tell me|explain|define|describe|list|compare|give me|show me|find"
+                       r"|qué|que|cómo|como|cuándo|cuando|dónde|donde|por qué|cuál|cuáles|quién|quiénes|cuánto|cuánta|cuántos|cuántas|puedo|puede|debo|debería|hay|es|son"
+                       r"|explica|explícame|dime|enumera|compara|muéstrame|busca"
+                       r"|qui|quoi|quand|où|pourquoi|quel|quelle|quels|quelles|comment|combien|est-ce|peut-on|puis-je|dois-je|faut-il|y a-t-il"
+                       r"|explique|expliquez|définis|définissez|décris|décrivez|dis-moi|dites-moi|montre|trouve)\b", re.I)
 
 
 def looks_factual(text: str) -> bool:
@@ -198,22 +207,24 @@ def _status(state: str, label: str, t_start: float, **extra) -> dict:
 
 
 def _join_names(names: list[str]) -> str:
-    names = list(dict.fromkeys(n for n in names if n))
+    names = list(dict.fromkeys(tr(n) for n in names if n))
     if not names or len(names) > 3:
-        return "the library"
-    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+        return tr("the library")
+    return i18n.join(names)
 
 
 def _reading_label(new_sources: list[dict]) -> str:
     """'Reading “Hypothermia” (WikiMed) and 2 more…' — what the model is processing right now."""
     if not new_sources:
-        return "Going over the results…"
+        return tr("Going over the results…")
     s = new_sources[0]
-    where = (tools.COLLECTION_NAMES.get(s.get("collection") or "") or s.get("book_title")
-             or ("your files" if s.get("type") in ("note", "file") else ""))
-    head = f"Reading “{s.get('title') or 'the source'}”" + (f" ({where})" if where else "")
-    more = len(new_sources) - 1
-    return head + (f" and {more} more…" if more else "…")
+    where = (tr(tools.COLLECTION_NAMES.get(s.get("collection") or "", "")) or s.get("book_title")
+             or (tr("your files") if s.get("type") in ("note", "file") else ""))
+    title, more = s.get("title") or tr("the source"), len(new_sources) - 1
+    if where:
+        return (tr("Reading “{title}” ({where}) and {more} more…", title=title, where=where, more=more) if more
+                else tr("Reading “{title}” ({where})…", title=title, where=where))
+    return tr("Reading “{title}” and {more} more…", title=title, more=more) if more else tr("Reading “{title}”…", title=title)
 
 
 class ChatService:
@@ -252,11 +263,11 @@ class ChatService:
         """'WikiMed and Wikipedia': the installed collections a library search is about to look in."""
         coll = args.get("collection") or "auto"
         if coll != "auto":
-            return tools.COLLECTION_NAMES.get(coll, "the library")
+            return tr(tools.COLLECTION_NAMES.get(coll, "the library"))
         try:
             books = await asyncio.wait_for(self.svc.kiwix.books(), timeout=0.5)
         except Exception:
-            return "the library"
+            return tr("the library")
         installed = {b.collection for b in books}
         wanted = [c for c in (mode_cfg.get("collections") or []) if c in installed] or sorted(installed)
         return _join_names([tools.COLLECTION_NAMES.get(c, "") for c in wanted])
@@ -480,7 +491,7 @@ class ChatService:
         if has_images and spec and not spec.vision:
             spec = svc.models.model_for("reader") or spec
         if not spec:
-            yield {"event": "error", "data": {"message": "No language model is installed. Open Settings → Models."}}
+            yield {"event": "error", "data": {"message": tr("No language model is installed. Open Settings → Models.")}}
             return
         asst_id = dbm.new_id("msg_")
         # Registered before the client learns the chat id, so a Stop sent right away is not lost.
@@ -563,18 +574,18 @@ class ChatService:
             # --- wait for the model (single generation slot)
             if svc.models.gen_lock.locked():
                 svc.models.waiting += 1
-                yield _status("queued", "Waiting for Mimi to finish another answer…", t_start)
+                yield _status("queued", tr("Waiting for Mimi to finish another answer…"), t_start)
             async with svc.models.gen_lock:
                 if svc.models.waiting:
                     svc.models.waiting = max(0, svc.models.waiting - 1)
                 if not (svc.models.chat_model and svc.models.chat_model.id == spec.id and svc.models.chat_proc and svc.models.chat_proc.alive()):
-                    yield _status("loading", f"Waking up {spec.name}…", t_start)
+                    yield _status("loading", tr("Waking up {name}…", name=spec.name), t_start)
                     await svc.models.ensure(spec)
                     budget_ctx = svc.models.chat_ctx
                     # re-trim history if the model came up with a smaller context
                     while len(messages) > 2 and sum(est_tokens(m.get("content") or "") for m in messages) + max_out > budget_ctx - 256:
                         messages.pop(1)
-                yield _status("thinking", "Thinking…", t_start)
+                yield _status("thinking", tr("Thinking…"), t_start)
                 want_think = think if think is not None else svc.settings.device("models").think_harder
                 must_ground = (svc.kiwix_service.alive() and looks_factual(content) and not image_parts
                                and mode_id != "storyteller")
@@ -589,7 +600,7 @@ class ChatService:
                                                            cancel=cancel, tool_choice=choice):
                         if ev["type"] == "content":
                             if not step_text:
-                                yield _status("writing", "Writing the answer…", t_start)
+                                yield _status("writing", tr("Writing the answer…"), t_start)
                             step_text += ev["text"]
                             yield {"event": "delta", "data": {"text": ev["text"]}}
                         elif ev["type"] == "reasoning":
@@ -615,7 +626,7 @@ class ChatService:
                         where = None
                         if c["name"] == "search_library":
                             where = await self._search_where(args, mode_cfg)
-                            label = f"Searching {where} for “{args.get('query') or content}”…"
+                            label = tr("Searching {where} for “{q}”…", where=where, q=args.get("query") or content)
                         yield {"event": "tool", "data": {"id": tid, "name": c["name"], "state": "start", "args": args, "label": label}}
                         kind = "searching" if c["name"] in ("search_library", "search_my_files") else "tool"
                         yield _status(kind, label, t_start, tool=c["name"])
@@ -623,7 +634,9 @@ class ChatService:
                         res = await tools.run(c["name"], c["arguments"], state, svc)
                         if where and res.label.startswith("Searched the library "):  # keep the trail as specific as the narrative
                             res.label = res.label.replace("the library", where, 1)
-                        entry = {"id": tid, "name": c["name"], "state": "end", "label": res.label, "summary": res.summary, "ok": res.ok,
+                        # tools word their activity in English; the trail shows it in the reader's language
+                        entry = {"id": tid, "name": c["name"], "state": "end", "label": i18n.localize(res.label),
+                                 "summary": i18n.localize(res.summary), "ok": res.ok,
                                  "ms": int((time.time() - t0) * 1000), "data": res.data}
                         trail.append(entry)
                         yield {"event": "tool", "data": entry}
@@ -654,10 +667,10 @@ class ChatService:
                     yield _status("reading", _reading_label(state.sources[n_before:]), t_start, prompt_tokens=new_prompt,
                                   eta_ms=int(new_prompt / tps * 1000) if tps else None, sources=len(state.sources) - n_before)
         except ModelError as e:
-            error = str(e)
+            error = i18n.localize(str(e))
             L.warning("turn failed: %s", e)
         except Exception as e:  # never leave the client hanging
-            error = "Something went wrong while answering."
+            error = tr("Something went wrong while answering.")
             L.exception("turn crashed: %s", e)
         finally:
             self.active.pop(chat_id, None)
@@ -703,14 +716,22 @@ class ChatService:
         Advisory only: the answer is never changed. The summary and any weak or unsupported
         citations are stored in the message meta so the UI can mark them, now and on reload.
         """
+        lang = i18n.detect(answer)
         try:
-            report = grounding.check_answer(answer, passages)
+            if lang and lang != "en":
+                # The library is English: across languages only numbers can be compared.
+                flags = grounding.number_flags(answer, passages)
+                meta["grounding"] = {"mode": "numbers", "language": lang}
+            else:
+                report = grounding.check_answer(answer, passages)
+                meta["grounding"] = report.summary()
+                flags = [{k: f[k] for k in ("n", "verdict", "score", "sentence", "start", "end", "reasons", "better_source") if k in f}
+                         for f in report.ui_flags()]
         except Exception as e:  # a checker bug must never cost the user their answer
             L.warning("grounding check failed: %s", e)
             return []
-        meta["grounding"] = report.summary()
-        flags = [{k: f[k] for k in ("n", "verdict", "score", "sentence", "start", "end", "reasons", "better_source") if k in f}
-                 for f in report.ui_flags()]
+        for f in flags:
+            f["reasons"] = [i18n.localize(r) for r in f["reasons"]]
         if flags:
             meta["grounding"]["flags"] = flags
         return flags
@@ -806,15 +827,19 @@ class ChatService:
 
 def _pending_label(name: str, args: dict) -> str:
     q = args.get("query") or args.get("title") or ""
-    coll = tools.COLLECTION_NAMES.get(args.get("collection") or "auto", "the library")
-    return {
-        "search_library": f"Searching {coll} for “{q}”…",
-        "read_article": f"Reading “{q}”…",
-        "show_reference_image": f"Looking at a picture of “{q}”…",
-        "search_my_files": f"Searching your files for “{q}”…",
-        "remember": "Noting that…",
-        "where_am_i": "Checking location…",
-        "nearby_places": "Looking around…",
-        "calculate": "Calculating…",
-        "get_directions": f"Planning a route to {args.get('destination') or 'there'}…",
-    }.get(name) or f"{(tools.PLUGINS[name].label if name in tools.PLUGINS else '') or 'Using ' + name}…"
+    coll = tr(tools.COLLECTION_NAMES.get(args.get("collection") or "auto", "the library"))
+    labels = {
+        "search_library": lambda: tr("Searching {where} for “{q}”…", where=coll, q=q),
+        "read_article": lambda: tr("Reading “{q}”…", q=q),
+        "show_reference_image": lambda: tr("Looking at a picture of “{q}”…", q=q),
+        "search_my_files": lambda: tr("Searching your files for “{q}”…", q=q),
+        "remember": lambda: tr("Noting that…"),
+        "where_am_i": lambda: tr("Checking location…"),
+        "nearby_places": lambda: tr("Looking around…"),
+        "calculate": lambda: tr("Calculating…"),
+        "get_directions": lambda: tr("Planning a route to {dest}…", dest=args.get("destination") or tr("there")),
+    }
+    if name in labels:
+        return labels[name]()
+    plugin = tools.PLUGINS[name].label if name in tools.PLUGINS else ""
+    return f"{plugin}…" if plugin else tr("Using {name}…", name=name)

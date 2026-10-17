@@ -816,6 +816,52 @@ def _cos_lookup(texts: list[str], vecs: Any) -> Callable[[str, str], float]:
     return cos
 
 
+_NUM_TOKEN = re.compile(r"(?<![\w.,])\d(?:[\d.,\u00a0\u202f]*\d)?(?![\w])")
+
+
+def _number_readings(token: str) -> set[float]:
+    """Both ways to read a number written in English or in Spanish/French style:
+    "8,849" / "8.849" / "8 849" can be 8849, and "37,5" / "37.5" can be 37.5."""
+    out: set[float] = set()
+    for dec, grp in ((".", ","), (",", ".")):
+        t = token.replace("\u00a0", "").replace("\u202f", "").replace(grp, "")
+        try:
+            out.add(float(t.replace(dec, ".")))
+        except ValueError:
+            pass
+    return out
+
+
+def number_flags(answer: str, sources: Any) -> list[dict]:
+    """The citation check for an answer written in another language than its sources.
+
+    Words can't be compared across languages, but numbers can: a dose, a temperature or a
+    date means the same in Spanish as in the English passage it came from. So this flags
+    only cited sentences with a number the cited source doesn't contain (read either way,
+    "37,5" or "37.5"), and citations that point at no source. Flags have the shape of
+    GroundingReport.ui_flags(). It is deliberately lenient: anything it can't judge passes.
+    """
+    srcs = _normalize_sources(sources)
+    values = {n: [x.value for x in extract_numbers(t)] for n, t in srcs.items()}
+    out = []
+    for c in split_claims(answer):
+        if not c.citations:
+            continue
+        tokens = _NUM_TOKEN.findall(_CITE_ANY.sub(" ", c.text))
+        checks = []
+        for n in c.citations:
+            if n not in srcs:
+                checks.append((n, INVALID, ["citation points to no source"]))
+                continue
+            missing = [tok for tok in tokens if not any(math.isclose(r, v, rel_tol=1e-6) for r in _number_readings(tok) for v in values[n])]
+            checks.append((n, UNSUPPORTED if missing else SUPPORTED, ["number not in source: " + ", ".join(missing)] if missing else []))
+        if any(v == SUPPORTED for _, v, _ in checks):
+            continue  # another citation of the same sentence carries its numbers
+        out += [{"n": n, "verdict": v, "score": 0.0, "sentence": c.text, "start": c.start, "end": c.end, "reasons": r, "better_source": None}
+                for n, v, r in checks]
+    return out
+
+
 def check_answer(answer: str, sources: Any, *, embed: EmbedFn | None = None, thresholds: Thresholds = DEFAULT) -> GroundingReport:
     """Check every [n] citation in `answer` against the text of source n.
 

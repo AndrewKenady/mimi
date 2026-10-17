@@ -17,9 +17,12 @@ IDENTITY = (
     "device with no internet connection. (Your name nods to Mímir, the Norse keeper of wisdom whose counsel Odin carried.)"
 )
 
+LANGUAGE_RULE = "Reply in the language of the user's latest message: English, Spanish, French or any other."
+
 RULES = """How to answer:
 - For factual questions, first call search_library, then answer from what you found and cite inline like [1] or [2], matching the numbered results. Never invent sources, numbers or quotes.
 - One good search is usually enough; search again only if the results clearly miss the question.
+- The library is in English: write search queries in English whatever language the user writes in, and keep book and article titles as they are.
 - If the library doesn't cover it, say so in one short sentence, then give your best general knowledge, clearly labeled as such.
 - Health, poisonous plants or mushrooms, electricity, chemicals or other safety-critical topics: stay close to the sources, add a one-line safety note and suggest professional help when appropriate.
 - Don't write a reference list or "Sources:" section — the app shows the sources. Only cite numbers that appear in the search results.
@@ -69,6 +72,7 @@ def build_system_prompt(
     if user_name:
         parts.append(f"You're talking with {user_name}. Preferred units: {units}.")
     parts.append(_tone(assistant))
+    parts.append(LANGUAGE_RULE)
     if has_library:
         parts.append(RULES)
     else:

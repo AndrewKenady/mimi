@@ -30,8 +30,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Awaitable, Callable
 
-from . import log, plugins
+from . import i18n, log, plugins
 from .auth import Ctx
+from .i18n import tr
 from .persona import UNTRUSTED_BEGIN, UNTRUSTED_END
 
 L = log.get("tools")
@@ -266,9 +267,10 @@ async def search_library(args: dict, st: TurnState, svc) -> ToolResult:
 
 
 def _read_summary(articles: int, pages: int) -> str:
-    """"Read 3 articles", "Read 2 document pages", "Read 1 article and 2 document pages"."""
-    parts = [f"{n} {noun}{'s' if n != 1 else ''}" for n, noun in ((articles, "article"), (pages, "document page")) if n]
-    return "Read " + " and ".join(parts)
+    """"Read 3 articles", "Read 2 document pages", "Read 1 article and 2 document pages" (in the reader's language)."""
+    parts = [tr(one) if n == 1 else tr(many, n=n)
+             for n, one, many in ((articles, "1 article", "{n} articles"), (pages, "1 document page", "{n} document pages")) if n]
+    return tr("Read {items}", items=i18n.join(parts))
 
 
 def _passage_block(n: int, p) -> str:

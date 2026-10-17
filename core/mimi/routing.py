@@ -14,7 +14,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import log
+from . import i18n, log
 from .paths import Paths
 
 L = log.get("routing")
@@ -49,6 +49,8 @@ def fmt_duration(seconds: float) -> str:
         return f"{max(m, 1)} min"
     return f"{m // 60} h {m % 60:02d} min"
 
+
+_NARRATIVE = {"en": "en-US", "es": "es-ES", "fr": "fr-FR"}
 
 class RoutingService:
     def __init__(self, paths: Paths):
@@ -106,7 +108,8 @@ class RoutingService:
             "locations": [{"lat": origin[0], "lon": origin[1]}, {"lat": dest[0], "lon": dest[1]}],
             "costing": costing,
             "units": units,
-            "directions_options": {"units": units, "language": "en-US"},
+            # Valhalla words the turn-by-turn steps itself, in the asker's language
+            "directions_options": {"units": units, "language": _NARRATIVE.get(i18n.current(), "en-US")},
         }
         with self._lock:
             actor = self._get_actor()

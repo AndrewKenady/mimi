@@ -17,17 +17,23 @@ from typing import Callable, Iterator
 
 import numpy as np
 
-from . import log
+from . import i18n, log
 from .paths import Paths
 
 L = log.get("voice")
 IDLE_UNLOAD = 8 * 60
 
+# Kokoro voice id prefix → (accent, espeak language, interface language)
 VOICE_INFO = {
-    "a": ("American English", "en-us"),
-    "b": ("British English", "en-gb"),
+    "a": ("American English", "en-us", "en"),
+    "b": ("British English", "en-gb", "en"),
+    "e": ("Spanish", "es", "es"),
+    "f": ("French", "fr-fr", "fr"),
 }
-FEATURED = ["af_heart", "af_bella", "af_nicole", "af_sky", "am_michael", "am_fenrir", "am_puck", "bf_emma", "bf_isabella", "bm_george", "bm_fable"]
+FEATURED = ["af_heart", "af_bella", "af_nicole", "af_sky", "am_michael", "am_fenrir", "am_puck", "bf_emma", "bf_isabella", "bm_george", "bm_fable",
+            "ef_dora", "em_alex", "ff_siwis"]
+# Who reads a reply written in another language than the chosen voice's.
+DEFAULT_VOICE = {"en": "af_heart", "es": "ef_dora", "fr": "ff_siwis"}
 
 
 class VoiceService:
@@ -131,11 +137,12 @@ class VoiceService:
         for n in names:
             region = VOICE_INFO.get(n[:1])
             if not region:
-                continue  # English voices only for now
+                continue  # languages the interface speaks
             out.append({
                 "id": n,
                 "name": n.split("_", 1)[-1].replace("_", " ").title(),
                 "accent": region[0],
+                "language": region[2],
                 "gender": "female" if n[1:2] == "f" else "male",
                 "featured": n in FEATURED,
             })
@@ -146,6 +153,11 @@ class VoiceService:
         text = clean_for_speech(text)
         if not text:
             return _wav(np.zeros(2400, dtype=np.float32), 24000)
+        # An English voice reading Spanish sounds wrong, so a reply in another language than
+        # the chosen voice's is read by that language's voice.
+        said = i18n.detect(text)
+        if said and said != VOICE_INFO.get(voice[:1], VOICE_INFO["a"])[2]:
+            voice = DEFAULT_VOICE[said]
         lang = VOICE_INFO.get(voice[:1], VOICE_INFO["a"])[1]
         with self._tts_lock:
             self._last_tts = time.time()
