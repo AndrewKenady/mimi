@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { fmtBytes, get } from '$lib/api';
+	import { t, type Key } from '$lib/i18n/index.svelte';
 	import { Search, BookOpen, Sparkles, FolderOpen, X, Loader, FileText, TriangleAlert } from '@lucide/svelte';
 
 	let books = $state<any[]>([]);
@@ -17,11 +18,12 @@
 	let searching = $state(false);
 	let timer: ReturnType<typeof setTimeout>;
 
+	// By collection id; headings name it in the interface language (Core's label for unknown ids).
 	const groups = $derived.by(() => {
 		const m = new Map<string, any[]>();
 		for (const b of books) {
 			if (coll && b.collection !== coll) continue;
-			const k = b.collection_label;
+			const k = b.collection;
 			m.set(k, [...(m.get(k) || []), b]);
 		}
 		return [...m.entries()];
@@ -33,17 +35,21 @@
 	const size = $derived(books.reduce((n, b) => n + (b.size || 0), 0));
 
 	// A small, honest status for each card: can it be opened, can it be searched?
-	const STATUS: Record<string, { label: string; tone: string }> = {
-		ok: { label: 'Ready', tone: 'ok' },
-		indexing: { label: 'Indexing…', tone: 'busy' },
-		checking: { label: 'Checking…', tone: 'idle' },
-		unreadable: { label: "Can't open", tone: 'bad' }
+	const STATUS: Record<string, { label: Key; tone: string }> = {
+		ok: { label: 'library.statusReady', tone: 'ok' },
+		indexing: { label: 'library.statusIndexing', tone: 'busy' },
+		checking: { label: 'library.statusChecking', tone: 'idle' },
+		unreadable: { label: 'library.statusUnreadable', tone: 'bad' }
 	};
 	function status(b: any) {
 		const h = b.health || {};
-		if (h.status === 'limited') return { label: h.readable ? 'Browse only' : 'Search only', tone: 'warn' };
-		return STATUS[h.status] || STATUS.checking;
+		if (h.status === 'limited') return { label: t(h.readable ? 'library.statusBrowseOnly' : 'library.statusSearchOnly'), tone: 'warn' };
+		const s = STATUS[h.status] || STATUS.checking;
+		return { label: t(s.label), tone: s.tone };
 	}
+	// Messages with a styled part inside: the text either side of it.
+	const askParts = $derived(t('library.askAbout').split('{q}'));
+	const hintParts = $derived(t('library.incompleteHint').split('{cmd}'));
 
 	async function load() {
 		try {
@@ -60,10 +66,10 @@
 			if (q) search();
 		});
 		// While Mimi is still reading documents (first start), keep the cards' status current.
-		const t = setInterval(() => {
+		const poll = setInterval(() => {
 			if (books.some((b) => ['indexing', 'checking'].includes(b.health?.status))) load();
 		}, 5000);
-		return () => clearInterval(t);
+		return () => clearInterval(poll);
 	});
 
 	function onInput() {
@@ -93,7 +99,7 @@
 		const h = b.health || {};
 		if (h.status === 'unreadable' || h.readable === false) {
 			// Don't offer a blank page: say what's wrong, and point at search when that still works.
-			app.toast(h.note || "Mimi can't open this book.", 'info');
+			app.toast(h.note || t('library.cantOpenBook'), 'info');
 			if (h.searchable) searchEl?.focus();
 			return;
 		}
@@ -109,53 +115,53 @@
 	}
 </script>
 
-<svelte:head><title>Library · Mimi</title></svelte:head>
+<svelte:head><title>{t('library.title')} · Mimi</title></svelte:head>
 
 <div class="page">
 	<div class="page-inner">
 		<header class="head">
 			<div>
-				<h1 class="page-title">Library</h1>
+				<h1 class="page-title">{t('library.title')}</h1>
 				<p class="page-sub">
 					{#if books.length}{[
-							`${books.length} ${books.length === 1 ? 'collection' : 'collections'}`,
-							total || !docs ? `${total.toLocaleString()} ${total === 1 ? 'article' : 'articles'}` : '',
-							docs ? `${docs.toLocaleString()} ${docs === 1 ? 'document' : 'documents'}` : '',
+							t('library.collections', { n: books.length }),
+							total || !docs ? t('library.itemCount', { n: total, noun: 'articles' }) : '',
+							docs ? t('library.itemCount', { n: docs, noun: 'documents' }) : '',
 							fmtBytes(size),
-							'offline'
+							t('library.offline')
 						]
 							.filter(Boolean)
-							.join(' · ')}{:else}Your offline reference shelf{/if}
+							.join(' · ')}{:else}{t('library.subtitleEmpty')}{/if}
 				</p>
 			</div>
-			{#if !app.isGuest}<a class="btn" href="/library/files"><FolderOpen size={16} /> My files</a>{/if}
+			{#if !app.isGuest}<a class="btn" href="/library/files"><FolderOpen size={16} /> {t('library.myFiles')}</a>{/if}
 		</header>
 
 		{#if incomplete.length}
 			<div class="incomplete" role="status">
 				<TriangleAlert size={16} aria-hidden="true" />
 				<div>
-					<p><b>{incomplete.length === 1 ? "1 book didn't" : `${incomplete.length} books didn't`} finish downloading</b>, so {incomplete.length === 1 ? "it isn't" : "they aren't"} on the shelf yet.</p>
+					<p><b>{t('library.incompleteTitle', { n: incomplete.length })}</b>{t('library.incompleteRest', { n: incomplete.length })}</p>
 					<ul>
 						{#each incomplete as z (z.file)}
-							<li><span class="mono">{z.file}</span> · {z.expected ? `${fmtBytes(z.size)} of ${fmtBytes(z.expected)}` : 'not a readable book file'}</li>
+							<li><span class="mono">{z.file}</span> · {z.expected ? t('library.incompleteSize', { done: fmtBytes(z.size), total: fmtBytes(z.expected) }) : t('library.incompleteNotBook')}</li>
 						{/each}
 					</ul>
-					<p class="faint">Run your install command again, or <span class="mono">python -m mimi content add</span> for its pack: downloads pick up where they stopped.</p>
+					<p class="faint">{hintParts[0]}<span class="mono">python -m mimi content add</span>{hintParts[1]}</p>
 				</div>
 			</div>
 		{/if}
 
 		<div class="searchbar">
 			<Search size={19} />
-			<input bind:this={searchEl} bind:value={q} oninput={onInput} onkeydown={(e) => e.key === 'Enter' && search()} placeholder="Search every article, guide and answer…" data-autofocus />
+			<input bind:this={searchEl} bind:value={q} oninput={onInput} onkeydown={(e) => e.key === 'Enter' && search()} placeholder={t('library.searchPlaceholder')} data-autofocus />
 			{#if searching}<Loader size={17} class="spin" />{/if}
-			{#if q}<button class="icon-btn sm" onclick={() => { q = ''; results = null; }} aria-label="Clear"><X size={16} /></button>{/if}
+			{#if q}<button class="icon-btn sm" onclick={() => { q = ''; results = null; }} aria-label={t('library.clear')}><X size={16} /></button>{/if}
 		</div>
 		<div class="filters">
-			<button class="chip" class:active={!coll} onclick={() => { coll = null; if (q) search(); }}>All</button>
+			<button class="chip" class:active={!coll} onclick={() => { coll = null; if (q) search(); }}>{t('library.all')}</button>
 			{#each collections as [k, label] (k)}
-				<button class="chip" class:active={coll === k} onclick={() => { coll = k; if (q) search(); }}>{label}</button>
+				<button class="chip" class:active={coll === k} onclick={() => { coll = k; if (q) search(); }}>{t('library.collection', { id: k, label })}</button>
 			{/each}
 		</div>
 
@@ -164,7 +170,7 @@
 				{#if q.trim().length > 3}
 					<button class="ask card card-hover" onclick={askAbout}>
 						<Sparkles size={18} />
-						<span>Ask Mimi: <b>{q}</b></span>
+						<span>{askParts[0]}<b>{q}</b>{askParts[1]}</span>
 					</button>
 				{/if}
 				{#each results as r (r.book + r.path + '#' + (r.page || 0))}
@@ -174,7 +180,7 @@
 						<span class="rsnip">{r.snippet}</span>
 					</a>
 				{:else}
-					{#if !searching}<p class="faint">No matches. Try different words.</p>{/if}
+					{#if !searching}<p class="faint">{t('library.noMatches')}</p>{/if}
 				{/each}
 			</section>
 		{:else if loading}
@@ -182,12 +188,12 @@
 		{:else if !books.length}
 			<div class="empty card">
 				<BookOpen size={28} />
-				<h3>The library is getting ready</h3>
-				<p>Collections appear here as soon as they finish downloading.</p>
+				<h3>{t('library.emptyTitle')}</h3>
+				<p>{t('library.emptyBody')}</p>
 			</div>
 		{:else}
-			{#each groups as [label, list] (label)}
-				<h2 class="label glabel">{label}</h2>
+			{#each groups as [id, list] (id)}
+				<h2 class="label glabel">{t('library.collection', { id, label: list[0].collection_label })}</h2>
 				<div class="grid">
 					{#each list as b (b.name)}
 						{@const st = status(b)}
@@ -197,7 +203,7 @@
 								<b>{b.title}</b>
 								<small>{b.summary}</small>
 								<!-- One string: Svelte trims whitespace at the edge of {#if} blocks, which once ate the space before "·". -->
-								<span class="bmeta">{[`${(b.items ?? b.articles).toLocaleString()} ${b.item_noun || 'articles'}`, b.size ? fmtBytes(b.size) : ''].filter(Boolean).join(' · ')}</span>
+								<span class="bmeta">{[t('library.itemCount', { n: b.items ?? b.articles, noun: b.item_noun || 'articles' }), b.size ? fmtBytes(b.size) : ''].filter(Boolean).join(' · ')}</span>
 								<span class="bstatus {st.tone}"><i></i>{st.label}</span>
 								{#if b.health?.note && st.tone !== 'ok' && st.tone !== 'idle'}<span class="bnote">{b.health.note}</span>{/if}
 							</span>
@@ -235,6 +241,8 @@
 	}
 	.searchbar input {
 		flex: 1;
+		min-width: 0;
+		text-overflow: ellipsis; /* a long placeholder (Spanish, French, a phone) ends in "…", not mid-word */
 		border: 0;
 		background: none;
 		font-size: 1.05rem;
