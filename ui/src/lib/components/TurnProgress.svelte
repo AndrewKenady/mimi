@@ -12,19 +12,21 @@
 
 <script lang="ts">
 	import { Check } from '@lucide/svelte';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let { progress, compact = false }: { progress: Progress; compact?: boolean } = $props();
 
 	let now = $state(Date.now());
 	$effect(() => {
-		const t = setInterval(() => (now = Date.now()), 500);
-		return () => clearInterval(t);
+		const timer = setInterval(() => (now = Date.now()), 500);
+		return () => clearInterval(timer);
 	});
 
+	// Search → Read → Write. Labels are getters so they follow the interface language.
 	const STEPS = [
-		{ id: 'searching', label: 'Search' },
-		{ id: 'reading', label: 'Read' },
-		{ id: 'writing', label: 'Write' }
+		{ id: 'searching', get label() { return t('chat.stepSearch'); } },
+		{ id: 'reading', get label() { return t('chat.stepRead'); } },
+		{ id: 'writing', get label() { return t('chat.stepWrite'); } }
 	];
 	const elapsed = $derived(Math.max(0, Math.floor((now - progress.started) / 1000)));
 	const grounded = $derived(progress.stages.includes('searching'));
@@ -32,7 +34,7 @@
 	const left = $derived(progress.state === 'reading' && progress.eta_ms ? Math.round((progress.eta_ms - (now - progress.at)) / 1000) : 0);
 
 	function fmt(s: number) {
-		return s < 60 ? `${s} s` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+		return s < 60 ? t('chat.seconds', { n: s }) : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 	}
 	function stepState(i: number) {
 		if (i === current) return 'now';
@@ -44,7 +46,7 @@
 {#if compact}
 	<div class="tp compact">
 		<span class="pulse" aria-hidden="true"></span>
-		<span>{progress.state === 'writing' ? 'Writing' : progress.label.replace(/…$/, '')}</span>
+		<span>{progress.state === 'writing' ? t('chat.writing') : progress.label.replace(/…$/, '')}</span>
 		{#if elapsed >= 1}<span class="time">· {fmt(elapsed)}</span>{/if}
 	</div>
 {:else}
@@ -62,7 +64,7 @@
 		<div class="line">
 			<span class="tp-label">{progress.label}</span>
 			<span class="time">
-				{#if elapsed >= 1}{fmt(elapsed)}{/if}{#if left > 1}<span class="eta">{elapsed >= 1 ? ' · ' : ''}about {left} s left</span>{/if}
+				{#if elapsed >= 1}{fmt(elapsed)}{/if}{#if left > 1}<span class="eta">{elapsed >= 1 ? ' · ' : ''}{t('chat.secondsLeft', { n: left })}</span>{/if}
 			</span>
 		</div>
 	</div>

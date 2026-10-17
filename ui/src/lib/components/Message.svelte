@@ -5,6 +5,7 @@
 	import { del, post } from '$lib/api';
 	import { renderBlocks } from '$lib/markdown';
 	import { Speaker } from '$lib/audio';
+	import { fmtNumber, i18n, t } from '$lib/i18n/index.svelte';
 	import SourceCards from './SourceCards.svelte';
 	import SourcePreview from './SourcePreview.svelte';
 	import TurnProgress, { type Progress } from './TurnProgress.svelte';
@@ -38,12 +39,12 @@
 	const meta = $derived(m.meta || {});
 	const sources = $derived<any[]>(meta.sources || []);
 	// While streaming, the narrative line says what is running; the trail keeps what is done.
-	const tools = $derived<any[]>((meta.tools || []).filter((t: any) => !(live && t.state === 'start')));
+	const tools = $derived<any[]>((meta.tools || []).filter((x: any) => !(live && x.state === 'start')));
 	const hasText = $derived(!!(m.content || '').trim());
 	// Finished blocks are rendered once; only the trailing block re-renders while streaming.
 	const blocks = $derived(renderBlocks(m.content || '', sources.length, live));
 	const versions = $derived(m.versions);
-	const fallback = $derived<Progress>({ state: 'thinking', label: 'Thinking…', at: Date.now(), started: Date.now(), stages: [] });
+	const fallback = $derived<Progress>({ state: 'thinking', label: t('chat.thinking'), at: Date.now(), started: Date.now(), stages: [] });
 	let copied = $state(false);
 	let speaking = $state(false);
 	let editing = $state(false);
@@ -61,12 +62,13 @@
 	// that. Advisory only; the answer is never changed, the reader is pointed at what to verify.
 	const flags = $derived<any[]>(live ? [] : meta.grounding?.flags || []);
 	let prose: HTMLDivElement | undefined = $state();
-	const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '');
+	const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 	$effect(() => {
 		const el = prose;
 		const fl = flags;
 		void blocks;
+		void i18n.locale; // the labels below are in the interface language
 		if (!el) return;
 		tick().then(() => {
 			for (const b of el.querySelectorAll<HTMLElement>('.cite')) {
@@ -74,8 +76,8 @@
 				const block = squash(b.closest('p, li, td, blockquote, h1, h2, h3, h4')?.textContent || '');
 				const hit = fl.find((f) => f.n === n && block.includes(squash(f.sentence).slice(0, 28)));
 				b.classList.toggle('cite-check', !!hit);
-				b.setAttribute('aria-label', hit ? `Source ${n}. This source may not say this; check it.` : `Source ${n}`);
-				if (hit) b.title = 'This source may not say this. Check it.';
+				b.setAttribute('aria-label', hit ? t('chat.citeFlagged', { n }) : t('chat.sourceN', { n }));
+				if (hit) b.title = t('chat.citeFlaggedTitle');
 				else b.removeAttribute('title');
 			}
 		});
@@ -83,7 +85,7 @@
 
 	function sourceName(n: number): string {
 		const s = sources.find((x) => x.n === n);
-		return s ? `${s.title}${s.book_title ? ` (${s.book_title})` : ''}` : `source ${n}`;
+		return s ? `${s.title}${s.book_title ? ` (${s.book_title})` : ''}` : t('chat.sourceLower', { n });
 	}
 
 	function openSource(s: any) {
@@ -92,17 +94,17 @@
 	}
 
 	function onProseClick(e: MouseEvent) {
-		const t = e.target as HTMLElement;
-		const cite = t.closest('.cite') as HTMLElement | null;
+		const el = e.target as HTMLElement;
+		const cite = el.closest('.cite') as HTMLElement | null;
 		if (cite) {
 			const s = sources.find((x) => x.n === Number(cite.dataset.cite));
 			openSource(s);
 			return;
 		}
-		const a = t.closest('a') as HTMLAnchorElement | null;
+		const a = el.closest('a') as HTMLAnchorElement | null;
 		if (a) {
 			e.preventDefault();
-			if (a.dataset.external) app.toast("That's an internet link — Mimi works offline.", 'info');
+			if (a.dataset.external) app.toast(t('chat.internetLink'), 'info');
 			else if (a.getAttribute('href')?.startsWith('/')) goto(a.getAttribute('href')!);
 		}
 	}
@@ -132,7 +134,7 @@
 	async function acceptMemory(mem: any) {
 		await post(`/api/memories/${mem.id}/accept`);
 		suggestions = suggestions.filter((x) => x.id !== mem.id);
-		app.toast('Saved to memory', 'ok', { label: 'View', run: () => goto('/memory') });
+		app.toast(t('chat.savedToMemory'), 'ok', { label: t('chat.view'), run: () => goto('/memory') });
 	}
 	async function rejectMemory(mem: any) {
 		await del(`/api/memories/${mem.id}`);
@@ -147,8 +149,8 @@
 			<div class="edit">
 				<textarea class="input" bind:value={draft} rows="3"></textarea>
 				<div class="edit-bar">
-					<button class="btn btn-sm btn-ghost" onclick={() => (editing = false)}>Cancel</button>
-					<button class="btn btn-sm btn-primary" onclick={() => { editing = false; onedit?.(draft); }}>Send</button>
+					<button class="btn btn-sm btn-ghost" onclick={() => (editing = false)}>{t('chat.cancel')}</button>
+					<button class="btn btn-sm btn-primary" onclick={() => { editing = false; onedit?.(draft); }}>{t('chat.send')}</button>
 				</div>
 			</div>
 		{:else}
@@ -164,13 +166,13 @@
 				<div class="uactions">
 					{#if versions?.count > 1}
 						<span class="ver">
-							<button class="icon-btn sm" disabled={versions.index === 0} onclick={() => onswitch?.(versions.ids[versions.index - 1])} aria-label="Previous version"><ChevronLeft size={15} /></button>
+							<button class="icon-btn sm" disabled={versions.index === 0} onclick={() => onswitch?.(versions.ids[versions.index - 1])} aria-label={t('chat.previousVersion')}><ChevronLeft size={15} /></button>
 							{versions.index + 1}/{versions.count}
-							<button class="icon-btn sm" disabled={versions.index >= versions.count - 1} onclick={() => onswitch?.(versions.ids[versions.index + 1])} aria-label="Next version"><ChevronRight size={15} /></button>
+							<button class="icon-btn sm" disabled={versions.index >= versions.count - 1} onclick={() => onswitch?.(versions.ids[versions.index + 1])} aria-label={t('chat.nextVersion')}><ChevronRight size={15} /></button>
 						</span>
 					{/if}
 					{#if onedit}
-						<button class="icon-btn sm" onclick={() => { draft = m.content; editing = true; }} title="Edit" aria-label="Edit message"><Pencil size={14} /></button>
+						<button class="icon-btn sm" onclick={() => { draft = m.content; editing = true; }} title={t('chat.edit')} aria-label={t('chat.editMessage')}><Pencil size={14} /></button>
 					{/if}
 				</div>
 			</div>
@@ -182,13 +184,13 @@
 		<div class="body">
 			{#if tools.length && app.settings.user?.assistant?.show_tool_activity !== false}
 				<div class="trail">
-					{#each tools as t (t.id)}
-						{@const Icon = TOOL_ICONS[t.name] || Search}
-						<div class="step" class:running={t.state === 'start'} class:failed={t.state === 'end' && t.ok === false}>
-							<span class="si">{#if t.state === 'start'}<Loader size={14} class="spin" />{:else}<Icon size={14} />{/if}</span>
-							<span class="sl">{t.label}</span>
-							{#if t.summary}<span class="ss">· {t.summary}</span>{/if}
-							{#if t.data?.map_url}<a class="maplink" href={t.data.map_url}><MapIcon size={12} /> Show on map</a>{/if}
+					{#each tools as tool (tool.id)}
+						{@const Icon = TOOL_ICONS[tool.name] || Search}
+						<div class="step" class:running={tool.state === 'start'} class:failed={tool.state === 'end' && tool.ok === false}>
+							<span class="si">{#if tool.state === 'start'}<Loader size={14} class="spin" />{:else}<Icon size={14} />{/if}</span>
+							<span class="sl">{tool.label}</span>
+							{#if tool.summary}<span class="ss">· {tool.summary}</span>{/if}
+							{#if tool.data?.map_url}<a class="maplink" href={tool.data.map_url}><MapIcon size={12} /> {t('chat.showOnMap')}</a>{/if}
 						</div>
 					{/each}
 				</div>
@@ -219,7 +221,7 @@
 				<details class="checkcite">
 					<summary>
 						<TriangleAlert size={14} aria-hidden="true" />
-						{flags.length === 1 ? '1 cited claim' : `${flags.length} cited claims`} couldn't be matched to {flags.length === 1 ? 'its source' : 'their sources'}. Check before relying on {flags.length === 1 ? 'it' : 'them'}.
+						{t('chat.flagSummary', { n: flags.length })}
 					</summary>
 					<ul>
 						{#each flags as f (f.n + ':' + f.start)}
@@ -228,7 +230,7 @@
 								<span class="why">
 									<button class="linkish" onclick={() => openSource(sources.find((x) => x.n === f.n))}>{sourceName(f.n)}</button>
 									{#if f.reasons?.length} · {f.reasons.join('; ')}{/if}
-									{#if f.better_source} · source {f.better_source} may fit better{/if}
+									{#if f.better_source} · {t('chat.betterSource', { n: f.better_source })}{/if}
 								</span>
 							</li>
 						{/each}
@@ -243,55 +245,55 @@
 			{#if meta.error}
 				<div class="error" role="alert">
 					<CircleAlert size={16} />
-					<span class="etxt">{meta.error}{#if hasText} The answer above is incomplete.{/if}</span>
+					<span class="etxt">{meta.error}{#if hasText} {t('chat.answerIncomplete')}{/if}</span>
 					{#if onregenerate && !live}
-						<button class="btn btn-sm retry" onclick={onregenerate}><RotateCcw size={14} /> Try again</button>
+						<button class="btn btn-sm retry" onclick={onregenerate}><RotateCcw size={14} /> {t('chat.tryAgain')}</button>
 					{/if}
 				</div>
 			{/if}
 			{#if meta.cancelled && !live}
-				<div class="stopped"><CircleStop size={13} /> Stopped{hasText ? ' — the answer above is unfinished' : ' before Mimi answered'}.</div>
+				<div class="stopped"><CircleStop size={13} /> {hasText ? t('chat.stoppedUnfinished') : t('chat.stoppedBefore')}</div>
 			{/if}
 
 			{#each suggestions as mem (mem.id)}
 				<div class="memsug">
 					<Brain size={16} />
-					<span>Remember that <b>{mem.text.replace(/\.$/, '')}</b>?</span>
-					<button class="btn btn-sm btn-primary" onclick={() => acceptMemory(mem)}><Check size={14} /> Save</button>
-					<button class="icon-btn sm" onclick={() => rejectMemory(mem)} aria-label="Dismiss"><X size={15} /></button>
+					<span>{t('chat.rememberBefore')}<b>{mem.text.replace(/\.$/, '')}</b>{t('chat.rememberAfter')}</span>
+					<button class="btn btn-sm btn-primary" onclick={() => acceptMemory(mem)}><Check size={14} /> {t('chat.save')}</button>
+					<button class="icon-btn sm" onclick={() => rejectMemory(mem)} aria-label={t('chat.dismiss')}><X size={15} /></button>
 				</div>
 			{/each}
 
 			{#if !live && (hasText || meta.error || meta.cancelled)}
 				<div class="actions">
 					{#if hasText}
-						<button class="icon-btn sm" onclick={copy} title="Copy" aria-label="Copy">{#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}</button>
+						<button class="icon-btn sm" onclick={copy} title={t('chat.copy')} aria-label={t('chat.copy')}>{#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}</button>
 						{#if app.features.voice !== false}
-							<button class="icon-btn sm" onclick={speak} title="Read aloud" aria-label={speaking ? 'Stop reading aloud' : 'Read aloud'}>{#if speaking}<VolumeX size={15} />{:else}<Volume2 size={15} />{/if}</button>
+							<button class="icon-btn sm" onclick={speak} title={t('chat.readAloud')} aria-label={speaking ? t('chat.stopReading') : t('chat.readAloud')}>{#if speaking}<VolumeX size={15} />{:else}<Volume2 size={15} />{/if}</button>
 						{/if}
 					{/if}
-					{#if onregenerate && !meta.error}<button class="icon-btn sm" onclick={onregenerate} title="Regenerate" aria-label="Regenerate"><RotateCcw size={15} /></button>{/if}
+					{#if onregenerate && !meta.error}<button class="icon-btn sm" onclick={onregenerate} title={t('chat.regenerate')} aria-label={t('chat.regenerate')}><RotateCcw size={15} /></button>{/if}
 					{#if versions?.count > 1}
 						<span class="ver">
-							<button class="icon-btn sm" disabled={versions.index === 0} onclick={() => onswitch?.(versions.ids[versions.index - 1])} aria-label="Previous answer"><ChevronLeft size={15} /></button>
+							<button class="icon-btn sm" disabled={versions.index === 0} onclick={() => onswitch?.(versions.ids[versions.index - 1])} aria-label={t('chat.previousAnswer')}><ChevronLeft size={15} /></button>
 							{versions.index + 1}/{versions.count}
-							<button class="icon-btn sm" disabled={versions.index >= versions.count - 1} onclick={() => onswitch?.(versions.ids[versions.index + 1])} aria-label="Next answer"><ChevronRight size={15} /></button>
+							<button class="icon-btn sm" disabled={versions.index >= versions.count - 1} onclick={() => onswitch?.(versions.ids[versions.index + 1])} aria-label={t('chat.nextAnswer')}><ChevronRight size={15} /></button>
 						</span>
 					{/if}
 					{#if meta.memories_used?.length}
-						<button class="memused" onclick={() => (showMem = !showMem)}><BookMarked size={13} /> Memory used</button>
+						<button class="memused" onclick={() => (showMem = !showMem)}><BookMarked size={13} /> {t('chat.memoryUsed')}</button>
 					{/if}
 					<span class="grow"></span>
 					{#if meta.model_name}
-						<span class="meta-info" title="Generated on this device">
-							{meta.model_name}{#if meta.timings?.predicted_per_second}{` · ${meta.timings.predicted_per_second.toFixed(1)} tok/s`}{/if}
+						<span class="meta-info" title={t('chat.generatedHere')}>
+							{meta.model_name}{#if meta.timings?.predicted_per_second}{` · ${t('chat.tokPerSec', { n: fmtNumber(meta.timings.predicted_per_second, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) })}`}{/if}
 						</span>
 					{/if}
 				</div>
 				{#if showMem}
 					<div class="memlist">
 						{#each meta.memories_used as mm (mm.id)}<div>• {mm.text}</div>{/each}
-						<a href="/memory">Manage memory →</a>
+						<a href="/memory">{t('chat.manageMemory')}</a>
 					</div>
 				{/if}
 			{/if}

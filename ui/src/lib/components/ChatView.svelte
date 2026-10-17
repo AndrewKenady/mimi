@@ -4,6 +4,7 @@
 	import { app } from '$lib/app.svelte';
 	import { del, get, patch, post, stream, timeAgo } from '$lib/api';
 	import { Speaker } from '$lib/audio';
+	import { t } from '$lib/i18n/index.svelte';
 	import Composer from './Composer.svelte';
 	import Message from './Message.svelte';
 	import Well from './Well.svelte';
@@ -87,7 +88,7 @@
 		moving = null;
 		menuFor = null;
 		newFolder = '';
-		app.toast(name.trim() ? `Moved to ${name.trim()}` : 'Removed from folder');
+		app.toast(name.trim() ? t('chat.movedTo', { name: name.trim() }) : t('chat.removedFromFolder'));
 		loadList();
 	}
 	async function unarchive(c: any) {
@@ -113,7 +114,7 @@
 			await tick();
 			scrollBottom(true);
 		} catch {
-			app.toast('That chat no longer exists', 'error');
+			app.toast(t('chat.chatGone'), 'error');
 			goto('/chat', { replaceState: true });
 		}
 	}
@@ -173,7 +174,7 @@
 		busy = true;
 		stopWanted = false;
 		const started = Date.now();
-		progress = { state: 'thinking', label: 'Thinking…', at: started, started, stages: [] };
+		progress = { state: 'thinking', label: t('chat.thinking'), at: started, started, stages: [] };
 		announce = '';
 		stick = true;
 		unseen = false;
@@ -212,9 +213,9 @@
 			if (raf) cancelAnimationFrame(raf);
 			raf = 0;
 			if (!pendingText) return;
-			const t = pendingText;
+			const text = pendingText;
 			pendingText = '';
-			update((m) => (m.content += t));
+			update((m) => (m.content += text));
 			tick().then(() => scrollBottom());
 		};
 		let gotMeta = false;
@@ -257,7 +258,7 @@
 				else if (ev.event === 'tool') {
 					update((m) => {
 						const tools = [...m.meta.tools];
-						const k = tools.findIndex((t: any) => t.id === d.id);
+						const k = tools.findIndex((x: any) => x.id === d.id);
 						if (k >= 0) tools[k] = { ...tools[k], ...d };
 						else tools.push(d);
 						m.meta.tools = tools;
@@ -268,7 +269,7 @@
 					update((m) => {
 						if (d.used) m.meta.memories_used = d.used;
 						if (d.suggested) m.meta.memory_suggested = [...(m.meta.memory_suggested || []), ...d.suggested];
-						if (d.saved) app.toast(`Remembered: ${d.saved[0]?.text}`, 'ok');
+						if (d.saved) app.toast(t('chat.remembered', { text: `${d.saved[0]?.text}` }), 'ok');
 					});
 				} else if (ev.event === 'error') {
 					update((m) => (m.meta.error = d.message));
@@ -280,19 +281,19 @@
 					if (i >= 0) messages[i] = final;
 					if (d.chat?.title) chat = { ...chat, title: d.chat.title };
 					speaker?.flush();
-					if (final.meta?.error) announce = `Mimi couldn’t finish: ${final.meta.error}`;
+					if (final.meta?.error) announce = t('chat.couldntFinish', { error: final.meta.error });
 				}
 				await tick();
 				scrollBottom();
 			}
 		} catch (e: any) {
-			if (e.name !== 'AbortError') update((m) => (m.meta.error = e.message || 'Connection lost'));
+			if (e.name !== 'AbortError') update((m) => (m.meta.error = e.message || t('chat.connectionLost')));
 		} finally {
 			flushText();
 			// A turn that ended without an answer (no model, connection lost…) leaves a retryable error.
 			const liveMsg = messages.find((x) => x.id === 'live');
-			const failure = !gotDone ? liveMsg?.meta?.error || (stopWanted ? '' : 'Mimi stopped before answering.') : '';
-			if (failure) announce = `Mimi couldn’t answer: ${failure}`;
+			const failure = !gotDone ? liveMsg?.meta?.error || (stopWanted ? '' : t('chat.stoppedBeforeAnswering')) : '';
+			if (failure) announce = t('chat.couldntAnswer', { error: failure });
 			const failed = (retry_of: string | null) => ({
 				...(liveMsg || {}),
 				id: 'failed',
@@ -387,7 +388,7 @@
 		pendingDeletes.set(c.id, setTimeout(() => commitDelete(c.id), UNDO_MS + 400));
 		// Closing the tab must not cancel a delete the user meant; only Undo does.
 		addEventListener('pagehide', () => flushDeletes(true), { once: true });
-		app.toast(`Deleted “${c.title || 'New chat'}”`, 'info', { label: 'Undo', run: () => undoDelete(c.id, wasOpen) }, UNDO_MS);
+		app.toast(t('chat.deleted', { title: c.title || t('chat.newChat') }), 'info', { label: t('chat.undo'), run: () => undoDelete(c.id, wasOpen) }, UNDO_MS);
 	}
 	async function commitDelete(cid: string, unloading = false) {
 		clearTimeout(pendingDeletes.get(cid));
@@ -399,7 +400,7 @@
 		try {
 			await del(`/api/chats/${cid}`);
 		} catch {
-			app.toast('Couldn’t delete that chat', 'error');
+			app.toast(t('chat.deleteFailed'), 'error');
 		}
 		hidden = hidden.filter((x) => x !== cid);
 		loadList();
@@ -424,13 +425,8 @@
 
 	const lastAssistant = $derived([...messages].reverse().find((x) => x.role === 'assistant'));
 	const hour = new Date().getHours();
-	const greeting = hour < 5 ? 'Up late' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-	const suggestions = [
-		'How do I treat a bee sting?',
-		'What can I see near here?',
-		'Explain how a car battery works',
-		'Summarize the history of the Oregon Trail'
-	];
+	const greeting = $derived(t(hour < 5 ? 'chat.greetLate' : hour < 12 ? 'chat.greetMorning' : hour < 18 ? 'chat.greetAfternoon' : 'chat.greetEvening'));
+	const suggestions = $derived([t('chat.suggestion1'), t('chat.suggestion2'), t('chat.suggestion3'), t('chat.suggestion4')]);
 </script>
 
 <svelte:window onkeydown={onWindowKey} />
@@ -439,68 +435,68 @@
 	{#if sideOpen && narrow}
 		<div class="scrim" onclick={() => (sideOpen = false)} aria-hidden="true"></div>
 	{/if}
-	<aside class="list" aria-label="Chats" inert={!sideOpen}>
+	<aside class="list" aria-label={t('chat.chats')} inert={!sideOpen}>
 		<div class="lhead">
-			<button class="btn btn-primary new" onclick={newChat}><SquarePen size={16} /> New chat</button>
-			<button class="icon-btn" onclick={() => (sideOpen = false)} aria-label="Hide chat list"><PanelLeftClose size={18} /></button>
+			<button class="btn btn-primary new" onclick={newChat}><SquarePen size={16} /> {t('chat.newChat')}</button>
+			<button class="icon-btn" onclick={() => (sideOpen = false)} aria-label={t('chat.hideList')}><PanelLeftClose size={18} /></button>
 		</div>
 		<div class="lsearch">
 			<Search size={15} />
-			<input placeholder="Search chats" bind:value={q} oninput={() => loadList()} />
+			<input placeholder={t('chat.searchChats')} bind:value={q} oninput={() => loadList()} />
 		</div>
-		<div class="folders" role="tablist" aria-label="Folders">
-			<button role="tab" aria-selected={folder === ''} class:on={folder === ''} onclick={() => pickFolder('')}>All</button>
+		<div class="folders" role="tablist" aria-label={t('chat.folders')}>
+			<button role="tab" aria-selected={folder === ''} class:on={folder === ''} onclick={() => pickFolder('')}>{t('chat.allChats')}</button>
 			{#each projects as p (p)}
 				<button role="tab" aria-selected={folder === p} class:on={folder === p} onclick={() => pickFolder(p)}><Folder size={12} /> {p}</button>
 			{/each}
-			<button role="tab" aria-selected={folder === ARCHIVE} class:on={folder === ARCHIVE} onclick={() => pickFolder(ARCHIVE)}><Archive size={12} /> Archived</button>
+			<button role="tab" aria-selected={folder === ARCHIVE} class:on={folder === ARCHIVE} onclick={() => pickFolder(ARCHIVE)}><Archive size={12} /> {t('chat.archived')}</button>
 		</div>
 		<div class="items" data-scroll>
 			{#each shown as c (c.id)}
 				<div class="it" class:on={c.id === chat?.id}>
 					{#if renaming === c.id}
-						<input class="input rn" bind:value={renameText} aria-label="Chat title" onkeydown={(e) => { if (e.key === 'Enter') saveRename(c); if (e.key === 'Escape') { e.preventDefault(); renaming = null; } }} onblur={() => saveRename(c)} />
+						<input class="input rn" bind:value={renameText} aria-label={t('chat.chatTitle')} onkeydown={(e) => { if (e.key === 'Enter') saveRename(c); if (e.key === 'Escape') { e.preventDefault(); renaming = null; } }} onblur={() => saveRename(c)} />
 					{:else}
 						<a href="/chat/{c.id}" class="il" aria-current={c.id === chat?.id ? 'page' : undefined} onclick={closeOverlay}>
-							<span class="it-title">{#if c.pinned}<Pin size={12} class="pin" />{/if}<span class="tt">{c.title || 'New chat'}</span></span>
+							<span class="it-title">{#if c.pinned}<Pin size={12} class="pin" />{/if}<span class="tt">{c.title || t('chat.newChat')}</span></span>
 							<span class="it-sub">{timeAgo(c.updated_at)}{c.preview ? ' · ' + c.preview : ''}</span>
 						</a>
-						<button class="icon-btn sm more" onclick={() => { menuFor = menuFor === c.id ? null : c.id; moving = null; }} aria-label="Options for {c.title || 'New chat'}" aria-haspopup="menu" aria-expanded={menuFor === c.id}><EllipsisVertical size={15} /></button>
+						<button class="icon-btn sm more" onclick={() => { menuFor = menuFor === c.id ? null : c.id; moving = null; }} aria-label={t('chat.optionsFor', { title: c.title || t('chat.newChat') })} aria-haspopup="menu" aria-expanded={menuFor === c.id}><EllipsisVertical size={15} /></button>
 						{#if menuFor === c.id && moving === c.id}
 							<div class="cmenu glass" role="menu">
 								{#each projects as p (p)}
 									<button onclick={() => moveTo(c, p)}><Folder size={14} /> {p}{#if c.project === p}<Check size={13} class="ck" />{/if}</button>
 								{/each}
-								{#if c.project}<button onclick={() => moveTo(c, '')}><FolderInput size={14} /> No folder</button>{/if}
-								<input class="input nf" placeholder="New folder…" bind:value={newFolder} onkeydown={(e) => { if (e.key === 'Enter' && newFolder.trim()) moveTo(c, newFolder); if (e.key === 'Escape') moving = null; }} />
+								{#if c.project}<button onclick={() => moveTo(c, '')}><FolderInput size={14} /> {t('chat.noFolder')}</button>{/if}
+								<input class="input nf" placeholder={t('chat.newFolder')} bind:value={newFolder} onkeydown={(e) => { if (e.key === 'Enter' && newFolder.trim()) moveTo(c, newFolder); if (e.key === 'Escape') moving = null; }} />
 							</div>
 						{:else if menuFor === c.id}
 							<div class="cmenu glass" role="menu">
-								<button onclick={() => { renaming = c.id; renameText = c.title; menuFor = null; }}><Pencil size={14} /> Rename</button>
-								<button onclick={() => togglePin(c)}>{#if c.pinned}<PinOff size={14} /> Unpin{:else}<Pin size={14} /> Pin{/if}</button>
-								<button onclick={() => (moving = c.id)}><FolderInput size={14} /> Move to folder…</button>
-								<a href="/api/chats/{c.id}/export" download><Download size={14} /> Export</a>
+								<button onclick={() => { renaming = c.id; renameText = c.title; menuFor = null; }}><Pencil size={14} /> {t('chat.rename')}</button>
+								<button onclick={() => togglePin(c)}>{#if c.pinned}<PinOff size={14} /> {t('chat.unpin')}{:else}<Pin size={14} /> {t('chat.pin')}{/if}</button>
+								<button onclick={() => (moving = c.id)}><FolderInput size={14} /> {t('chat.moveToFolder')}</button>
+								<a href="/api/chats/{c.id}/export" download><Download size={14} /> {t('chat.export')}</a>
 								{#if c.archived}
-									<button onclick={() => unarchive(c)}><ArchiveRestore size={14} /> Unarchive</button>
+									<button onclick={() => unarchive(c)}><ArchiveRestore size={14} /> {t('chat.unarchive')}</button>
 								{:else}
-									<button onclick={() => archive(c)}><Archive size={14} /> Archive</button>
+									<button onclick={() => archive(c)}><Archive size={14} /> {t('chat.archive')}</button>
 								{/if}
-								<button class="danger" onclick={() => remove(c)}><Trash2 size={14} /> Delete</button>
+								<button class="danger" onclick={() => remove(c)}><Trash2 size={14} /> {t('chat.delete')}</button>
 							</div>
 						{/if}
 					{/if}
 				</div>
 			{:else}
-				<div class="empty-list"><MessagesSquare size={20} /><span>{q ? 'No matching chats' : folder === ARCHIVE ? 'No archived chats' : folder ? 'This folder is empty' : 'Your conversations will appear here'}</span></div>
+				<div class="empty-list"><MessagesSquare size={20} /><span>{q ? t('chat.noMatches') : folder === ARCHIVE ? t('chat.noArchived') : folder ? t('chat.folderEmpty') : t('chat.listEmpty')}</span></div>
 			{/each}
 		</div>
 	</aside>
 
 	<section class="thread">
 		<header class="thead">
-			{#if !sideOpen}<button class="icon-btn" onclick={() => (sideOpen = true)} aria-label="Show chat list"><PanelLeft size={18} /></button>{/if}
-			<h1 class="ttl">{chat?.title || (messages.length ? 'New chat' : '')}{#if !chat?.title && !messages.length}<span class="sr-only">New chat</span>{/if}</h1>
-			{#if !sideOpen && messages.length}<button class="icon-btn" onclick={newChat} aria-label="New chat"><SquarePen size={18} /></button>{/if}
+			{#if !sideOpen}<button class="icon-btn" onclick={() => (sideOpen = true)} aria-label={t('chat.showList')}><PanelLeft size={18} /></button>{/if}
+			<h1 class="ttl">{chat?.title || (messages.length ? t('chat.newChat') : '')}{#if !chat?.title && !messages.length}<span class="sr-only">{t('chat.newChat')}</span>{/if}</h1>
+			{#if !sideOpen && messages.length}<button class="icon-btn" onclick={newChat} aria-label={t('chat.newChat')}><SquarePen size={18} /></button>{/if}
 		</header>
 
 		<div
@@ -509,7 +505,7 @@
 			onscroll={onScroll}
 			data-scroll
 			role="log"
-			aria-label="Conversation"
+			aria-label={t('chat.conversation')}
 			aria-live="polite"
 			aria-relevant="additions"
 			aria-busy={busy}
@@ -518,8 +514,8 @@
 				{#if !messages.length}
 					<div class="hello fade-up">
 						<Well size={150} mood="idle" />
-						<h2>{greeting}{app.me?.role !== 'guest' ? `, ${app.me?.name}` : ''}.</h2>
-						<p>Ask me anything. I'll check the offline library and show my sources.</p>
+						<h2>{app.me?.role !== 'guest' ? t('chat.greetingNamed', { greeting, name: `${app.me?.name}` }) : t('chat.greeting', { greeting })}</h2>
+						<p>{t('chat.intro')}</p>
 						<div class="sugg">
 							{#each suggestions as s}<button class="chip" onclick={() => send(s, [])}>{s}</button>{/each}
 						</div>
@@ -532,7 +528,7 @@
 						progress={m.id === 'live' ? progress : null}
 						onregenerate={retryFor(m)}
 						onswitch={!busy ? switchVersion : undefined}
-						onedit={m.role === 'user' && !busy && m.id !== 'pending' ? (t) => send(t, [], { edit: m.id }) : undefined}
+						onedit={m.role === 'user' && !busy && m.id !== 'pending' ? (text) => send(text, [], { edit: m.id }) : undefined}
 					/>
 				{/each}
 			</div>
@@ -542,12 +538,12 @@
 		<div class="compose">
 			{#if !stick && (busy || unseen)}
 				<button class="jump glass" onclick={jumpToLatest}>
-					<ArrowDown size={15} />Jump to latest
+					<ArrowDown size={15} />{t('chat.jumpToLatest')}
 				</button>
 			{/if}
 			<div class="inner">
-				<Composer onsend={(t, a) => send(t, a)} onstop={stop} {busy} bind:mode bind:value={draft} bind:attachments autofocus />
-				<p class="disclaimer">Mimi runs offline on this device and can make mistakes. Check important facts in the sources.</p>
+				<Composer onsend={(text, a) => send(text, a)} onstop={stop} {busy} bind:mode bind:value={draft} bind:attachments autofocus />
+				<p class="disclaimer">{t('chat.disclaimer')}</p>
 			</div>
 		</div>
 	</section>
@@ -886,9 +882,15 @@
 		max-width: 620px;
 	}
 	.sugg .chip {
-		height: 2.3rem;
-		padding: 0 1rem;
+		/* One line keeps the 2.3rem pill; a long suggestion (they run longer in Spanish and
+		   French) wraps instead of running off a phone screen. */
+		height: auto;
+		min-height: 2.3rem;
+		max-width: 100%;
+		padding: 0.3rem 1rem;
 		font-size: 0.86rem;
+		white-space: normal;
+		text-align: center;
 	}
 	.compose {
 		position: relative;

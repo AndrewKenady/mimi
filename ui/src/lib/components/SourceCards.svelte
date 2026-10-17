@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
 	import { sourceLabel } from '$lib/sources';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let {
 		sources,
@@ -38,19 +39,19 @@
 	}
 </script>
 
-<section class="srcs" class:reading aria-label="Sources">
+<section class="srcs" class:reading aria-label={t('chat.sources')}>
 	<header>
-		<span class="eyebrow">{reading ? 'Reading' : 'Sources'}</span>
+		<span class="eyebrow">{reading ? t('chat.reading') : t('chat.sources')}</span>
 		<span class="count">{sources.length}</span>
 		<span class="grow"></span>
 		{#if !(atStart && atEnd)}
-			<button class="icon-btn sm nav" onclick={() => page(-1)} disabled={atStart} aria-label="Previous sources"><ChevronLeft size={15} /></button>
-			<button class="icon-btn sm nav" onclick={() => page(1)} disabled={atEnd} aria-label="More sources"><ChevronRight size={15} /></button>
+			<button class="icon-btn sm nav" onclick={() => page(-1)} disabled={atStart} aria-label={t('chat.previousSources')}><ChevronLeft size={15} /></button>
+			<button class="icon-btn sm nav" onclick={() => page(1)} disabled={atEnd} aria-label={t('chat.moreSources')}><ChevronRight size={15} /></button>
 		{/if}
 	</header>
 	<div class="row" class:fl={!atStart} class:fr={!atEnd} bind:this={row} onscroll={measure}>
 		{#each sources as s, i (s.n)}
-			<button class="src" style="--i: {i}" onclick={() => onopen?.(s)} title={s.snippet || s.title} aria-label="Source {s.n}: {s.title}, {sourceLabel(s)}">
+			<button class="src" style="--i: {i}" onclick={() => onopen?.(s)} title={s.snippet || s.title} aria-label={t('chat.sourceCard', { n: s.n ?? '', title: s.title ?? '', label: sourceLabel(s) })}>
 				<span class="thumb">
 					{#if s.image}<img src={s.image} alt="" loading="lazy" />{/if}
 					<span class="n" class:over={!!s.image}>{s.n}</span>
