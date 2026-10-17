@@ -427,7 +427,7 @@ class ChatService:
         if chat_id:
             chat = self.get_chat(ctx, chat_id)
             if not chat:
-                yield {"event": "error", "data": {"message": "Chat not found"}}
+                yield {"event": "error", "data": {"message": tr("Chat not found"), "code": "chat_not_found"}}  # code: clients test it, not the words
                 return
         else:
             chat = self.create(ctx, mode=mode, temporary=temporary)

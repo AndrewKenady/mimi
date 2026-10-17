@@ -92,7 +92,7 @@
 		{/key}
 		<button class="pause" onclick={pause}><BellOff size={14} aria-hidden="true" /> {t('auth.pause')}</button>
 		<p class="fine">
-			{t('auth.expiresIn', { s: fmtNumber(Math.max(0, Math.round(req.expires - now))) })}{#if app.pairRequests.length > 1} · {t('auth.moreWaiting', { n: app.pairRequests.length - 1 })}{/if}. {t('auth.onlyKnown')}
+			{t('auth.expiresIn', { s: fmtNumber(Math.max(0, Math.round(req.expires - now))) })}{#if app.pairRequests.length > 1}{' · '}{t('auth.moreWaiting', { n: app.pairRequests.length - 1 })}{/if}. {t('auth.onlyKnown')}
 		</p>
 	</div>
 {/if}

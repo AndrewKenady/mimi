@@ -228,7 +228,7 @@
 					if (phase === 'thinking') phase = 'speaking';
 				} else if (ev.event === 'error') {
 					// the remembered voice chat was deleted (or belongs to someone else now): start a new one
-					if (chatId && !retried && !reply && /not found/i.test(ev.data.message || '')) {
+					if (chatId && !retried && !reply && ev.data.code === 'chat_not_found') {
 						stale = true;
 						break;
 					}
