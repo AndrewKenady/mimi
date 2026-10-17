@@ -1,0 +1,11 @@
+# GRUB settings for the Mimi USB image (read by update-grub when the image is built).
+# The menu is hidden: the stick boots straight into Mimi. To see it, hold Shift (BIOS)
+# or press Esc (UEFI) while the computer starts.
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=1
+GRUB_TIMEOUT_STYLE=hidden
+GRUB_DISTRIBUTOR="Mimi"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=3"
+GRUB_CMDLINE_LINUX=""
+GRUB_DISABLE_RECOVERY=true
+GRUB_DISABLE_OS_PROBER=true

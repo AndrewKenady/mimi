@@ -1,0 +1,10 @@
+[Unit]
+Description=Mimi: try the first content download a minute after boot, then every 15 minutes until it's done
+ConditionPathExists=!/var/lib/mimi/.first-boot-content
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=15min
+
+[Install]
+WantedBy=timers.target

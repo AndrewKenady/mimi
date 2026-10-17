@@ -1,0 +1,11 @@
+[Unit]
+Description=Boot test: report what the boot test checks (listening ports, disk size, failed units)
+ConditionCredential=mimi.boottest
+After=mimi.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/mimi-image/boottest-report
+
+[Install]
+WantedBy=multi-user.target

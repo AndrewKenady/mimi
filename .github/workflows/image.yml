@@ -1,0 +1,104 @@
+name: USB image
+
+# Builds the bootable Mimi USB image (Debian stable + Mimi, no content), boots it in QEMU
+# until Mimi Core answers, and keeps it as a workflow artifact. On a version tag it is also
+# attached to that release, if it's under GitHub's 2 GiB limit for release files.
+# It runs by hand (Actions → USB image → Run workflow) and on tags, never on ordinary pushes.
+# Locally: sudo scripts/image/build.sh, then scripts/image/boot-test.sh <image> (docs/INSTALL.md#bootable-usb).
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: write      # attach the image to the release on tags
+      id-token: write      # build-provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # tags, for the version in the file name
+
+      - name: Make room on the runner
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install the build and test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mmdebstrap debian-archive-keyring dosfstools mtools \
+            e2fsprogs fdisk xz-utils zstd qemu-system-x86 qemu-utils ovmf shellcheck
+
+      - name: Lint the image scripts
+        run: shellcheck scripts/image/*.sh scripts/image/rootfs/usr/local/lib/mimi-image/*
+
+      - name: Build the image
+        run: |
+          sudo scripts/image/build.sh --out "$RUNNER_TEMP/image"
+          img=$(ls "$RUNNER_TEMP"/image/*.img.xz)
+          echo "IMG=$img" >> "$GITHUB_ENV"
+          echo "IMG_NAME=$(basename "$img" .img.xz)" >> "$GITHUB_ENV"
+
+      - name: Let the boot test use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm || echo "No KVM on this runner: the boot test uses software emulation."
+
+      - name: Boot test (UEFI, Secure Boot on)
+        run: scripts/image/boot-test.sh "$IMG" --firmware uefi-secure --out "$RUNNER_TEMP/boot-test"
+
+      - name: Boot test (legacy BIOS)
+        run: scripts/image/boot-test.sh "$IMG" --firmware bios --out "$RUNNER_TEMP/boot-test"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.IMG_NAME }}
+          path: |
+            ${{ runner.temp }}/image/*.img.xz
+            ${{ runner.temp }}/image/*.sha256
+            ${{ runner.temp }}/image/*.packages.txt
+          compression-level: 0   # already compressed
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: boot-test-logs
+          path: |
+            ${{ runner.temp }}/boot-test/*.log
+            ${{ runner.temp }}/boot-test/*.png
+          if-no-files-found: ignore
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ env.IMG }}
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          size=$(stat -c %s "$IMG")
+          if [ "$size" -ge 2147483648 ]; then
+            echo "::warning::The image is $((size / 1048576)) MiB, over GitHub's 2 GiB limit for release files; it's only in this run's artifacts."
+            exit 0
+          fi
+          # The Release workflow creates the release for this tag; wait for it (up to 30 minutes).
+          for _ in $(seq 60); do gh release view "$TAG" >/dev/null 2>&1 && break; sleep 30; done
+          gh release upload "$TAG" "$IMG" "$IMG.sha256" "$RUNNER_TEMP/image/$IMG_NAME.packages.txt" --clobber

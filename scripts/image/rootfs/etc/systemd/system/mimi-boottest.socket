@@ -1,0 +1,13 @@
+[Unit]
+Description=Boot test: let the VM host reach Mimi Core on port 7601
+Documentation=https://github.com/AndrewKenady/mimi/blob/main/scripts/image/boot-test.sh
+# Inert unless the machine was started with the "mimi.boottest" system credential, which
+# scripts/image/boot-test.sh passes to QEMU as an SMBIOS string. On a real PC nothing sets
+# it, so this socket never opens.
+ConditionCredential=mimi.boottest
+
+[Socket]
+ListenStream=7601
+
+[Install]
+WantedBy=sockets.target
