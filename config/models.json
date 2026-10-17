@@ -91,7 +91,7 @@
       "params": "27B",
       "quant": "Q4_K_M",
       "kind": "chat",
-      "file": "models/llm/qwen3.8-27b/Qwen3.8-27B-Q4_K_M.gguf",
+      "file": "models/llm/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_M.gguf",
       "mmproj": "models/llm/qwen3.8-27b/mmproj-F16.gguf",
       "vision": true,
       "tools": true,
@@ -111,7 +111,7 @@
       "params": "35B (3B active, MoE)",
       "quant": "Q4_K_M",
       "kind": "chat",
-      "file": "models/llm/qwen3.6-35b-a3b/Qwen3.6-35B-A3B-Q4_K_M.gguf",
+      "file": "models/llm/qwen3.6-35b-a3b/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
       "vision": false,
       "tools": true,
       "context": 32768,
@@ -134,9 +134,9 @@
     }
   },
   "profiles": {
-    "lite":     { "label": "Lite",     "main": ["qwen3.5-4b"],                                 "quick": ["qwen3.5-4b"], "reader": ["qwen3.5-4b"],               "embed": "bge-m3" },
-    "standard": { "label": "Standard", "main": ["gemma-4-12b", "qwen3.5-9b", "qwen3.5-4b"],     "quick": ["qwen3.5-4b"], "reader": ["qwen3.5-9b", "gemma-4-12b"], "embed": "bge-m3" },
-    "plus":     { "label": "Plus",     "main": ["gemma-4-26b-a4b", "gemma-4-12b"],              "quick": ["qwen3.5-4b"], "reader": ["qwen3.5-9b", "gemma-4-26b-a4b"], "embed": "bge-m3" },
-    "max":      { "label": "Max",      "main": ["qwen3.8-27b", "qwen3.6-35b-a3b", "gemma-4-26b-a4b"], "quick": ["qwen3.5-4b"], "reader": ["qwen3.8-27b", "qwen3.5-9b"], "embed": "bge-m3" }
+    "lite":     { "label": "Lite",     "main": ["qwen3.5-4b"],                                 "quick": ["qwen3.5-4b"], "reader": ["qwen3.5-4b"],               "embed": "bge-m3", "pack": "llm-lite" },
+    "standard": { "label": "Standard", "main": ["gemma-4-12b", "qwen3.5-9b", "qwen3.5-4b"],     "quick": ["qwen3.5-4b"], "reader": ["qwen3.5-9b", "gemma-4-12b"], "embed": "bge-m3", "pack": "llm-standard" },
+    "plus":     { "label": "Plus",     "main": ["gemma-4-26b-a4b", "gemma-4-12b"],              "quick": ["qwen3.5-4b"], "reader": ["qwen3.5-9b", "gemma-4-26b-a4b"], "embed": "bge-m3", "pack": "llm-plus" },
+    "max":      { "label": "Max",      "main": ["qwen3.8-27b", "qwen3.6-35b-a3b", "gemma-4-26b-a4b"], "quick": ["qwen3.5-4b"], "reader": ["qwen3.8-27b", "qwen3.5-9b"], "embed": "bge-m3", "pack": "llm-max" }
   }
 }

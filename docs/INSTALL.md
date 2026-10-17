@@ -32,6 +32,7 @@ else is newer.
 | Linux arm64 (Raspberry Pi 5, Ampere, Jetson…) | **Untested.** The engines are official upstream builds with pinned hashes. |
 | macOS on Apple silicon | **Untested.** Engines are pinned; chat uses llama.cpp's Metal (GPU) build, falling back to the CPU build. |
 | Steam Deck (SteamOS 3, desktop mode) | **Untested**; see [Steam Deck](#steam-deck). |
+| Plus and Max tiers (32 GB+ RAM or a 16 GB+ GPU) | **Untested** on real hardware. The downloads are pinned and hashed, and the model settings follow the upstream recommendations, but no one has run these models in Mimi yet. |
 | Intel Macs, 32-bit, Windows on ARM | Not supported. |
 
 Tried it somewhere new? Open an issue with what worked and what didn't. It helps others.
@@ -42,10 +43,20 @@ Tried it somewhere new? Open an issue with what worked and what didn't. It helps
 |---|---|---|---|
 | **lite** (default) | **≈ 16–24 GB**, depending on the map region (UK 17 GB, US 20 GB, US + Canada 24 GB) | Qwen3.5 4B (chat, tools, reads photos), BGE-M3 search, Whisper small + Kokoro voice · WikiMed, iFixit, survival guides (post-disaster, first aid, water, food, knots), Wikivoyage, the most-read Wikipedia articles (text) · world map to country/city level, your region down to streets, places database | 8 GB RAM, any 64-bit CPU from about 2015 |
 | **standard** | **≈ 210–245 GB**, plus a few hours of local builds | lite + Gemma 4 12B and Qwen3.5 9B, Whisper turbo · all of Wikipedia with pictures, Wiktionary, Stack Exchange (DIY, mechanics, outdoors, cooking, gardening, ham radio, electronics, physics, Super User), TED talks, Gutenberg · the world at town level, your region with every street, Wikipedia on the map, offline driving directions, street-address search (US/Canada) | 16 GB RAM (the reference device); a GPU helps |
+| **plus** | standard **+ 15 GB** | standard + Gemma 4 26B A4B (a mixture of experts with about 4B active parameters, so it stays quick on integrated graphics) | 32 GB RAM, or a GPU with 16 GB+ |
+| **max** | standard **+ 22 GB** | standard + Qwen3.6 35B A3B (about 3B active parameters) | 48 GB+ RAM, or a GPU with 24 GB+ |
 | **none** | ≈ 100 MB | Code and engines only; add packs one by one | |
 
 Every tier is just a list of **packs** (`manifests/lite.json`, `manifests/standard.json`,
 packs in `manifests/packs.json`). See them all with `content list`.
+
+**Plus and Max** add one bigger model to Standard. Mimi detects the hardware and picks the
+Plus or Max profile by itself (Settings → Intelligence shows which), and it uses the Standard
+models until the bigger one is installed; Settings then names the pack to add, for example
+`content add llm-plus`. With a GPU that has 24 GB+ or Apple silicon with 48 GB+, the
+`llm-max-dense` pack (Qwen3.8 27B, which also reads photos) is an alternative for Max; Mimi
+prefers it when it is installed. Without such a GPU it is several times slower than the
+35B A3B.
 
 ## Regions
 

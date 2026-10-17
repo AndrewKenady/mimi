@@ -1,0 +1,9 @@
+{
+  "$comment": "MIMI Max edition: Standard plus Qwen3.6 35B A3B, for 48 GB+ of RAM or a GPU with 24 GB+. About 22 GB more than Standard. With a 24 GB+ GPU or Apple silicon, the llm-max-dense pack (Qwen3.8 27B) can be added too; Mimi prefers it when it is installed.",
+  "edition": "max",
+  "title": "Max",
+  "extends": "standard",
+  "packs": [
+    "llm-max"
+  ]
+}

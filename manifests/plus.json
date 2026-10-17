@@ -1,0 +1,9 @@
+{
+  "$comment": "MIMI Plus edition: Standard plus Gemma 4 26B A4B, for a machine with 32 GB of RAM or a GPU with 16 GB+. About 15 GB more than Standard. Mimi picks the Plus profile on such hardware by itself and falls back to the Standard models until these are installed.",
+  "edition": "plus",
+  "title": "Plus",
+  "extends": "standard",
+  "packs": [
+    "llm-plus"
+  ]
+}

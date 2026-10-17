@@ -605,12 +605,12 @@ footer a { color: var(--ink-2); }
               <tbody>
                 <tr><th scope="row">Lite</th><td>Under 12 GB of memory</td><td>Qwen3.5 4B</td></tr>
                 <tr><th scope="row">Standard</th><td>12 GB of memory or more</td><td>Gemma 4 12B, with Qwen3.5 9B and 4B</td></tr>
-                <tr><th scope="row">Plus <span class="sign plan">Planned</span></th><td>16 GB graphics card, or 28 GB of memory</td><td>Gemma 4 26B-A4B, Gemma 4 12B</td></tr>
-                <tr><th scope="row">Max <span class="sign plan">Planned</span></th><td>24 GB graphics card, or 48 GB of memory</td><td>Larger Qwen and Gemma models</td></tr>
+                <tr><th scope="row">Plus <span class="sign plan">Untested</span></th><td>16 GB graphics card, or 28 GB of memory</td><td>Gemma 4 26B-A4B</td></tr>
+                <tr><th scope="row">Max <span class="sign plan">Untested</span></th><td>24 GB graphics card, or 48 GB of memory</td><td>Qwen3.6 35B-A3B, or Qwen3.8 27B on a big graphics card</td></tr>
               </tbody>
             </table>
           </div>
-          <p class="note">Mimi can already detect Plus and Max hardware, but setup only downloads the Standard models for now. Plus and Max model downloads are planned.</p>
+          <p class="note">Setup downloads the Plus or Max model with <code>-Tier plus</code> or <code>-Tier max</code>, and Settings names the one to add if it&rsquo;s missing. Until then Mimi runs the Standard models. Neither profile has been run on real hardware yet.</p>
           <div class="tbl">
             <table>
               <caption>Standard tier, US + Canada maps (approximate)</caption>
@@ -674,6 +674,7 @@ footer a { color: var(--ink-2); }
                 <tr><td>Docker (Linux x64)</td><td><b>Tested</b> on CPU; GPU passthrough untested</td></tr>
                 <tr><td>macOS on Apple silicon</td><td>Untested; chat uses the Metal (GPU) build, with a CPU fallback</td></tr>
                 <tr><td>Linux arm64, Steam Deck</td><td>Untested</td></tr>
+                <tr><td>Plus and Max profiles (28 GB+ of memory or a 16 GB+ graphics card)</td><td>Untested</td></tr>
               </tbody>
             </table>
           </div>
@@ -701,7 +702,7 @@ footer a { color: var(--ink-2); }
         <li><span class="sign plan">Planned</span><span><b>A bootable Mimi USB and ready-made drive images</b>, so you don&rsquo;t have to run setup yourself.</span></li>
         <li><span class="sign plan">Planned</span><span><b>More languages,</b> for the interface, the library and the eval set. Today it&rsquo;s English only.</span></li>
         <li><span class="sign plan">Planned</span><span><b>Street-address search beyond the US and Canada,</b> and fuel stations and hospitals from OpenStreetMap in &ldquo;near me&rdquo;.</span></li>
-        <li><span class="sign plan">Planned</span><span><b>Plus and Max model downloads</b> for bigger graphics cards, and a long offline field test with measured battery life.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>A long offline field test</b> with measured battery life, and the Plus and Max profiles run on real hardware.</span></li>
       </ul>
     </div>
   </section>

@@ -195,6 +195,8 @@ def install(svc, speed: float) -> None:
     async def ensure(s):
         pass
 
+    mm.unload = mm.preload = lambda: ensure(None)  # a profile change reloads models; the script has none
+
     async def chat_once(*a, **k):
         return "Treating hypothermia in the field"
 

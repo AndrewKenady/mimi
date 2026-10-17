@@ -6,6 +6,7 @@
     powershell -ExecutionPolicy Bypass -File scripts\setup.ps1                  # standard tier (~200 GB)
     powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Tier lite       # ~15 GB + a map region
     powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Tier lite -Region uk
+    powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -Tier plus       # standard + Gemma 4 26B (32 GB RAM)
     powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 -NoContent       # code + engines only
 
   Steps: portable Python (uv) -> Python packages -> engines -> app UI -> MIMI.exe ->
@@ -16,7 +17,7 @@
   Linux and macOS use scripts/install.sh instead; see docs\INSTALL.md.
 #>
 param(
-  [ValidateSet('lite', 'standard')][string]$Tier = 'standard',
+  [ValidateSet('lite', 'standard', 'plus', 'max')][string]$Tier = 'standard',
   [string]$Region = '',
   [switch]$NoContent, [switch]$NoRouting, [switch]$NoAddresses
 )
