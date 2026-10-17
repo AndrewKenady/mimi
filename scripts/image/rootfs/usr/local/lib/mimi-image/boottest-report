@@ -15,6 +15,7 @@ say "core-up"
 say "root-bytes $(findmnt -bnro SIZE /)"
 ss -Htln | while read -r _ _ _ local _; do say "tcp-listen $local"; done
 say "root-password $(passwd -S root | cut -d' ' -f2)"
+say "secure-boot $(mokutil --sb-state 2>&1 | head -n 1)"
 for u in mimi.service mimi-kiosk.service mimi-content.timer ssh.service getty@tty1.service; do
     say "unit $u $(systemctl is-active "$u") $(systemctl is-enabled "$u" 2>/dev/null || echo absent)"
 done

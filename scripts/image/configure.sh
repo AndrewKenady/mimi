@@ -89,6 +89,8 @@ systemctl enable mimi.service mimi-kiosk.service mimi-content.timer mimi-wifi.se
 # Nothing runs on tty1 but the kiosk; no automatic apt downloads (update by writing a new image).
 systemctl disable getty@tty1.service apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
 systemctl mask apt-daily.service apt-daily-upgrade.service
+# No login prompt on a serial port either, even if firmware or a VM puts the console there.
+systemctl mask serial-getty@.service console-getty.service
 systemctl set-default graphical.target
 
 step "Boot loaders: UEFI (shim, Secure Boot) and BIOS"

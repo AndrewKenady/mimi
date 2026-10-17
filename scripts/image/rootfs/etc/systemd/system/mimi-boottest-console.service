@@ -4,7 +4,7 @@ ConditionCredential=mimi.boottest
 After=systemd-journald.service
 
 [Service]
-ExecStart=/usr/bin/journalctl --boot --follow --output=short-monotonic --no-hostname
+ExecStart=/usr/bin/journalctl --boot --follow --lines=all --output=short-monotonic --no-hostname
 StandardInput=null
 StandardOutput=tty
 TTYPath=/dev/ttyS0

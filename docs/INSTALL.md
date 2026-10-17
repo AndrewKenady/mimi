@@ -33,6 +33,7 @@ else is newer.
 | Linux arm64 (Raspberry Pi 5, Ampere, Jetson…) | **Untested.** The engines are official upstream builds with pinned hashes. |
 | macOS on Apple silicon | **Untested.** Engines are pinned; chat uses llama.cpp's Metal (GPU) build, falling back to the CPU build. |
 | Steam Deck (SteamOS 3, desktop mode) | **Untested**; see [Steam Deck](#steam-deck). |
+| [Bootable USB image](#bootable-usb) (x86-64 PCs) | **Boots in QEMU; not yet tried on real hardware.** Built here and booted from an emulated USB stick with UEFI and Secure Boot enforced, plain UEFI and legacy BIOS (software emulation, no GPU): Mimi Core answers about 70 s after power-on, the kiosk browser shows Mimi's first-run screen, the stick grows to fill a bigger disk, nothing listens on the network, and the first-boot download waits for a connection. The "USB image" workflow runs the same test but hasn't run on GitHub yet. Untested: real PCs, Wi-Fi, graphics and Vulkan drivers, sound, cameras, and the first-boot download over a real connection. |
 | Plus and Max tiers (32 GB+ RAM or a 16 GB+ GPU) | **Untested** on real hardware. The downloads are pinned and hashed, and the model settings follow the upstream recommendations, but no one has run these models in Mimi yet. |
 | Addresses outside the US and Canada; fuel stations and hospitals | **Tested** on small real OpenStreetMap areas (central Vaduz, Monaco, Andorra, San Marino, Jersey, Appenzell Innerrhoden, central Heidelberg); not yet on a whole country of the regions below. See [Regions](#regions). |
 | Intel Macs, 32-bit, Windows on ARM | Not supported. |
@@ -218,9 +219,9 @@ own disk. Take the stick out and the computer is as it was.
 
 **You need** a USB stick of at least 8 GB (32 GB or more if it should download the Lite
 tier onto itself; 64 GB is comfortable), and a PC with an x86-64 processor and 8 GB of
-RAM. UEFI and older BIOS PCs both work, and Secure Boot can stay on. AMD and Intel
-graphics are used for the model through Vulkan; NVIDIA cards show the screen but the
-model runs on the processor.
+RAM. UEFI and older BIOS PCs are both supported, and Secure Boot can stay on. The model
+can run on AMD and Intel graphics through Mesa's Vulkan drivers; NVIDIA cards get Mesa's
+open NVK driver, which may work but hasn't been tried. Otherwise it runs on the processor.
 
 ### Writing it to a stick
 

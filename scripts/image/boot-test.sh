@@ -20,6 +20,7 @@
 #   5. the root filesystem grew to fill the bigger disk         (serial log)
 #   6. root's password is locked, and no unit failed            (serial log)
 #   7. the first-boot content service ran and saw it was offline (serial log)
+#   8. with --firmware uefi-secure, the guest reports Secure Boot enabled (serial log)
 # A screenshot of the screen is saved either way.
 #
 # Needs qemu-system-x86_64, qemu-img, OVMF (UEFI firmware; package ovmf), curl, python3.
@@ -190,7 +191,7 @@ while alive && [ "$(date +%s)" -lt "$deadline" ]; do
     sleep 5
 done
 alive || log "QEMU exited early"
-if seen "mimi-kiosk: opening"; then sleep 20; fi # give the browser a moment to draw
+if seen "mimi-kiosk: opening"; then sleep 45; fi # give the browser time to draw the app
 screenshot
 
 # ----------------------------------------------------------------------------- checks
@@ -201,7 +202,11 @@ check() { # description, then a command that succeeds when it holds
     if "$@"; then echo "  ok    $what"; else echo "  FAIL  $what"; fails=$((fails + 1)); fi
 }
 report() { grep -a -o "mimi-boottest: $1.*" "$SERIAL" | sed "s/^mimi-boottest: $1 *//" | tr -d '\r'; }
-ui_built() { curl -fsS --max-time 10 "http://127.0.0.1:$PORT/" 2>/dev/null | grep -q '_app/immutable'; }
+ui_built() { # not curl | grep -q: with pipefail, grep stopping early fails curl
+    local page
+    page=$(curl -fsS --max-time 20 "http://127.0.0.1:$PORT/" 2>/dev/null) || return 1
+    [[ $page == *_app/immutable* ]]
+}
 grew() { local b; b=$(report root-bytes | head -n 1); [ -n "$b" ] && [ "$b" -gt "$((DISK_BYTES * 8 / 10))" ]; }
 loopback_only() {
     local bad
@@ -227,6 +232,9 @@ check "the root filesystem grew to fill the ${DISK_GB} GB disk ($(report root-by
 check "root's password is locked" root_locked
 check "no systemd unit failed" no_failed_units
 check "the first-boot download ran and found no network" seen "mimi-content: offline"
+if [ "$FIRMWARE" = uefi-secure ]; then
+    check "Secure Boot was on ($(report secure-boot | head -n 1))" seen "mimi-boottest: secure-boot SecureBoot enabled"
+fi
 for line in $(report doctor | tr ' ' '_'); do echo "  info  doctor ${line//_/ }"; done
 echo
 echo "Serial log: $SERIAL"
