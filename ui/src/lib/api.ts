@@ -1,4 +1,5 @@
 // Thin client for Mimi Core's HTTP API.
+import { i18n } from './i18n/index.svelte';
 
 export class ApiError extends Error {
 	status: number;
@@ -11,11 +12,13 @@ export class ApiError extends Error {
 type Opts = { method?: string; body?: unknown; form?: FormData; signal?: AbortSignal; raw?: boolean };
 
 export async function api<T = any>(path: string, opts: Opts = {}): Promise<T> {
-	const init: RequestInit = { method: opts.method ?? (opts.body || opts.form ? 'POST' : 'GET'), credentials: 'same-origin', signal: opts.signal };
+	// Core words its own messages (status lines, errors) in the language the interface shows.
+	const headers: Record<string, string> = { 'x-mimi-locale': i18n.locale };
+	const init: RequestInit = { method: opts.method ?? (opts.body || opts.form ? 'POST' : 'GET'), credentials: 'same-origin', signal: opts.signal, headers };
 	if (opts.form) init.body = opts.form;
 	else if (opts.body !== undefined) {
 		init.body = JSON.stringify(opts.body);
-		init.headers = { 'content-type': 'application/json' };
+		headers['content-type'] = 'application/json';
 	}
 	const res = await fetch(path.startsWith('/') ? path : `/api/${path}`, init);
 	if (!res.ok) {
@@ -52,7 +55,7 @@ export async function* stream(path: string, body: unknown, signal?: AbortSignal)
 	const res = await fetch(path, {
 		method: 'POST',
 		credentials: 'same-origin',
-		headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
+		headers: { 'content-type': 'application/json', accept: 'text/event-stream', 'x-mimi-locale': i18n.locale },
 		body: JSON.stringify(body),
 		signal
 	});

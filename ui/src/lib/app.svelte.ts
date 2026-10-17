@@ -1,6 +1,7 @@
 // Global app state (Svelte 5 runes). One instance, imported everywhere as `app`.
 import { api, del, patch, post } from './api';
 import { onHost } from './host';
+import { resolveLocale, setLocale } from './i18n/index.svelte';
 import { applyTheme } from './theme';
 
 export type Toast = { id: number; text: string; kind: 'info' | 'ok' | 'error'; action?: { label: string; run: () => void } };
@@ -190,6 +191,7 @@ class AppState {
 	/** Apply theme, accent, font scale, motion, contrast, density and Well style to <html>. */
 	applyAppearance() {
 		const a = this.settings.user?.appearance;
+		setLocale(resolveLocale(a?.language)); // before sign-in too: the browser's language
 		if (a) applyTheme(a);
 	}
 

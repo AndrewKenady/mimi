@@ -38,7 +38,6 @@ class General(Section):
     require_pin: bool = False
     units: Literal["imperial", "metric"] = "imperial"
     time_format: Literal["12h", "24h"] = "12h"
-    language: str = "en"
 
 
 class Models(Section):
@@ -111,6 +110,7 @@ class Tools(Section):
 
 # --- personal sections -------------------------------------------------------
 class Appearance(Section):
+    language: Literal["auto", "en", "es", "fr"] = "auto"  # auto follows the browser
     theme: Literal["dark", "light", "oled", "auto"] = "dark"
     accent: str = Field("#6EE7D2", pattern=r"^#[0-9a-fA-F]{6}$")
     well_style: Literal["tide", "aurora", "ember", "mono"] = "tide"

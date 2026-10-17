@@ -12,6 +12,7 @@
 	import { SETTINGS_REDIRECTS, SETTINGS_SECTIONS, settingsHref, visibleSections } from '$lib/settings-sections';
 	import { ACCENTS, THEMES, WELL_STYLES, accentName } from '$lib/theme';
 	import { VoicePreview } from '$lib/voice-preview.svelte';
+	import { LOCALES, resolveLocale, t } from '$lib/i18n/index.svelte';
 	import Row from '$components/settings/Row.svelte';
 	import Toggle from '$components/settings/Toggle.svelte';
 	import Segmented from '$components/settings/Segmented.svelte';
@@ -339,6 +340,13 @@
 				<section id="look" aria-labelledby="h-look">
 					{@render group('look', 'Look', () => resetSection('user', 'appearance', 'Appearance'))}
 					<div class="group card">
+						<Row label={t('common.language')} hint={t('common.languageHint')}>
+							<Segmented
+								value={U.appearance.language ?? 'auto'}
+								options={[['auto', t('common.languageAuto', { name: LOCALES[resolveLocale(undefined)] })], ...Object.entries(LOCALES)]}
+								onchange={(v) => usr('appearance', { language: v })}
+							/>
+						</Row>
 						<Row label="Theme" hint={U.appearance.theme === 'auto' ? 'Follows this device: Daylight by day, Deep water at night.' : THEMES.find((t) => t.id === U.appearance.theme)?.hint}>
 							<Segmented value={U.appearance.theme} options={[...THEMES.map((t) => [t.id, t.label] as [string, string]), ['auto', 'Auto']]} onchange={(v) => usr('appearance', { theme: v })} />
 						</Row>
