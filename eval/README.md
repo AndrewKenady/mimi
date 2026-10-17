@@ -9,7 +9,8 @@ eval/
   run.py              asks a live Mimi every question and records answers, sources, tools and timings
   score.py            turns a results file into a Markdown scoreboard + JSON summary; A/B comparisons
   fixtures/           SYNTHETIC results from made-up models, used by the tests (not real numbers)
-  reports/            scoreboards written by score.py
+  reports/            scoreboards written by score.py, published on the site's scoreboard page
+  publish.py          copies reports/ into the site build (the Pages workflow runs it)
   results/            raw run output (git-ignored)
 ```
 
