@@ -1,5 +1,5 @@
 // Text for the home area. Keys are camelCase; see docs/I18N.md.
-import { fmtNumber } from '../index.svelte';
+import { fmtNumber, plural } from '../index.svelte';
 
 export default {
 	// The greeting, by time of day; `name` is empty for a guest.
@@ -38,5 +38,6 @@ export default {
 	noteStatus: (p: { status: string }) => `${p.status}…`,
 	/** Sent to Mimi when a nearby place has no article; it shows in the chat as your own words. */
 	tellMeAbout: 'Tell me about {name}',
-	libraryLine: (p: { collections: number; articles: number }) => `${p.collections} offline collections · ${fmtNumber(p.articles)} articles`
+	libraryLine: (p: { collections: number; articles: number }) =>
+		`${plural(p.collections, { one: '# offline collection', other: '# offline collections' })} · ${plural(p.articles, { one: '# article', other: '# articles' })}`
 };

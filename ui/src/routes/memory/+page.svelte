@@ -197,8 +197,8 @@
 							<span class="mt">
 								<span>{#if m.pinned}<Pin size={13} class="pin" aria-label={t('memory.pinned')} />{/if}{m.text}</span>
 								<small>
-									{timeAgo(m.created_at)}{#if m.use_count} · {t('memory.used', { n: m.use_count })}{/if}
-									{#if m.source_chat_id} · <a href="/chat/{m.source_chat_id}"><MessagesSquare size={11} aria-hidden="true" /> {t('memory.fromChat')}</a>{/if}
+									{timeAgo(m.created_at)}{#if m.use_count}{' · '}{t('memory.used', { n: m.use_count })}{/if}
+									{#if m.source_chat_id}{' · '}<a href="/chat/{m.source_chat_id}"><MessagesSquare size={11} aria-hidden="true" /> {t('memory.fromChat')}</a>{/if}
 								</small>
 							</span>
 							<button class="icon-btn sm" onclick={() => pin(m)} title={m.pinned ? t('memory.unpin') : t('memory.alwaysUse')} aria-label={m.pinned ? t('memory.unpin') : t('memory.pinItem')} aria-pressed={!!m.pinned}>{#if m.pinned}<PinOff size={15} aria-hidden="true" />{:else}<Pin size={15} aria-hidden="true" />{/if}</button>

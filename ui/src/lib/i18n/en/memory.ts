@@ -63,7 +63,10 @@ export default {
 
 	// Erase everything
 	wipeTitle: 'Erase every memory?',
-	wipeBody: (p: { n: number }) => `Mimi will forget all ${p.n} things it knows about you. This can’t be undone. You can export them first.`,
+	wipeBody: (p: { n: number }) =>
+		p.n === 1
+			? 'Mimi will forget the one thing it knows about you. This can’t be undone. You can export it first.'
+			: `Mimi will forget all ${p.n} things it knows about you. This can’t be undone. You can export them first.`,
 	wipeConfirm: 'Erase all',
 	wiped: 'All memories erased'
 };

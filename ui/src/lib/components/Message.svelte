@@ -229,8 +229,8 @@
 								<q>{f.sentence}</q>
 								<span class="why">
 									<button class="linkish" onclick={() => openSource(sources.find((x) => x.n === f.n))}>{sourceName(f.n)}</button>
-									{#if f.reasons?.length} · {f.reasons.join('; ')}{/if}
-									{#if f.better_source} · {t('chat.betterSource', { n: f.better_source })}{/if}
+									{#if f.reasons?.length}{' · '}{f.reasons.join('; ')}{/if}
+									{#if f.better_source}{' · '}{t('chat.betterSource', { n: f.better_source })}{/if}
 								</span>
 							</li>
 						{/each}

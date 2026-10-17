@@ -369,7 +369,7 @@
 		{:else}
 			<button class="typeit" onclick={openTyping}><Keyboard size={14} aria-hidden="true" /> {t('voice.typeInstead')}</button>
 		{/if}
-		<p class="fine">{fine}{#if app.input === 'pad'} · {t('voice.padClose')}{/if}</p>
+		<p class="fine">{fine}{#if app.input === 'pad'}{' · '}{t('voice.padClose')}{/if}</p>
 	</div>
 </div>
 

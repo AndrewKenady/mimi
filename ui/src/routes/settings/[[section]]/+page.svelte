@@ -545,7 +545,7 @@
 									{#if models?.status?.model === m.id}<span class="tag live">{t('settings.modelStatus', { status: models.status.status })}</span>{/if}
 									{#if !m.installed}<span class="tag">{t('settings.notInstalled')}</span>{/if}
 								</div>
-								<small>{m.publisher} · {m.params} · {m.quant} · {m.license}{#if m.size_gb} · {t('settings.sizeGb', { n: num(m.size_gb) })}{/if}{#if m.vision} · {t('settings.seesImages')}{/if}</small>
+								<small>{m.publisher} · {m.params} · {m.quant} · {m.license}{#if m.size_gb}{' · '}{t('settings.sizeGb', { n: num(m.size_gb) })}{/if}{#if m.vision}{' · '}{t('settings.seesImages')}{/if}</small>
 								<p>{t('settings.modelBlurb', { id: m.id, text: m.blurb })}</p>
 								{#if m.installed && models?.status?.model !== m.id}
 									<button

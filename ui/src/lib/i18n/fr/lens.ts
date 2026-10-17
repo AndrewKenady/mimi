@@ -29,5 +29,10 @@ export default {
 	askPlaceholder: 'Posez votre question…',
 	askLabel: 'Votre question sur cette photo',
 	ask: 'Demander',
-	newPhoto: 'Nouvelle photo'
+	newPhoto: 'Nouvelle photo',
+	// The buttons' requests appear in the chat as the user's own words (French uses tu, as on the Map).
+	promptExplain: 'Qu’y a-t-il sur cette photo\xa0? Explique-le clairement.',
+	promptTranslate: 'Traduis tout le texte de cette photo en français, puis explique ce qui n’est pas clair.',
+	promptIdentify: 'Qu’est-ce que c’est\xa0? Identifie-le et compare-le avec une image de référence de la bibliothèque si tu peux.',
+	promptSummarize: 'Résume ce document et liste tout ce que je dois faire.',
 } satisfies Messages['lens'];

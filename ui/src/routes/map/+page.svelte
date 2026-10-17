@@ -655,8 +655,8 @@
 				<div class="rh">
 					<div>
 						<span class="rtime">{route.duration}</span>
-						<span class="rdist">{routeDist(route.distance)}{#if route.via?.length} · {t('map.via', { roads: route.via.join(', ') })}{/if}</span>
-						<small class="faint">{t('map.routeTo', { name: route.to.name })}{#if route.has_toll} · {t('map.tolls')}{/if}{#if route.has_ferry} · {t('map.ferry')}{/if} · {t('map.offlineEstimate')}</small>
+						<span class="rdist">{routeDist(route.distance)}{#if route.via?.length}{' · '}{t('map.via', { roads: route.via.join(', ') })}{/if}</span>
+						<small class="faint">{t('map.routeTo', { name: route.to.name })}{#if route.has_toll}{' · '}{t('map.tolls')}{/if}{#if route.has_ferry}{' · '}{t('map.ferry')}{/if} · {t('map.offlineEstimate')}</small>
 					</div>
 					<button class="icon-btn sm" onclick={clearRoute} aria-label={t('map.clearRoute')}><X size={15} /></button>
 				</div>

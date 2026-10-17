@@ -3,7 +3,7 @@
 	import { onDestroy } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { upload } from '$lib/api';
-	import { fmtNumber, i18n, t, type Locale } from '$lib/i18n/index.svelte';
+	import { fmtNumber, t } from '$lib/i18n/index.svelte';
 	import { Camera, ImageUp, ScanText, Sparkles, Languages, HelpCircle, Copy, Check, RotateCcw, Loader, SwitchCamera, BookImage } from '@lucide/svelte';
 
 	let video: HTMLVideoElement | undefined = $state();
@@ -94,7 +94,6 @@
 	}
 
 	// The prompts the buttons send stay in English; Translate asks for the interface language.
-	const LANGUAGE_NAME: Record<Locale, string> = { en: 'English', es: 'Spanish', fr: 'French' };
 
 	const polys = $derived((ocr?.lines || []).filter((l: any) => l.box).map((l: any) => ({ text: l.text, pts: l.box.map((p: number[]) => p.join(',')).join(' ') })));
 </script>
@@ -158,10 +157,10 @@
 				<section class="card askcard">
 					<span class="label">{t('lens.askTitle')}</span>
 					<div class="actions">
-						<button class="act" onclick={() => ask('What is in this photo? Explain it clearly.')}><Sparkles size={17} /> {t('lens.explain')}</button>
-						<button class="act" onclick={() => ask(`Translate all the text in this photo into ${LANGUAGE_NAME[i18n.locale]}, then explain anything unclear.`)}><Languages size={17} /> {t('lens.translate')}</button>
-						<button class="act" onclick={() => ask('What is this? Identify it, and compare it with a reference picture from the library if you can.')}><BookImage size={17} /> {t('lens.identify')}</button>
-						<button class="act" onclick={() => ask('Summarize this document and list anything I need to act on.')}><HelpCircle size={17} /> {t('lens.summarize')}</button>
+						<button class="act" onclick={() => ask(t('lens.promptExplain'))}><Sparkles size={17} /> {t('lens.explain')}</button>
+						<button class="act" onclick={() => ask(t('lens.promptTranslate'))}><Languages size={17} /> {t('lens.translate')}</button>
+						<button class="act" onclick={() => ask(t('lens.promptIdentify'))}><BookImage size={17} /> {t('lens.identify')}</button>
+						<button class="act" onclick={() => ask(t('lens.promptSummarize'))}><HelpCircle size={17} /> {t('lens.summarize')}</button>
 					</div>
 					<form class="custom" onsubmit={(e) => { e.preventDefault(); if (prompt.trim()) ask(prompt.trim()); }}>
 						<input class="input" placeholder={t('lens.askPlaceholder')} aria-label={t('lens.askLabel')} bind:value={prompt} />

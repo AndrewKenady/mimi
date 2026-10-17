@@ -290,4 +290,7 @@ FR: dict[str, str] = {
     "Dismiss this on the device.": "Ignorez-le sur l'appareil.",
 }
 
+# French typography, as in the interface: the curly apostrophe (l’appareil, n’est).
+FR = {k: v.replace("'", "’") for k, v in FR.items()}
+
 MESSAGES: dict[str, dict[str, str]] = {"es": ES, "fr": FR}

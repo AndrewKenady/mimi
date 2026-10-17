@@ -32,5 +32,10 @@ export default {
 	askPlaceholder: 'Or ask your own question…',
 	askLabel: 'Your question about this photo',
 	ask: 'Ask',
-	newPhoto: 'New photo'
+	newPhoto: 'New photo',
+	// The buttons' requests appear in the chat as the user's own words (French uses tu, as on the Map).
+	promptExplain: 'What is in this photo? Explain it clearly.',
+	promptTranslate: 'Translate all the text in this photo into English, then explain anything unclear.',
+	promptIdentify: 'What is this? Identify it, and compare it with a reference picture from the library if you can.',
+	promptSummarize: 'Summarize this document and list anything I need to act on.',
 };
