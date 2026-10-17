@@ -45,7 +45,7 @@ using Microsoft.Win32;
 [assembly: AssemblyDescription("Mimi - Machine Intelligence, Minus the Internet")]
 [assembly: AssemblyProduct("Mimi")]
 [assembly: AssemblyCompany("Mimi contributors")]
-[assembly: AssemblyCopyright("Copyright (c) 2026 Andrew Kenady and Mimi contributors. MIT License.")]
+[assembly: AssemblyCopyright("Copyright (c) 2026 Drew K. Kennedy and Mimi contributors. MIT License.")]
 [assembly: AssemblyVersion("0.1.0.0")]
 [assembly: AssemblyFileVersion("0.1.0.0")]
 [assembly: AssemblyInformationalVersion("0.1.0")]
