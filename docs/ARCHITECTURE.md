@@ -7,26 +7,26 @@ Mimi is three pieces that live in one portable folder:
  │ WinForms + WebView2 window: full screen, tray,     │   ───────────────┐
  │ splash, hotkeys; starts Core if it isn't running   │                  │ https://mimi.local
  └──────────────────────┬─────────────────────────────┘                  ▼
-                        │ http://127.0.0.1:7600          ┌──── share server (:443, local CA) ────┐
+                        │ http://127.0.0.1:7600           ┌──── share server (:443, local CA) ────┐
                         ▼                                 │  same FastAPI app, guests & users     │
  ┌──────────────── Mimi Core (core/mimi) ─────────────────┴───────────────────────────────────────┐
  │ FastAPI · SQLite (WAL) · event bus → WebSocket /api/events · SSE chat streams                  │
- │                                                                                                 │
- │ chat.py ── tool loop ──► tools.py: search_library · read_article · show_reference_image         │
- │    │                              search_my_files · remember · where_am_i · nearby_places       │
- │    │                              get_directions · calculate · community tools (tools/*.py)     │
- │    ▼                                                                                            │
- │ llm.py  ModelManager ──► llama-server (Vulkan/CUDA/CPU, --fit) :7610   one chat model resident  │
- │                      └─► llama-server --embedding (CPU build)   :7611   bge-m3, idles out        │
- │ kiwix.py KiwixService ──► kiwix-serve :7620 over zim/*.zim  → passages + reader HTML             │
- │ memory.py · mydocs.py (FTS5 + vectors) · scribe.py (faster-whisper) · voice.py (Kokoro)         │
- │ lens.py (RapidOCR) · location.py (GPS/NMEA, geodata.py) · routing.py (Valhalla) · share.py       │
- └─────────────────────────────────────────────────────────────────────────────────────────────────┘
+ │                                                                                                │
+ │ chat.py ── tool loop ──► tools.py: search_library · read_article · show_reference_image        │
+ │    │                              search_my_files · remember · where_am_i · nearby_places      │
+ │    │                              get_directions · calculate · community tools (tools/*.py)    │
+ │    ▼                                                                                           │
+ │ llm.py  ModelManager ──► llama-server (Vulkan/CUDA/CPU, --fit) :7610   one chat model resident │
+ │                      └─► llama-server --embedding (CPU build)   :7611   bge-m3, idles out      │
+ │ kiwix.py KiwixService ──► kiwix-serve :7620 over zim/*.zim  → passages + reader HTML           │
+ │ memory.py · mydocs.py (FTS5 + vectors) · scribe.py (faster-whisper) · voice.py (Kokoro)        │
+ │ lens.py (RapidOCR) · location.py (GPS/NMEA, geodata.py) · routing.py (Valhalla) · share.py     │
+ └────────────────────────────────────────────────────────────────────────────────────────────────┘
                         ▲ static files (ui/build)
  ┌──────────────── Mimi app (ui/) ────────────────────┐
  │ SvelteKit SPA · Svelte 5 runes · Tailwind 4        │
- │ Home · Chat · Library · Map · Scribe · Lens ·       │
- │ Memory · Settings · Voice · onboarding · gamepad    │
+ │ Home · Chat · Library · Map · Scribe · Lens ·      │
+ │ Memory · Settings · Voice · onboarding · gamepad   │
  └────────────────────────────────────────────────────┘
 ```
 
