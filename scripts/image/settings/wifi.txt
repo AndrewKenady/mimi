@@ -1,0 +1,11 @@
+# Mimi Wi-Fi
+#
+# To let Mimi download its books, maps and model over Wi-Fi, write your network's
+# name after "network=" and its password after "password=", save this file, and
+# start the computer from the stick. Leave the password empty for an open network.
+#
+# Mimi saves the network at startup, then puts this blank form back so the password
+# doesn't stay on the stick. A network cable or a phone sharing its connection over
+# USB works without this file.
+network=
+password=

@@ -1,0 +1,29 @@
+#!/bin/sh
+# The kiosk's only program, started by cage (mimi-kiosk.service) as the unprivileged
+# "kiosk" user: wait for Mimi Core, then show it full screen.
+set -u
+url=http://127.0.0.1:7600/
+
+i=0
+until curl -fsS -o /dev/null --max-time 2 "${url}api/ping" 2>/dev/null; do
+    i=$((i + 1))
+    if [ "$i" -ge 300 ]; then
+        echo "mimi-kiosk: Mimi Core hasn't answered for 5 minutes; opening the page anyway"
+        break
+    fi
+    sleep 1
+done
+
+echo "mimi-kiosk: opening $url"
+# Policies (microphone and camera for Mimi, no sign-in, sync, translation or developer
+# tools) are in /etc/chromium/policies/managed/mimi.json.
+exec chromium \
+    --kiosk \
+    --ozone-platform=wayland \
+    --no-first-run \
+    --no-default-browser-check \
+    --noerrdialogs \
+    --hide-crash-restore-bubble \
+    --password-store=basic \
+    --autoplay-policy=no-user-gesture-required \
+    "$url"

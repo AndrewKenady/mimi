@@ -9,12 +9,13 @@ time later.
 | **Linux, macOS** | `curl -fsSL https://raw.githubusercontent.com/AndrewKenady/mimi/main/scripts/install.sh \| sh` |
 | **Windows 10/11** | `git clone https://github.com/AndrewKenady/mimi` then `powershell -ExecutionPolicy Bypass -File mimi\scripts\setup.ps1 -Tier lite` |
 | **Docker** | `docker compose up -d` in a checkout, then `docker compose run --rm mimi content add lite` |
+| **Any PC, nothing to install** | Write the [bootable USB image](#bootable-usb) to a stick and start the PC from it |
 
-Then open **http://localhost:7600**.
+Then open **http://localhost:7600** (the USB stick opens Mimi by itself).
 
 - [What's tested](#whats-tested)
 - [Tiers](#tiers) · [Regions](#regions)
-- [Linux and macOS](#linux-and-macos) · [Windows](#windows) · [Docker](#docker) · [Steam Deck](#steam-deck)
+- [Linux and macOS](#linux-and-macos) · [Windows](#windows) · [Docker](#docker) · [Steam Deck](#steam-deck) · [Bootable USB](#bootable-usb)
 - [Adding and removing content](#adding-and-removing-content) · [Content on another drive](#content-on-another-drive)
 - [Portable drive](#portable-drive) · [Updating](#updating) · [Uninstalling](#uninstalling)
 - [How downloads are verified](#how-downloads-are-verified) · [Troubleshooting](#troubleshooting)
@@ -186,6 +187,123 @@ shared memory the lite models fit comfortably. To keep content on the microSD ca
 `MIMI_CONTENT` (below), ideally on an ext4-formatted card (exFAT works; FAT32 can't hold
 files over 4 GB). If something in SteamOS gets in the way, the same installer works inside
 a distrobox container (`distrobox create -i debian:12`).
+
+## Bootable USB
+
+A ready-made disk image that starts an ordinary 64-bit PC straight into Mimi, full
+screen, with nothing to set up. It is a minimal Debian 13 ("trixie") with Mimi installed
+the same way `install.sh --tier none` installs it, and it never touches the computer's
+own disk. Take the stick out and the computer is as it was.
+
+**You need** a USB stick of at least 8 GB (32 GB or more if it should download the Lite
+tier onto itself; 64 GB is comfortable), and a PC with an x86-64 processor and 8 GB of
+RAM. UEFI and older BIOS PCs both work, and Secure Boot can stay on. AMD and Intel
+graphics are used for the model through Vulkan; NVIDIA cards show the screen but the
+model runs on the processor.
+
+### Writing it to a stick
+
+Download `mimi-<version>-usb-x86_64.img.xz` and its `.sha256` from the
+[release](https://github.com/AndrewKenady/mimi/releases) (or from the artifacts of a
+"USB image" workflow run). Writing it erases everything on the stick.
+
+- **balenaEtcher** (Windows, macOS, Linux): *Flash from file*, pick the `.img.xz`, pick
+  the stick, *Flash*. It unpacks the file as it writes.
+- **Rufus** (Windows): pick the stick under *Device*, *SELECT* the `.img.xz`, *START*.
+  Rufus writes disk images as they are (DD mode).
+- **dd** (Linux, macOS): check the download, find the stick (`lsblk` on Linux,
+  `diskutil list` on macOS) and write it to the whole device, not a partition:
+
+  ```sh
+  sha256sum -c mimi-<version>-usb-x86_64.img.xz.sha256      # macOS: shasum -a 256 -c
+  xz -dc mimi-<version>-usb-x86_64.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
+  # macOS: diskutil unmountDisk /dev/diskN, then ... | sudo dd of=/dev/rdiskN bs=4m
+  ```
+
+### First boot
+
+1. Plug the stick into the PC while it's off, turn it on, and choose the stick in the
+   boot menu (usually F12, F11, F10, F9 or Esc right after power-on; some PCs call it
+   "UEFI: <stick name>").
+2. On the first start the stick grows its main partition to fill itself, which takes a
+   few seconds. There is no menu or login: Mimi opens full screen. The first visit creates
+   the owner account, as on any install.
+3. The screen counts as "the device", so whoever sits at it is signed in as the owner. If
+   other people can reach the PC, turn on Settings → Require PIN.
+
+Secure Boot: the stick boots through Debian's shim, which is signed by Microsoft's
+third-party UEFI certificate. Most PCs trust it; some Windows 11 "Secured-core" laptops
+don't by default. If the PC refuses the stick, allow "Microsoft 3rd-party UEFI CA" in the
+firmware settings, or turn Secure Boot off.
+
+### Content
+
+The image has no books, maps or models: they are 16 to 245 GB, and GitHub release files
+are limited to 2 GB. Instead, a stick built without content downloads the **Lite tier**
+(US map region) by itself, in the background, as soon as it's online, using the same
+content manager as `mimi content add lite`. Mimi runs meanwhile and shows its usual empty
+and indexing states; when the download is complete, Mimi Core restarts once to load
+everything. Settings → Logs → `content-download.log` shows the progress. Without a
+connection it checks again every 15 minutes, and a download cut short by a reboot resumes.
+
+- **Getting online**: a network cable, or an Android phone sharing its connection over
+  USB (USB tethering), works with no setup. For **Wi-Fi**, plug the stick into any
+  computer before starting from it: it shows a small drive called **MIMI**. Open
+  `wifi.txt` there, fill in the network name and password, and save. At the next start
+  Mimi saves the network and puts the blank form back, so the password doesn't stay on
+  the stick.
+- **Space**: Lite needs about 16 to 24 GB on top of the system, so the download only
+  starts on a stick of 32 GB or more. On a smaller one it says there isn't room and stops
+  trying; Mimi still runs, without content.
+- **More content** can't be added from the stick's screen yet (there is no shell). Build
+  your own stick with the content included, below.
+
+### Building your own
+
+The image is built by one script from this repository, on Debian 12+ or Ubuntu 22.04+
+(about 15 GB of free disk, root for loop devices and mounts):
+
+```sh
+sudo apt-get install mmdebstrap debian-archive-keyring dosfstools mtools e2fsprogs fdisk xz-utils zstd
+sudo scripts/image/build.sh                             # the published image, no content
+sudo scripts/image/build.sh --tier lite --region uk     # Lite included: a stick that never needs the internet
+scripts/image/build.sh --help
+```
+
+`--tier` bakes a tier's content into the image (for Lite about 25 GB, so it needs a
+32 GB stick and about 60 GB free while building); those images are built locally, never
+in CI. `--first-boot none` makes a stick that never downloads by itself. Every Debian
+package comes from `scripts/image/packages.txt`; the files the image adds to Debian
+(services, kiosk, browser policy) are in `scripts/image/rootfs/`, and the steps run inside
+the image are in `scripts/image/configure.sh`. Each build also writes a list of the Debian
+and Python packages it contains.
+
+`scripts/image/boot-test.sh <image>` boots the result in QEMU, as CI does: it waits for
+`GET /api/ping`, then checks that the built app is served, the kiosk opened the browser,
+nothing listens on the network, the root partition grew, root's password is locked and no
+service failed. It needs `qemu-system-x86 qemu-utils ovmf`, and uses KVM when it can.
+
+### What's on the stick, and what isn't
+
+- **Debian 13** with its kernel, CPU microcode and the firmware Debian's own live images
+  ship for PCs (AMD, Intel and NVIDIA graphics; Intel, Realtek, Atheros, Broadcom and
+  MediaTek Wi-Fi; laptop sound). See [LICENSING.md](LICENSING.md#bootable-usb-image).
+- **Mimi Core** runs as its own unprivileged user (`mimi`) under systemd, on
+  `127.0.0.1:7600` only. Sharing with phones (Settings → Share) stays off until the owner
+  turns it on.
+- **The screen** is [cage](https://github.com/cage-kiosk/cage) (a Wayland compositor that
+  shows one app) running Chromium in kiosk mode, as a second unprivileged user (`kiosk`)
+  that is signed in automatically and has no shell. Chromium may use the microphone and
+  camera for Mimi only.
+- **No SSH, no root password, no other login.** No account has a password, and no login
+  prompt appears on the other consoles.
+- **Not encrypted.** Anyone holding the stick can read what's on it, accounts and chats
+  included (see [THREAT_MODEL.md](THREAT_MODEL.md)).
+- **No automatic updates.** To update, write a newer image; that erases the stick,
+  including accounts and downloaded content.
+- **Known gaps**: the clock shows UTC, the keyboard layout is US, USB drives aren't opened
+  automatically (so files can't be picked from one), and there is no on-screen way to
+  change the Wi-Fi or shut down other than the power button.
 
 ## Adding and removing content
 

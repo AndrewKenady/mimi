@@ -1,0 +1,9 @@
+[Unit]
+Description=Boot test: forward port 7601 to Mimi Core (127.0.0.1:7600)
+Requires=mimi-boottest.socket
+After=mimi-boottest.socket
+
+[Service]
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:7600
+DynamicUser=yes
+PrivateTmp=yes

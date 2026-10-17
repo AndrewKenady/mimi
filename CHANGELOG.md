@@ -45,6 +45,10 @@ The release that makes Mimi checkable, installable anywhere and accessible.
   - on Windows, Core puts itself in its kill-on-close job, so plugin and PDF workers can't outlive it either.
 - **A portable Mimi keeps each computer's phone certificate.** On Windows the key is sealed to one PC, so moving the drive parks that certificate, and it comes back when the drive does.
 - **Windows on ARM uses the x64 engines** under emulation.
+- **A bootable USB image.** Write it to a stick with Rufus, balenaEtcher or `dd`, and any x86-64 PC (UEFI with Secure Boot on, or legacy BIOS) starts straight into Mimi, full screen, with nothing to set up.
+  - It's a minimal Debian 13 built by one script (`scripts/image/build.sh`): Mimi is installed as `install.sh --tier none` would, runs as its own user under systemd, and shows on screen through cage and Chromium in kiosk mode. There is no SSH, no account has a password, and sharing stays off until the owner turns it on.
+  - The published image has no content. On first boot it downloads the Lite tier in the background once it's online, over a cable, USB tethering, or Wi-Fi written into a `wifi.txt` that the stick shows on any computer. `--tier lite` builds a stick with the content included, locally.
+  - The "USB image" workflow builds it on demand and for tags, boots it in QEMU until Mimi Core answers, and attaches it to the release when it's under 2 GB. It has been booted in QEMU, not yet on real hardware.
 
 ### Design system and accessibility
 - **Token scales** for type, space, radius, elevation, layers and motion, documented in `docs/DESIGN_SYSTEM.md` with a living style guide at `/dev/design`.

@@ -1,0 +1,31 @@
+[Unit]
+Description=Mimi on the screen (cage and Chromium, full screen on tty1)
+Documentation=https://github.com/AndrewKenady/mimi/blob/main/docs/INSTALL.md#bootable-usb
+# The kiosk user is "logged in" by this service, without a password and without a shell:
+# PAM opens a logind session on seat0, which grants the screen, keyboard, mouse, sound and
+# camera while it runs. There is no other automatic login, and no getty on tty1.
+After=systemd-user-sessions.service plymouth-quit-wait.service mimi.service
+Wants=mimi.service
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+
+[Service]
+User=kiosk
+PAMName=mimi-kiosk
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+Environment=XDG_SESSION_TYPE=wayland
+# cage runs exactly one program and exits with it; VT switching is off (no -s).
+ExecStart=/usr/bin/cage -- /usr/local/lib/mimi-image/kiosk-browser
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical.target

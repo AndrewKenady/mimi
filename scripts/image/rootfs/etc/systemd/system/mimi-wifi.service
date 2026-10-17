@@ -1,0 +1,13 @@
+[Unit]
+Description=Mimi: join the Wi-Fi network written in wifi.txt on the stick's MIMI partition
+Documentation=https://github.com/AndrewKenady/mimi/blob/main/docs/INSTALL.md#bootable-usb
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/mimi-image/wifi-from-stick
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

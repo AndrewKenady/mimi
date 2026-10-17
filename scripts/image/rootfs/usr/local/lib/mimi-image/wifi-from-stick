@@ -1,0 +1,53 @@
+#!/bin/sh
+# mimi-wifi.service: the stick's small FAT partition (label MIMI) can be opened on any
+# computer. If its wifi.txt names a network, save that network in NetworkManager and
+# put the blank form back, so the password doesn't stay readable on the stick.
+set -u
+say() { echo "mimi-wifi: $*"; }
+form=/usr/local/share/mimi-image/settings/wifi.txt
+
+root_dev=$(findmnt -nvo SOURCE /)
+disk=$(lsblk -ndo PKNAME "$root_dev")
+part=$(lsblk -lnpo NAME,PARTLABEL "/dev/$disk" | awk '$2 == "mimi-settings" { print $1; exit }')
+if [ -z "$part" ]; then
+    say "no MIMI partition on /dev/$disk; nothing to do."
+    exit 0
+fi
+
+mnt=$(mktemp -d)
+if ! mount -t vfat -o nosuid,nodev,noexec,umask=0077,flush "$part" "$mnt"; then
+    say "couldn't open the MIMI partition ($part)."
+    rmdir "$mnt"
+    exit 0
+fi
+trap 'umount "$mnt"; rmdir "$mnt"' EXIT
+
+file="$mnt/wifi.txt"
+[ -f "$file" ] || exit 0
+# A value is everything after "name=" on its line, without Windows line endings or a
+# byte-order mark. Values are only ever passed to nmcli as single arguments.
+value() { sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "$file" | sed -n "s/^$1=//p" | head -n 1; }
+ssid=$(value network)
+password=$(value password)
+[ -n "$ssid" ] || exit 0
+
+nmcli connection delete mimi-wifi >/dev/null 2>&1 || true
+if [ -n "$password" ]; then
+    out=$(nmcli connection add type wifi con-name mimi-wifi ifname '*' ssid "$ssid" \
+        wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$password" 2>&1)
+else
+    out=$(nmcli connection add type wifi con-name mimi-wifi ifname '*' ssid "$ssid" 2>&1)
+fi
+rc=$?
+if [ "$rc" -ne 0 ]; then
+    say "couldn't save Wi-Fi network \"$ssid\": $out"
+    say "wifi.txt is left as it is; correct it (a WPA password has 8 to 63 characters) and restart."
+    exit 0
+fi
+
+{
+    cat "$form"
+    echo "#"
+    echo "# Last saved: \"$ssid\", $(date -u '+%Y-%m-%d %H:%M UTC'). The password was removed from this file."
+} >"$file.new" && mv "$file.new" "$file"
+say "saved Wi-Fi network \"$ssid\" and cleared wifi.txt."
