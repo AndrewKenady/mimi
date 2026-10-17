@@ -2,15 +2,14 @@
 // the recorded timings: sources first, the "From the source" excerpt while Mimi reads, then
 // the answer at the reference handheld's speed (about 8 tokens/s). "Skip the wait" speeds
 // the clock up, mid-answer too.
+import { t } from '../i18n/index.svelte';
 import { chatById, json, newChat, newId, R, save, touchChat } from './core';
 import { demo } from './state.svelte';
 
 export type Turn = { id: string; question: string; title: string; match: string[][]; events: [number, string, any][]; thread: any };
 
-export const HONEST = (questions: string[]) =>
-	"This demo plays recorded answers, so I can't look that up here. Try one of these:\n\n" +
-	questions.map((q) => `- ${q}`).join('\n') +
-	"\n\nOn a real Mimi, I'd search the offline library on your device and answer with sources.";
+/** The reply to a question with no recording, in the interface language; the questions it offers are the recorded (English) ones. */
+export const HONEST = (questions: string[]) => t('demo.honest', { questions });
 
 const norm = (s: string) =>
 	s

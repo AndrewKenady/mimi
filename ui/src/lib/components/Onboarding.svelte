@@ -7,8 +7,9 @@
 	import { motion } from '$lib/motion';
 	import { radioGroup } from '$lib/roving';
 	import { VoicePreview } from '$lib/voice-preview.svelte';
+	import { LOCALES, fmtNumber, i18n, setLocale, t, type Locale } from '$lib/i18n/index.svelte';
 	import Well from './Well.svelte';
-	import { ArrowLeft, ArrowRight, Check, Volume2, Lock, Sparkles, Keyboard, Gamepad2, AudioLines, Menu } from '@lucide/svelte';
+	import { ArrowLeft, ArrowRight, Check, Volume2, Lock, Sparkles, Keyboard, Gamepad2, AudioLines, Menu, Languages } from '@lucide/svelte';
 
 	let step = $state(0);
 	let name = $state('');
@@ -21,6 +22,8 @@
 	let theme = $state('dark');
 	let accent = $state<string>(DEFAULT_ACCENT);
 	let memory = $state('ask');
+	// Picked on the first step, before the owner account exists: shown at once, saved once there is an account to save it to.
+	let language = $state<Locale | null>(null);
 	const sample = new VoicePreview();
 
 	const TOTAL = 5;
@@ -36,10 +39,16 @@
 		if (canGoBack) go(step - 1);
 	}
 
+	function pickLanguage(l: Locale) {
+		language = l;
+		if (app.me) app.setSetting('user', 'appearance', { language: l }).catch(() => {}); // setSetting reports failures
+		else setLocale(l);
+	}
+
 	async function createOwner() {
 		error = '';
-		if (!name.trim()) return (error = 'Please tell me your name.');
-		if (usePin && !/^\d{4,8}$/.test(pin)) return (error = 'A PIN is 4 to 8 digits.');
+		if (!name.trim()) return (error = t('onboarding.errName'));
+		if (usePin && !/^\d{4,8}$/.test(pin)) return (error = t('onboarding.errPin'));
 		busy = true;
 		try {
 			await post('/api/auth/setup', { name: name.trim(), pin: usePin ? pin : null });
@@ -49,6 +58,8 @@
 			app.me = b.me;
 			if (b.settings) app.settings = b.settings;
 			app.applyAppearance();
+			// The language picked on the first step becomes the owner's own setting.
+			if (language) await app.setSetting('user', 'appearance', { language }).catch(() => {});
 			applyTheme({ theme, accent }); // keep what was previewed before the account existed
 			go(2);
 			// Fetched in the background: by the voice step it's ready, and nobody waits on it.
@@ -64,7 +75,7 @@
 
 	function previewVoice(id: string) {
 		voice = id;
-		sample.play(id, `Hi ${name.trim() || 'there'}, I'm Mimi. Everything I know lives right here on this device.`);
+		sample.play(id, name.trim() ? t('onboarding.sample', { name: name.trim() }) : t('onboarding.sampleNoName'));
 	}
 
 	// Steps advance at once; choices save in the background (setSetting reports failures).
@@ -79,13 +90,13 @@
 	async function finish() {
 		await app.setSetting('user', 'privacy', { memory });
 		await app.load(); // now leaves onboarding (needs_setup is false server-side) and connects live events
-		app.toast(`Welcome, ${name.trim()}. I'm ready when you are.`, 'ok');
+		app.toast(t('onboarding.welcome', { name: name.trim() }), 'ok');
 	}
 	// Previews go through the same theme code as the saved setting, so what you see here
 	// (including Daylight's deeper accent) is exactly what you get.
-	function pickTheme(t: string) {
-		theme = t;
-		applyTheme({ theme: t, accent });
+	function pickTheme(id: string) {
+		theme = id;
+		applyTheme({ theme: id, accent });
 	}
 	function pickAccent(c: string) {
 		accent = c;
@@ -114,11 +125,11 @@
 	});
 	onDestroy(() => sample.stop());
 
-	const MEMORY: [string, string, string][] = [
-		['ask', 'Ask me first', 'I suggest memories and you approve them. Recommended.'],
-		['auto', 'Remember automatically', 'I save lasting facts as we talk. You can review them anytime.'],
-		['off', "Don't remember", 'Every conversation starts fresh.']
-	];
+	const MEMORY = $derived<[string, string, string][]>([
+		['ask', t('onboarding.memoryAsk'), t('onboarding.memoryAskNote')],
+		['auto', t('onboarding.memoryAuto'), t('onboarding.memoryAutoNote')],
+		['off', t('onboarding.memoryOff'), t('onboarding.memoryOffNote')]
+	]);
 </script>
 
 <div class="onb" data-layer>
@@ -126,13 +137,13 @@
 	{#if step > 0}
 		<div class="top">
 			{#if canGoBack}
-				<button class="btn btn-ghost btn-sm back" onclick={back}><ArrowLeft size={16} aria-hidden="true" /> Back</button>
+				<button class="btn btn-ghost btn-sm back" onclick={back}><ArrowLeft size={16} aria-hidden="true" /> {t('onboarding.back')}</button>
 			{/if}
 			<div class="progress">
 				<div class="dots" aria-hidden="true">
 					{#each Array(TOTAL) as _, i}<span class:on={i < step}></span>{/each}
 				</div>
-				<p class="count">Step {step} of {TOTAL}</p>
+				<p class="count">{t('onboarding.step', { n: fmtNumber(step), total: fmtNumber(TOTAL) })}</p>
 			</div>
 		</div>
 	{/if}
@@ -147,12 +158,19 @@
 			{#key step}
 				<section class="panel" aria-labelledby="onb-h" in:fly={motion({ y: 14, duration: 'slow', delay: 60 })} out:fade={motion({ duration: 'instant' })}>
 					{#if step === 0}
-						<h1 class="hello" id="onb-h" tabindex="-1" use:stepFocus>Hi. I'm Mimi.</h1>
-						<p class="sub">Machine Intelligence, Minus the Internet.<br />Everything I know lives right here on this device.</p>
-						<button class="btn btn-primary btn-lg" data-autofocus onclick={() => go(1)}>Let's begin <ArrowRight size={18} aria-hidden="true" /></button>
+						<h1 class="hello" id="onb-h" tabindex="-1" use:stepFocus>{t('onboarding.hello')}</h1>
+						<p class="sub">{t('onboarding.tagline')}<br />{t('onboarding.livesHere')}</p>
+						<button class="btn btn-primary btn-lg" data-autofocus onclick={() => go(1)}>{t('onboarding.begin')} <ArrowRight size={18} aria-hidden="true" /></button>
+						<!-- Each language by its own name, so anyone can find theirs. Picking one switches the rest of onboarding. -->
+						<div class="langs" role="radiogroup" aria-label={t('common.language')} use:radioGroup>
+							<Languages size={16} aria-hidden="true" />
+							{#each Object.entries(LOCALES) as [code, label] (code)}
+								<button class="lang" role="radio" lang={code} aria-checked={i18n.locale === code} tabindex={i18n.locale === code ? 0 : -1} class:on={i18n.locale === code} onclick={() => pickLanguage(code as Locale)}>{label}</button>
+							{/each}
+						</div>
 					{:else if step === 1}
-						<h2 id="onb-h" tabindex="-1" use:stepFocus>What should I call you?</h2>
-						<p class="sub">You'll be the owner of this Mimi. Others can join later as guests or users.</p>
+						<h2 id="onb-h" tabindex="-1" use:stepFocus>{t('onboarding.nameTitle')}</h2>
+						<p class="sub">{t('onboarding.nameSub')}</p>
 						<form
 							class="form"
 							onsubmit={(e) => {
@@ -161,45 +179,45 @@
 							}}
 						>
 							<label class="field">
-								<span class="field-label">Your name</span>
+								<span class="field-label">{t('onboarding.yourName')}</span>
 								<input class="input big" bind:value={name} maxlength="40" autocomplete="given-name" data-autofocus aria-invalid={!!error && !name.trim()} aria-describedby={error ? 'onb-err' : undefined} />
 							</label>
 							<label class="check">
 								<input type="checkbox" bind:checked={usePin} />
 								<span class="box" aria-hidden="true">{#if usePin}<Check size={14} />{/if}</span>
 								<Lock size={15} aria-hidden="true" />
-								<span>Set a PIN <small>Needed to sign in from your phone or laptop, and keeps settings and memory private.</small></span>
+								<span>{t('onboarding.setPin')} <small>{t('onboarding.setPinNote')}</small></span>
 							</label>
 							{#if usePin}
 								<label class="field" transition:fade={motion({ duration: 'fast' })}>
-									<span class="field-label">PIN (4–8 digits)</span>
+									<span class="field-label">{t('onboarding.pinLabel')}</span>
 									<input class="input" type="password" inputmode="numeric" bind:value={pin} maxlength="8" autocomplete="new-password" aria-invalid={!!error && usePin} aria-describedby={error ? 'onb-err' : undefined} />
 								</label>
 							{/if}
 							{#if error}<p class="err" id="onb-err" role="alert">{error}</p>{/if}
-							<button class="btn btn-primary btn-lg" disabled={busy}>{busy ? 'Setting up…' : 'Continue'} <ArrowRight size={18} aria-hidden="true" /></button>
+							<button class="btn btn-primary btn-lg" disabled={busy}>{busy ? t('onboarding.settingUp') : t('onboarding.continue')} <ArrowRight size={18} aria-hidden="true" /></button>
 						</form>
 					{:else if step === 2}
-						<h2 id="onb-h" tabindex="-1" use:stepFocus>Make it yours</h2>
-						<p class="sub">Pick a look. You can change everything later in Settings.</p>
-						<div class="themes" role="radiogroup" aria-label="Theme" use:radioGroup>
-							{#each THEMES as t (t.id)}
-								<button class="theme" role="radio" aria-checked={theme === t.id} tabindex={theme === t.id ? 0 : -1} class:on={theme === t.id} onclick={() => pickTheme(t.id)} data-autofocus={theme === t.id || undefined}>
-									<span class="swatch" data-theme={t.id} aria-hidden="true"><span class="orb"></span></span>{t.label}
+						<h2 id="onb-h" tabindex="-1" use:stepFocus>{t('onboarding.lookTitle')}</h2>
+						<p class="sub">{t('onboarding.lookSub')}</p>
+						<div class="themes" role="radiogroup" aria-label={t('onboarding.theme')} use:radioGroup>
+							{#each THEMES as th (th.id)}
+								<button class="theme" role="radio" aria-checked={theme === th.id} tabindex={theme === th.id ? 0 : -1} class:on={theme === th.id} onclick={() => pickTheme(th.id)} data-autofocus={theme === th.id || undefined}>
+									<span class="swatch" data-theme={th.id} aria-hidden="true"><span class="orb"></span></span>{th.label}
 								</button>
 							{/each}
 						</div>
-						<div class="accents" role="radiogroup" aria-label="Accent color" use:radioGroup>
+						<div class="accents" role="radiogroup" aria-label={t('onboarding.accent')} use:radioGroup>
 							{#each ACCENTS as c (c.hex)}
 								<button class="acc" role="radio" aria-checked={accent === c.hex} tabindex={accent === c.hex ? 0 : -1} class:on={accent === c.hex} style="--c:{c.hex}" onclick={() => pickAccent(c.hex)} aria-label={accentName(c.hex)} title={c.name}></button>
 							{/each}
 						</div>
-						<button class="btn btn-primary btn-lg" onclick={saveLook}>Continue <ArrowRight size={18} aria-hidden="true" /></button>
+						<button class="btn btn-primary btn-lg" onclick={saveLook}>{t('onboarding.continue')} <ArrowRight size={18} aria-hidden="true" /></button>
 					{:else if step === 3}
-						<h2 id="onb-h" tabindex="-1" use:stepFocus>Choose my voice</h2>
-						<p class="sub">This is how I'll sound when we talk. Choose one to hear a sample.</p>
-						<div class="voices" role="radiogroup" aria-label="Voice" use:radioGroup>
-							{#each voices.length ? voices : [{ id: 'af_heart', name: 'Heart', accent: 'American English' }] as v (v.id)}
+						<h2 id="onb-h" tabindex="-1" use:stepFocus>{t('onboarding.voiceTitle')}</h2>
+						<p class="sub">{t('onboarding.voiceSub')}</p>
+						<div class="voices" role="radiogroup" aria-label={t('onboarding.voice')} use:radioGroup>
+							{#each voices.length ? voices : [{ id: 'af_heart', name: 'Heart', accent: t('onboarding.americanEnglish') }] as v (v.id)}
 								<button class="voice" role="radio" aria-checked={voice === v.id} tabindex={voice === v.id ? 0 : -1} class:on={voice === v.id} onclick={() => previewVoice(v.id)} data-autofocus={voice === v.id || undefined}>
 									<span class="vn">{v.name}</span>
 									<span class="va">{v.accent}</span>
@@ -207,34 +225,34 @@
 								</button>
 							{/each}
 						</div>
-						<button class="btn btn-primary btn-lg" onclick={saveVoice}>Continue <ArrowRight size={18} aria-hidden="true" /></button>
+						<button class="btn btn-primary btn-lg" onclick={saveVoice}>{t('onboarding.continue')} <ArrowRight size={18} aria-hidden="true" /></button>
 					{:else if step === 4}
-						<h2 id="onb-h" tabindex="-1" use:stepFocus>How should I remember things?</h2>
-						<p class="sub">Memories stay on this device. You can see, edit or erase every one of them.</p>
-						<div class="options" role="radiogroup" aria-label="Memory" use:radioGroup>
-							{#each MEMORY as [v, t, d] (v)}
+						<h2 id="onb-h" tabindex="-1" use:stepFocus>{t('onboarding.memoryTitle')}</h2>
+						<p class="sub">{t('onboarding.memorySub')}</p>
+						<div class="options" role="radiogroup" aria-label={t('onboarding.memory')} use:radioGroup>
+							{#each MEMORY as [v, label, d] (v)}
 								<button class="opt" role="radio" aria-checked={memory === v} tabindex={memory === v ? 0 : -1} class:on={memory === v} onclick={() => (memory = v)} data-autofocus={memory === v || undefined}>
 									<span class="radio" aria-hidden="true">{#if memory === v}<span></span>{/if}</span>
-									<span><b>{t}</b><small>{d}</small></span>
+									<span><b>{label}</b><small>{d}</small></span>
 								</button>
 							{/each}
 						</div>
-						<button class="btn btn-primary btn-lg" onclick={() => go(5)}>Continue <ArrowRight size={18} aria-hidden="true" /></button>
+						<button class="btn btn-primary btn-lg" onclick={() => go(5)}>{t('onboarding.continue')} <ArrowRight size={18} aria-hidden="true" /></button>
 					{:else}
-						<h2 id="onb-h" tabindex="-1" use:stepFocus>You're all set, {name.trim()}.</h2>
+						<h2 id="onb-h" tabindex="-1" use:stepFocus>{t('onboarding.doneTitle', { name: name.trim() })}</h2>
 						<ul class="tips">
-							<li><Sparkles size={18} aria-hidden="true" /><span>Ask anything. I'll look it up in the offline library and show you my sources.</span></li>
-							<li><AudioLines size={18} aria-hidden="true" /><span>{app.input === 'touch' ? 'Tap' : 'Choose'} Talk and just speak. I'll answer out loud and listen for your follow-up.</span></li>
+							<li><Sparkles size={18} aria-hidden="true" /><span>{t('onboarding.tipAsk')}</span></li>
+							<li><AudioLines size={18} aria-hidden="true" /><span>{app.input === 'touch' ? t('onboarding.tipTalkTap') : t('onboarding.tipTalk')}</span></li>
 							{#if showPadTips}
-								<li><Gamepad2 size={18} aria-hidden="true" /><span>D-pad moves, A selects, B goes back, Start opens the quick menu.</span></li>
+								<li><Gamepad2 size={18} aria-hidden="true" /><span>{t('onboarding.tipPad')}</span></li>
 							{/if}
 							{#if app.input === 'touch'}
-								<li><Menu size={18} aria-hidden="true" /><span>Tap More for quick actions: Lens, Scribe, Settings and more.</span></li>
+								<li><Menu size={18} aria-hidden="true" /><span>{t('onboarding.tipMore')}</span></li>
 							{:else}
-								<li><Keyboard size={18} aria-hidden="true" /><span>Press Ctrl + K to jump anywhere.</span></li>
+								<li><Keyboard size={18} aria-hidden="true" /><span>{t('onboarding.tipKeys')}</span></li>
 							{/if}
 						</ul>
-						<button class="btn btn-primary btn-lg" data-autofocus onclick={finish}>Start using Mimi <ArrowRight size={18} aria-hidden="true" /></button>
+						<button class="btn btn-primary btn-lg" data-autofocus onclick={finish}>{t('onboarding.start')} <ArrowRight size={18} aria-hidden="true" /></button>
 					{/if}
 				</section>
 			{/key}
@@ -336,6 +354,44 @@
 		font-weight: var(--fw-semibold);
 		letter-spacing: var(--tracking-tighter);
 		margin: var(--space-1-5) 0 0;
+	}
+	/* The language choice: quiet, under the call to action, each language in its own words. */
+	.langs {
+		display: inline-flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		align-items: center;
+		gap: var(--space-1);
+		margin-top: var(--space-4);
+		padding: var(--space-1);
+		border-radius: var(--radius-pill);
+		background: var(--surface);
+		border: 1px solid var(--line);
+		color: var(--text-3);
+	}
+	.langs > :global(svg) {
+		margin: 0 var(--space-1) 0 var(--space-2);
+	}
+	.lang {
+		height: var(--control-sm);
+		padding: 0 var(--space-3);
+		border-radius: var(--radius-pill);
+		color: var(--text-2);
+		font-size: var(--fs-md);
+		font-weight: var(--fw-medium);
+	}
+	.lang:hover {
+		color: var(--text);
+	}
+	.lang.on {
+		background: var(--surface-3);
+		color: var(--text);
+		box-shadow: inset 0 0 0 1px var(--line-2);
+	}
+	@media (pointer: coarse) {
+		.lang {
+			height: var(--hit-min);
+		}
 	}
 	h2 {
 		font-size: var(--fs-3xl);
