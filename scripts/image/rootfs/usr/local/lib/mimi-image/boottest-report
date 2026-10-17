@@ -1,0 +1,26 @@
+#!/bin/sh
+# mimi-boottest-report.service (boot test only): once Mimi Core answers, print the facts
+# scripts/image/boot-test.sh checks, one "mimi-boottest:" line each, into the journal,
+# which mimi-boottest-console.service copies to the serial port.
+set -u
+say() { echo "mimi-boottest: $*"; }
+
+i=0
+until curl -fsS -o /dev/null --max-time 2 http://127.0.0.1:7600/api/ping 2>/dev/null; do
+    i=$((i + 1))
+    [ "$i" -ge 1800 ] && { say "core-timeout"; exit 1; }
+    sleep 1
+done
+say "core-up"
+say "root-bytes $(findmnt -bnro SIZE /)"
+ss -Htln | while read -r _ _ _ local _; do say "tcp-listen $local"; done
+say "root-password $(passwd -S root | cut -d' ' -f2)"
+say "secure-boot $(mokutil --sb-state 2>&1 | head -n 1)"
+for u in mimi.service mimi-kiosk.service mimi-content.timer ssh.service getty@tty1.service; do
+    say "unit $u $(systemctl is-active "$u") $(systemctl is-enabled "$u" 2>/dev/null || echo absent)"
+done
+systemctl --failed --plain --no-legend | while read -r unit _; do say "failed $unit"; done
+runuser -u mimi -- env HOME=/var/lib/mimi MIMI_HOME=/opt/mimi MIMI_CONTENT=/var/lib/mimi/content \
+    MIMI_DATA=/var/lib/mimi/data MIMI_LOGS=/var/lib/mimi/logs /opt/mimi/python/bin/mimi doctor 2>&1 |
+    sed -n 's/^ *"\(backend\|profile\|name\)": \(.*\)/mimi-boottest: doctor \1 \2/p'
+say "report-done"

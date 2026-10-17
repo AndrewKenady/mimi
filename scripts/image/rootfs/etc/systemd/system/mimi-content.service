@@ -1,0 +1,16 @@
+[Unit]
+Description=Mimi: download the first content in the background once online
+Documentation=https://github.com/AndrewKenady/mimi/blob/main/docs/INSTALL.md#bootable-usb
+After=network-online.target mimi.service
+Wants=network-online.target
+ConditionPathExists=!/var/lib/mimi/.first-boot-content
+
+[Service]
+Type=oneshot
+# The script checks for a connection, runs `mimi content add` as the mimi user, and when
+# it's done restarts Mimi Core so the new books, maps and model load. Progress goes to the
+# journal: journalctl -u mimi-content
+ExecStart=/usr/local/lib/mimi-image/first-boot-content
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=infinity

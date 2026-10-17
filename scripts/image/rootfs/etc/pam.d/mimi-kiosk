@@ -1,0 +1,6 @@
+#%PAM-1.0
+# The Mimi kiosk session (mimi-kiosk.service). systemd opens it without an "auth" step,
+# so no password is asked for. The session stack registers it with logind (pam_systemd),
+# which hands seat0's devices to the kiosk user while the session is active.
+account   include   common-account
+session   include   common-session

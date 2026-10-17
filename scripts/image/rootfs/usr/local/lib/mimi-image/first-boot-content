@@ -1,0 +1,56 @@
+#!/bin/bash
+# mimi-content.service: on a stick built without content, download the first content
+# (the Lite tier by default; see /etc/mimi-image.conf) once the machine is online.
+# Downloads resume where they stopped, so running this again after a failure or a
+# reboot is safe. When it has finished, it leaves /var/lib/mimi/.first-boot-content.
+# Progress goes to the journal (journalctl -u mimi-content) and to content-download.log,
+# which Mimi shows in Settings > Logs.
+set -u
+done_marker=/var/lib/mimi/.first-boot-content
+log=/var/lib/mimi/logs/content-download.log
+MIMI_FIRST_BOOT_CONTENT=lite
+MIMI_FIRST_BOOT_REGION=
+# shellcheck source=/dev/null
+[ -r /etc/mimi-image.conf ] && . /etc/mimi-image.conf
+
+say() { echo "mimi-content: $*" | runuser -u mimi -- tee -a "$log"; }
+finish() { # reason
+    echo "$1" >"$done_marker"
+    systemctl disable --now mimi-content.timer >/dev/null 2>&1 || true
+}
+
+[ -e "$done_marker" ] && exit 0
+if [ -z "$MIMI_FIRST_BOOT_CONTENT" ] || [ "$MIMI_FIRST_BOOT_CONTENT" = none ]; then
+    finish "disabled"
+    exit 0
+fi
+
+# Online means the library's publisher answers; a captive portal or no network both fail this.
+if ! curl -fsS -o /dev/null --max-time 20 https://download.kiwix.org/ 2>/dev/null; then
+    say "offline, so nothing to download yet; trying again in 15 minutes." \
+        "Connect a network cable or a phone sharing its connection over USB, or fill in wifi.txt on the stick's MIMI partition."
+    exit 0
+fi
+
+say "online: downloading $MIMI_FIRST_BOOT_CONTENT${MIMI_FIRST_BOOT_REGION:+ for region $MIMI_FIRST_BOOT_REGION} in the background"
+args=(add "$MIMI_FIRST_BOOT_CONTENT" --yes)
+[ -n "$MIMI_FIRST_BOOT_REGION" ] && args+=(--region "$MIMI_FIRST_BOOT_REGION")
+runuser -u mimi -- env HOME=/var/lib/mimi PYTHONDONTWRITEBYTECODE=1 /opt/mimi/python/bin/mimi content "${args[@]}" 2>&1 |
+    runuser -u mimi -- tee -a "$log"
+rc=${PIPESTATUS[0]}
+case $rc in
+    0)
+        say "finished. Restarting Mimi Core to load the new content."
+        finish "done $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        systemctl try-restart mimi.service
+        ;;
+    2)
+        say "not enough space on this stick for $MIMI_FIRST_BOOT_CONTENT (sizes above), so it won't try again." \
+            "Use a bigger stick, or build one with the content included (docs/INSTALL.md#bootable-usb)."
+        finish "no space"
+        ;;
+    *)
+        say "stopped before finishing (exit $rc); it resumes in 15 minutes."
+        ;;
+esac
+exit 0
