@@ -25,7 +25,7 @@ test('home loads with the demo banner and no errors', async ({ page }) => {
 	await open(page);
 	await expect(bar(page)).toContainText('Live demo');
 	await expect(bar(page)).toContainText('recorded answers');
-	await expect(page.getByText(/Good (morning|afternoon|evening), Ada/)).toBeVisible();
+	await expect(page.getByText(/(Still up|Good (morning|afternoon|evening)), Ada/)).toBeVisible();
 	await expect(page.getByText(/Can’t reach|Can't reach|Reconnecting/)).toHaveCount(0);
 	expect(errors).toEqual([]);
 });
