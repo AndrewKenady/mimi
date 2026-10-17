@@ -1,15 +1,6 @@
 import type { Messages } from '../index.svelte';
 import { plural } from '../index.svelte';
-
-// Core's modes by id: [name, description]. Unknown ids keep Core's own wording.
-const MODES: Record<string, [string, string]> = {
-	everyday: ['Día a día', 'Ayuda general, con fuentes cuando importa.'],
-	road_trip: ['Viaje por carretera', 'Lugares, historia y relatos del camino.'],
-	field_medic: ['Socorrista', 'Primeros auxilios y salud, con base en WikiMed.'],
-	fix_it: ['Arreglos', 'Reparaciones, bricolaje y solución de problemas.'],
-	study: ['Estudio', 'Aprende lo que sea: artículos, charlas y libros.'],
-	storyteller: ['Cuentacuentos', 'Cuentos, poemas y libros clásicos.']
-};
+import { MODES } from './modes';
 
 export default {
 	pageTitle: 'Chat · Mimi',

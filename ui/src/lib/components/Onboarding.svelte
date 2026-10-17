@@ -6,8 +6,8 @@
 	import { ACCENTS, DEFAULT_ACCENT, THEMES, accentName, applyTheme } from '$lib/theme';
 	import { motion } from '$lib/motion';
 	import { radioGroup } from '$lib/roving';
-	import { VoicePreview } from '$lib/voice-preview.svelte';
-	import { LOCALES, fmtNumber, i18n, setLocale, t, type Locale } from '$lib/i18n/index.svelte';
+	import { VoicePreview, voiceLanguage } from '$lib/voice-preview.svelte';
+	import { LOCALES, fmtNumber, i18n, setLocale, t, tIn, type Locale } from '$lib/i18n/index.svelte';
 	import Well from './Well.svelte';
 	import { ArrowLeft, ArrowRight, Check, Volume2, Lock, Sparkles, Keyboard, Gamepad2, AudioLines, Menu, Languages } from '@lucide/svelte';
 
@@ -75,7 +75,8 @@
 
 	function previewVoice(id: string) {
 		voice = id;
-		sample.play(id, name.trim() ? t('onboarding.sample', { name: name.trim() }) : t('onboarding.sampleNoName'));
+		const lang = voiceLanguage(id);
+		sample.play(id, name.trim() ? tIn(lang, 'onboarding.sample', { name: name.trim() }) : tIn(lang, 'onboarding.sampleNoName'));
 	}
 
 	// Steps advance at once; choices save in the background (setSetting reports failures).

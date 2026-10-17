@@ -44,9 +44,14 @@ export function setLocale(locale: Locale) {
  * `params`; messages that need plurals or grammar are functions of their params.
  */
 export function t<K extends Key>(key: K, ...[params]: ArgsOf<K>): string {
+	return tIn(i18n.locale, key, ...([params] as ArgsOf<K>));
+}
+
+/** `t` in a given language, whatever the interface shows (e.g. a voice sample in the voice's own language). */
+export function tIn<K extends Key>(locale: Locale, key: K, ...[params]: ArgsOf<K>): string {
 	const dot = key.indexOf('.');
 	const area = key.slice(0, dot) as Areas, name = key.slice(dot + 1);
-	const msg = ((CATALOGS[i18n.locale] as any)[area]?.[name] ?? (en as any)[area]?.[name]) as string | ((p: any) => string) | undefined;
+	const msg = ((CATALOGS[locale] as any)[area]?.[name] ?? (en as any)[area]?.[name]) as string | ((p: any) => string) | undefined;
 	if (msg === undefined) return key;
 	if (typeof msg === 'function') return msg(params ?? {});
 	const values = (params ?? {}) as Record<string, string | number>;

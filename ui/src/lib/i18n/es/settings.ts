@@ -1,13 +1,5 @@
 import { plural, type Messages } from '../index.svelte';
-
-const MODES: Record<string, [string, string]> = {
-	everyday: ['Cotidiano', 'Ayuda general, con fuentes cuando importa.'],
-	road_trip: ['De viaje', 'Lugares, historia y relatos a lo largo del camino.'],
-	field_medic: ['Médico de campo', 'Primeros auxilios y salud, con base en WikiMed.'],
-	fix_it: ['Reparar', 'Reparaciones, bricolaje y solución de problemas.'],
-	study: ['Estudio', 'Aprende lo que quieras: artículos, charlas y libros.'],
-	storyteller: ['Cuentacuentos', 'Cuentos, poemas y libros clásicos.']
-};
+import { MODES } from './modes';
 
 const BLURBS: Record<string, string> = {
 	'gemma-4-12b': 'El modelo multimodal de Google de junio de 2026. Lee texto e imágenes; el mejor para usar herramientas en varios pasos.',
@@ -216,6 +208,7 @@ export default {
 	showActivityHint: 'El registro de actividad: búsquedas, artículos leídos, consultas.',
 	defaultMode: 'Modo predeterminado',
 	modes: 'Modos',
+	voiceSample: 'Hola. Así sonaré cuando hablemos.',
 	modeName: (p: { id: string; name: string }) => MODES[p.id]?.[0] ?? p.name,
 	modeDescription: (p: { id: string; text: string }) => MODES[p.id]?.[1] ?? p.text,
 	aboutYouHint: 'Unas palabras que Mimi tiene en cuenta (opcional).',

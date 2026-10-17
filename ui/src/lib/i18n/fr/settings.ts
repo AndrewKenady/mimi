@@ -1,14 +1,6 @@
 //   is the no-break space French puts before : ; ? ! and inside « ».
 import { plural, type Messages } from '../index.svelte';
-
-const MODES: Record<string, [string, string]> = {
-	everyday: ['Au quotidien', 'Aide générale, avec des sources quand cela compte.'],
-	road_trip: ['Road trip', 'Lieux, histoire et récits le long de la route.'],
-	field_medic: ['Secouriste', 'Premiers secours et santé, appuyés sur WikiMed.'],
-	fix_it: ['Dépannage', 'Réparations, bricolage et résolution de problèmes.'],
-	study: ['Étude', 'Apprenez de tout : articles, conférences et livres.'],
-	storyteller: ['Conteur', 'Histoires, poèmes et grands classiques.']
-};
+import { MODES } from './modes';
 
 const BLURBS: Record<string, string> = {
 	'gemma-4-12b': 'Le modèle multimodal de Google de juin 2026. Lit le texte et les images ; le meilleur pour enchaîner plusieurs outils.',
@@ -220,6 +212,7 @@ export default {
 	showActivityHint: 'Le fil d’activité : recherches, articles lus, consultations.',
 	defaultMode: 'Mode par défaut',
 	modes: 'Modes',
+	voiceSample: 'Bonjour. Voici ma voix quand nous parlerons.',
 	modeName: (p: { id: string; name: string }) => MODES[p.id]?.[0] ?? p.name,
 	modeDescription: (p: { id: string; text: string }) => MODES[p.id]?.[1] ?? p.text,
 	aboutYouHint: 'Quelques mots que Mimi garde en tête (facultatif).',

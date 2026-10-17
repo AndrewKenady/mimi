@@ -11,8 +11,8 @@
 	import { radioGroup } from '$lib/roving';
 	import { SETTINGS_REDIRECTS, SETTINGS_SECTIONS, settingsHref, visibleSections } from '$lib/settings-sections';
 	import { ACCENTS, THEMES, WELL_STYLES, accentName } from '$lib/theme';
-	import { VoicePreview } from '$lib/voice-preview.svelte';
-	import { LOCALES, fmtNumber, resolveLocale, t } from '$lib/i18n/index.svelte';
+	import { VoicePreview, voiceLanguage } from '$lib/voice-preview.svelte';
+	import { LOCALES, fmtNumber, resolveLocale, t, tIn } from '$lib/i18n/index.svelte';
 	import Row from '$components/settings/Row.svelte';
 	import Toggle from '$components/settings/Toggle.svelte';
 	import Segmented from '$components/settings/Segmented.svelte';
@@ -494,7 +494,7 @@
 									onclick={() => {
 										usr('voice', { voice: v.id });
 										// The voices speak English only, so the sample stays in English.
-										sample.play(v.id, "Hello. This is how I'll sound when we talk.");
+										sample.play(v.id, tIn(voiceLanguage(v.id), 'settings.voiceSample'));
 									}}
 								>
 									<span><b>{v.name}</b><small>{t('settings.voiceInfo', { id: v.id, accent: v.accent, gender: v.gender })}</small></span>
