@@ -12,7 +12,7 @@
 	import { SETTINGS_REDIRECTS, SETTINGS_SECTIONS, settingsHref, visibleSections } from '$lib/settings-sections';
 	import { ACCENTS, THEMES, WELL_STYLES, accentName } from '$lib/theme';
 	import { VoicePreview } from '$lib/voice-preview.svelte';
-	import { LOCALES, resolveLocale, t } from '$lib/i18n/index.svelte';
+	import { LOCALES, fmtNumber, resolveLocale, t } from '$lib/i18n/index.svelte';
 	import Row from '$components/settings/Row.svelte';
 	import Toggle from '$components/settings/Toggle.svelte';
 	import Segmented from '$components/settings/Segmented.svelte';
@@ -81,32 +81,44 @@
 		section;
 		if (!hash || !panel) return;
 		let tries = 0;
-		const t = setInterval(() => {
+		const timer = setInterval(() => {
 			const el = document.getElementById(hash);
 			if (el || ++tries > 20) {
-				clearInterval(t);
+				clearInterval(timer);
 				el?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
 			}
 		}, 50);
-		return () => clearInterval(t);
+		return () => clearInterval(timer);
 	});
 
-	async function toggleTool(t: any, on: boolean) {
+	/** A whole-number percentage in the interface language ("45%", "45 %"). */
+	const pct = (v: number) => fmtNumber(v / 100, { style: 'percent', maximumFractionDigits: 2 });
+	/** A number from Core in the interface language; anything else as Core sent it. */
+	const num = (v: unknown) => (typeof v === 'number' ? fmtNumber(v) : String(v));
+	/** A value with exactly two decimals ("0.70", "0,70"). */
+	const fixed2 = (v: number) => fmtNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	/**
+	 * A message split around its {slot} markers, so markup (a link, bold text, code) can sit
+	 * wherever the language puts it: `{#each slots(t(…)) as p}` renders p.text, or the slot.
+	 */
+	const slots = (msg: string) => msg.split(/(\{\w+\})/).filter(Boolean).map((s) => (/^\{\w+\}$/.test(s) ? { slot: s.slice(1, -1), text: '' } : { slot: '', text: s }));
+
+	async function toggleTool(tool: any, on: boolean) {
 		const cfg = D.tools || { disabled: [], plugins: [] };
-		if (t.builtin) {
+		if (tool.builtin) {
 			const dis = new Set<string>(cfg.disabled);
-			on ? dis.delete(t.name) : dis.add(t.name);
+			on ? dis.delete(tool.name) : dis.add(tool.name);
 			await dev('tools', { disabled: [...dis] });
 		} else {
 			const en = new Set<string>(cfg.plugins);
-			on ? en.add(t.name) : en.delete(t.name);
+			on ? en.add(tool.name) : en.delete(tool.name);
 			await dev('tools', { plugins: [...en] });
 		}
-		toolList = { ...toolList, tools: toolList.tools.map((x: any) => (x.name === t.name ? { ...x, enabled: on } : x)) };
+		toolList = { ...toolList, tools: toolList.tools.map((x: any) => (x.name === tool.name ? { ...x, enabled: on } : x)) };
 	}
 	async function reloadTools() {
 		toolList = await post('/api/tools/reload', {});
-		app.toast('Tools folder rescanned', 'ok');
+		app.toast(t('settings.toolsRescanned'), 'ok');
 	}
 	const toolTitle = (n: string) => n.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 
@@ -143,7 +155,7 @@
 			await post('/api/users', { name: newUser.name, password: newUser.password });
 			newUser = { name: '', password: '' };
 			users = await get('/api/users');
-			app.toast('Account created', 'ok');
+			app.toast(t('settings.accountCreated'), 'ok');
 		} catch (e: any) {
 			app.toast(e.message, 'error');
 		}
@@ -152,16 +164,16 @@
 	function removeUser(u: any) {
 		app.deferDelete({
 			key: `user:${u.id}`,
-			text: `${u.name} removed`,
+			text: t('settings.personRemoved', { name: u.name }),
 			commit: () => del(`/api/users/${u.id}`),
 			onDone: async () => (users = await get('/api/users'))
 		});
 	}
 	/** What a community tool declares it does, so the owner can judge it before turning it on. */
-	function toolCaps(t: any): string {
-		const caps = [t.side_effects ? 'changes things' : 'read-only'];
-		if (t.uses?.length) caps.push('uses ' + t.uses.join(', '));
-		caps.push(t.api ? `plugin API v${t.api}` : 'older plugin, treated as changing things');
+	function toolCaps(tool: any): string {
+		const caps = [tool.side_effects ? t('settings.capChanges') : t('settings.capReadOnly')];
+		if (tool.uses?.length) caps.push(t('settings.capUses', { list: tool.uses.join(', ') }));
+		caps.push(tool.api ? t('settings.capApi', { version: tool.api }) : t('settings.capOld'));
 		return caps.join(' · ');
 	}
 
@@ -175,7 +187,7 @@
 		try {
 			await patch(`/api/users/${app.me!.id}`, { pin: myPin });
 			myPin = '';
-			app.toast(hadPin ? 'PIN updated' : 'PIN saved', 'ok');
+			app.toast(hadPin ? t('settings.pinUpdated') : t('settings.pinSaved'), 'ok');
 			app.me = { ...app.me!, has_pin: true };
 		} catch (e: any) {
 			app.toast(e.message, 'error');
@@ -184,25 +196,25 @@
 	// Bulk and irreversible: ask first, in Mimi's own dialog (never the browser's confirm()).
 	async function deleteAllChats() {
 		const ok = await confirmDialog({
-			title: 'Delete every chat?',
-			body: 'All of your conversations will be erased from this device, pinned ones included. This can’t be undone.',
-			confirmLabel: 'Delete all chats',
+			title: t('settings.deleteChatsTitle'),
+			body: t('settings.deleteChatsBody'),
+			confirmLabel: t('settings.deleteAllChats'),
 			tone: 'danger'
 		});
 		if (!ok) return;
 		const r = await del('/api/chats');
 		app.chatsVersion++;
-		app.toast(`${r.deleted} chats deleted`, 'ok');
+		app.toast(t('settings.chatsDeleted', { n: r.deleted }), 'ok');
 	}
 	async function requestFirewall() {
 		const r = await post('/api/share/firewall');
-		app.toast(r.requested ? 'Approve the Windows prompt to let phones connect.' : 'Could not open the Windows prompt.', r.requested ? 'info' : 'error');
+		app.toast(r.requested ? t('settings.firewallPrompted') : t('settings.firewallFailed'), r.requested ? 'info' : 'error');
 		setTimeout(loadShare, 6000);
 	}
 	async function hotspot(on: boolean) {
-		app.toast(on ? 'Starting the hotspot…' : 'Stopping the hotspot…');
+		app.toast(on ? t('settings.hotspotStarting') : t('settings.hotspotStopping'));
 		const r = await post('/api/share/hotspot', { on });
-		app.toast(`Hotspot: ${r.status}`, String(r.status).toLowerCase().includes('success') ? 'ok' : 'info');
+		app.toast(t('settings.hotspotResult', { status: r.status }), String(r.status).toLowerCase().includes('success') ? 'ok' : 'info');
 		loadShare();
 	}
 	async function exportSettings() {
@@ -218,27 +230,53 @@
 		try {
 			app.settings = await post('/api/settings/import', JSON.parse(await f.text()));
 			app.applyAppearance();
-			app.toast('Settings imported', 'ok');
+			app.toast(t('settings.settingsImported'), 'ok');
 		} catch (err: any) {
-			app.toast(err.message || 'Invalid settings file', 'error');
+			app.toast(err.message || t('settings.invalidSettingsFile'), 'error');
 		}
 	}
 	async function resetSection(scope: 'device' | 'user', sec: string, label: string) {
-		const ok = await confirmDialog({ title: `Reset ${label} to defaults?`, body: 'Only the settings in this group change.', confirmLabel: 'Reset' });
+		const ok = await confirmDialog({ title: t('settings.resetTitle', { label }), body: t('settings.resetBody'), confirmLabel: t('settings.reset') });
 		if (!ok) return;
 		const v = await post(`/api/settings/${scope}/${sec}/reset`);
 		app.settings[scope] = { ...app.settings[scope], [sec]: v };
 		app.applyAppearance();
-		app.toast(`${label} reset to defaults`);
+		app.toast(t('settings.resetDone', { label }));
 	}
 
-	const ACTIONS: [string, string][] = [
-		['', 'Nothing'], ['select', 'Select'], ['back', 'Back'], ['voice', 'Talk to Mimi'], ['lens', 'Open Lens'], ['prev_surface', 'Previous screen'],
-		['next_surface', 'Next screen'], ['push_to_talk', 'Talk (tap to start or stop)'], ['quick_menu', 'Quick menu'], ['command_palette', 'Search / jump']
-	];
+	// Option lists are derived, so their words follow the interface language.
+	const ACTIONS = $derived<[string, string][]>([
+		['', t('settings.actNothing')],
+		['select', t('settings.actSelect')],
+		['back', t('settings.actBack')],
+		['voice', t('settings.actVoice')],
+		['lens', t('settings.actLens')],
+		['prev_surface', t('settings.actPrev')],
+		['next_surface', t('settings.actNext')],
+		['push_to_talk', t('settings.actPushToTalk')],
+		['quick_menu', t('settings.actQuickMenu')],
+		['command_palette', t('settings.actPalette')]
+	]);
+	// Gamepad buttons go by the names printed on them.
 	const BUTTONS = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Start', 'Back'];
-	const WIDGETS: [string, string][] = [['onthisday', 'Discover'], ['nearby', 'Nearby'], ['continue', 'Continue'], ['notes', 'Recent notes']];
-	const FEATURES: [string, string][] = [['chat', 'Chat'], ['library', 'Library'], ['map', 'Map'], ['voice', 'Voice'], ['lens', 'Lens']];
+	const WIDGETS = $derived<[string, string][]>([
+		['onthisday', t('settings.widgetDiscover')],
+		['nearby', t('settings.widgetNearby')],
+		['continue', t('settings.widgetContinue')],
+		['notes', t('settings.widgetNotes')]
+	]);
+	const FEATURES = $derived<[string, string][]>([
+		['chat', t('settings.featChat')],
+		['library', t('settings.featLibrary')],
+		['map', t('settings.featMap')],
+		['voice', t('settings.featVoice')],
+		['lens', t('settings.featLens')]
+	]);
+	const ROLES = $derived<[string, string, string][]>([
+		['main', t('settings.mainModel'), t('settings.mainModelHint')],
+		['quick', t('settings.quickModel'), t('settings.quickModelHint')],
+		['reader', t('settings.readerModel'), t('settings.readerModelHint')]
+	]);
 	const chatModels = $derived((models?.catalog || []).filter((m: any) => m.kind === 'chat'));
 	const installed = $derived(chatModels.filter((m: any) => m.installed));
 	// When the profile's own main model (one no smaller profile also lists) isn't the one
@@ -254,31 +292,32 @@
 		return { label: P[p].label, pack: P[p].pack, serving: chatModels.find((m: any) => m.id === serving)?.name };
 	});
 	const shownUsers = $derived(users.filter((u) => !app.isPending(`user:${u.id}`)));
+	const batteryPct = $derived(app.system?.battery?.percent ?? app.hardware?.battery?.percent);
 </script>
 
-<svelte:head><title>{cur.label} · Settings · Mimi</title></svelte:head>
+<svelte:head><title>{t('settings.pageTitle', { section: cur.label })}</title></svelte:head>
 
 {#snippet group(id: string, title: string, reset?: () => void)}
 	<header class="gh">
 		<h3 class="label" id="h-{id}">{title}</h3>
-		{#if reset}<button class="btn btn-sm btn-ghost" onclick={reset} aria-label="Reset {title} to defaults"><RotateCcw size={14} aria-hidden="true" /> Reset</button>{/if}
+		{#if reset}<button class="btn btn-sm btn-ghost" onclick={reset} aria-label={t('settings.resetAria', { title })}><RotateCcw size={14} aria-hidden="true" /> {t('settings.reset')}</button>{/if}
 	</header>
 {/snippet}
 
 <div class="settings">
 	<aside class="nav">
-		<h1>Settings</h1>
+		<h1>{t('settings.title')}</h1>
 		<label class="find">
 			<Search size={15} aria-hidden="true" />
-			<span class="sr-only">Find a setting</span>
-			<input placeholder="Find a setting" bind:value={filter} type="search" />
+			<span class="sr-only">{t('settings.findSetting')}</span>
+			<input placeholder={t('settings.findSetting')} bind:value={filter} type="search" />
 		</label>
-		<nav aria-label="Settings sections">
+		<nav aria-label={t('settings.sectionsNav')}>
 			{#each visible as s (s.id)}
 				{@const I = s.icon}
 				<a href="/settings/{s.id}" class:on={section === s.id} aria-current={section === s.id ? 'page' : undefined}><I size={17} strokeWidth={1.8} aria-hidden="true" />{s.label}</a>
 			{:else}
-				<p class="none">No setting matches “{filter}”.</p>
+				<p class="none">{t('settings.noMatch', { query: filter })}</p>
 			{/each}
 		</nav>
 	</aside>
@@ -289,7 +328,7 @@
 				<h2>{cur.label}</h2>
 				<p class="summary">{cur.summary}</p>
 				{#if cur.subsections.length > 1}
-					<nav class="jump" aria-label="On this page">
+					<nav class="jump" aria-label={t('settings.onThisPage')}>
 						{#each cur.subsections as sub (sub.id)}<a class="chip" href="#{sub.id}">{sub.label}</a>{/each}
 					</nav>
 				{/if}
@@ -297,72 +336,68 @@
 
 			{#if section === 'device' && D.general}
 				<section id="startup" aria-labelledby="h-startup">
-					{@render group('startup', 'Startup & window', () => resetSection('device', 'general', 'Startup, lock & units'))}
+					{@render group('startup', t('settings.subStartup'), () => resetSection('device', 'general', t('settings.resetGeneral')))}
 					<div class="group card">
-						<Row label="Launch Mimi at startup" hint={!(inShell || app.boot?.local) ? 'Change this on the device.' : app.boot?.portable ? 'Portable drive: this adds a startup entry to this PC that points at the drive, so only use it on your own computer.' : 'Opens Mimi when you sign in to Windows.'}>
+						<Row label={t('settings.launchAtStartup')} hint={!(inShell || app.boot?.local) ? t('settings.launchHintRemote') : app.boot?.portable ? t('settings.launchHintPortable') : t('settings.launchHint')}>
 							<Toggle checked={D.general.launch_at_startup} onchange={(v) => dev('general', { launch_at_startup: v })} />
 						</Row>
-						<Row label="Open full screen" hint="Start in immersive full-screen mode. F11 toggles anytime.">
+						<Row label={t('settings.openFullscreen')} hint={t('settings.openFullscreenHint')}>
 							<Toggle checked={D.general.open_fullscreen} onchange={(v) => dev('general', { open_fullscreen: v })} />
 						</Row>
-						<Row label="Kiosk feel" hint="Keep Mimi in front. Exit only from the quick menu.">
+						<Row label={t('settings.kiosk')} hint={t('settings.kioskHint')}>
 							<Toggle checked={D.general.kiosk} onchange={(v) => dev('general', { kiosk: v })} />
 						</Row>
-						<Row label="Keep serving phones when closed" hint="Closing the window leaves Mimi running for connected devices.">
+						<Row label={t('settings.keepRunning')} hint={t('settings.keepRunningHint')}>
 							<Toggle checked={D.general.keep_running_on_close} onchange={(v) => dev('general', { keep_running_on_close: v })} />
 						</Row>
 					</div>
 				</section>
 				<section id="regional" aria-labelledby="h-regional">
-					{@render group('regional', 'Lock & units')}
+					{@render group('regional', t('settings.subRegional'))}
 					<div class="group card">
-						<Row label="Require PIN on this device" hint={app.me?.has_pin ? 'Ask for your PIN when Mimi opens.' : 'Set a PIN in Accounts & privacy first.'}>
+						<Row label={t('settings.requirePin')} hint={app.me?.has_pin ? t('settings.requirePinHint') : t('settings.requirePinNoPin')}>
 							<Toggle checked={D.general.require_pin} disabled={!app.me?.has_pin} onchange={(v) => dev('general', { require_pin: v })} />
 						</Row>
-						<Row label="Units"><Segmented value={D.general.units} options={[['imperial', 'Miles · °F'], ['metric', 'Kilometers · °C']]} onchange={(v) => dev('general', { units: v })} /></Row>
-						<Row label="Clock"><Segmented value={D.general.time_format} options={[['12h', '12-hour'], ['24h', '24-hour']]} onchange={(v) => dev('general', { time_format: v })} /></Row>
+						<Row label={t('settings.units')}><Segmented value={D.general.units} options={[['imperial', t('settings.unitsImperial')], ['metric', t('settings.unitsMetric')]]} onchange={(v) => dev('general', { units: v })} /></Row>
+						<Row label={t('settings.clock')}><Segmented value={D.general.time_format} options={[['12h', t('settings.clock12')], ['24h', t('settings.clock24')]]} onchange={(v) => dev('general', { time_format: v })} /></Row>
 					</div>
 				</section>
 				{#if D.power}
 					<section id="power" aria-labelledby="h-power">
-						{@render group('power', 'Power', () => resetSection('device', 'power', 'Power'))}
+						{@render group('power', t('settings.subPower'), () => resetSection('device', 'power', t('settings.subPower')))}
 						<div class="group card">
-							<Row label="Battery" hint={app.system?.battery ? (app.system.battery.plugged ? 'Plugged in' : 'On battery') : 'No battery detected'}>
-								<b>{app.system?.battery?.percent ?? app.hardware?.battery?.percent ?? '—'}%</b>
+							<Row label={t('settings.battery')} hint={app.system?.battery ? (app.system.battery.plugged ? t('settings.batteryPlugged') : t('settings.batteryOn')) : t('settings.batteryNone')}>
+								<b>{batteryPct == null ? '—%' : pct(batteryPct)}</b>
 							</Row>
-							<Row label="Battery saver" hint="Below the threshold and unplugged, Mimi uses the quick model."><Toggle checked={D.power.battery_saver} onchange={(v) => dev('power', { battery_saver: v })} /></Row>
-							<Row label="Saver threshold"><Slider value={D.power.battery_saver_threshold} min={5} max={80} step={5} onchange={(v) => dev('power', { battery_saver_threshold: v })} fmt={(v) => v + '%'} /></Row>
-							<Row label="Stay awake" hint="Keeps this computer from sleeping while Mimi is running, so phones on the network can still reach it. The screen can still turn off."><Toggle checked={D.power.keep_awake ?? true} onchange={(v) => dev('power', { keep_awake: v })} /></Row>
+							<Row label={t('settings.batterySaver')} hint={t('settings.batterySaverHint')}><Toggle checked={D.power.battery_saver} onchange={(v) => dev('power', { battery_saver: v })} /></Row>
+							<Row label={t('settings.saverThreshold')}><Slider value={D.power.battery_saver_threshold} min={5} max={80} step={5} onchange={(v) => dev('power', { battery_saver_threshold: v })} fmt={pct} /></Row>
+							<Row label={t('settings.stayAwake')} hint={t('settings.stayAwakeHint')}><Toggle checked={D.power.keep_awake ?? true} onchange={(v) => dev('power', { keep_awake: v })} /></Row>
 						</div>
 					</section>
 				{/if}
 			{:else if section === 'appearance' && U.appearance}
 				<section id="look" aria-labelledby="h-look">
-					{@render group('look', 'Look', () => resetSection('user', 'appearance', 'Appearance'))}
+					{@render group('look', t('settings.subLook'), () => resetSection('user', 'appearance', t('settings.secAppearance')))}
 					<div class="group card">
 						<Row label={t('common.language')} hint={t('common.languageHint')}>
-							<Segmented
-								value={U.appearance.language ?? 'auto'}
-								options={[['auto', t('common.languageAuto', { name: LOCALES[resolveLocale(undefined)] })], ...Object.entries(LOCALES)]}
-								onchange={(v) => usr('appearance', { language: v })}
-							/>
+							<Segmented value={U.appearance.language ?? 'auto'} options={[['auto', t('common.languageAuto', { name: LOCALES[resolveLocale(undefined)] })], ...Object.entries(LOCALES)]} onchange={(v) => usr('appearance', { language: v })} />
 						</Row>
-						<Row label="Theme" hint={U.appearance.theme === 'auto' ? 'Follows this device: Daylight by day, Deep water at night.' : THEMES.find((t) => t.id === U.appearance.theme)?.hint}>
-							<Segmented value={U.appearance.theme} options={[...THEMES.map((t) => [t.id, t.label] as [string, string]), ['auto', 'Auto']]} onchange={(v) => usr('appearance', { theme: v })} />
+						<Row label={t('settings.theme')} hint={U.appearance.theme === 'auto' ? t('settings.themeAutoHint') : THEMES.find((x) => x.id === U.appearance.theme)?.hint}>
+							<Segmented value={U.appearance.theme} options={[...THEMES.map((x) => [x.id, x.label] as [string, string]), ['auto', t('settings.auto')]]} onchange={(v) => usr('appearance', { theme: v })} />
 						</Row>
-						<Row label="Accent color" hint="Tints the Well, buttons and highlights. Mimi adjusts its shade so text stays readable in every theme.">
+						<Row label={t('settings.accentColor')} hint={t('settings.accentHint')}>
 							<div class="accents" role="radiogroup" use:radioGroup>
 								{#each ACCENTS as c (c.hex)}
 									{@const on = U.appearance.accent.toLowerCase() === c.hex.toLowerCase()}
 									<button class="acc" role="radio" aria-checked={on} tabindex={on ? 0 : -1} class:on style="--c:{c.hex}" onclick={() => usr('appearance', { accent: c.hex })} aria-label={c.name} title={c.name}></button>
 								{/each}
-								<label class="custom" title="Custom color">
-									<span class="sr-only">Custom accent color</span>
+								<label class="custom" title={t('settings.customColor')}>
+									<span class="sr-only">{t('settings.customAccent')}</span>
 									<input type="color" value={U.appearance.accent} onchange={(e) => usr('appearance', { accent: e.currentTarget.value.toUpperCase() })} />
 								</label>
 							</div>
 						</Row>
-						<Row label="The Well" hint={WELL_STYLES.find((w) => w.id === U.appearance.well_style)?.hint ?? 'How Mimi’s presence looks.'}>
+						<Row label={t('settings.well')} hint={WELL_STYLES.find((w) => w.id === U.appearance.well_style)?.hint ?? t('settings.wellHint')}>
 							<div class="wells" role="radiogroup" use:radioGroup>
 								{#each WELL_STYLES as w (w.id)}
 									{@const on = (U.appearance.well_style || 'tide') === w.id}
@@ -375,26 +410,26 @@
 					</div>
 				</section>
 				<section id="reading" aria-labelledby="h-reading">
-					{@render group('reading', 'Text & layout')}
+					{@render group('reading', t('settings.subReading'))}
 					<div class="group card">
-						<Row label="Text size"><Slider value={U.appearance.font_scale} min={0.8} max={1.5} step={0.05} onchange={(v) => usr('appearance', { font_scale: v })} fmt={(v) => Math.round(v * 100) + '%'} /></Row>
-						<Row label="Density" hint={U.appearance.density === 'compact' ? 'Tighter spacing fits more on screen. Touch targets stay full size.' : 'Roomy spacing, easiest to read and reach.'}>
-							<Segmented value={U.appearance.density} options={[['comfortable', 'Comfortable'], ['compact', 'Compact']]} onchange={(v) => usr('appearance', { density: v })} />
+						<Row label={t('settings.textSize')}><Slider value={U.appearance.font_scale} min={0.8} max={1.5} step={0.05} onchange={(v) => usr('appearance', { font_scale: v })} fmt={(v) => pct(Math.round(v * 100))} /></Row>
+						<Row label={t('settings.density')} hint={U.appearance.density === 'compact' ? t('settings.densityCompactHint') : t('settings.densityComfortableHint')}>
+							<Segmented value={U.appearance.density} options={[['comfortable', t('settings.densityComfortable')], ['compact', t('settings.densityCompact')]]} onchange={(v) => usr('appearance', { density: v })} />
 						</Row>
-						<Row label="Reading font" hint="Used for library articles."><Segmented value={U.appearance.reading_font} options={[['serif', 'Serif'], ['sans', 'Sans']]} onchange={(v) => usr('appearance', { reading_font: v })} /></Row>
+						<Row label={t('settings.readingFont')} hint={t('settings.readingFontHint')}><Segmented value={U.appearance.reading_font} options={[['serif', t('settings.fontSerif')], ['sans', t('settings.fontSans')]]} onchange={(v) => usr('appearance', { reading_font: v })} /></Row>
 					</div>
 				</section>
 				<section id="accessibility" aria-labelledby="h-accessibility">
-					{@render group('accessibility', 'Comfort')}
+					{@render group('accessibility', t('settings.subComfort'))}
 					<div class="group card">
-						<Row label="Reduce motion" hint="No sliding or zooming; the Well holds still. Also follows your system setting."><Toggle checked={U.appearance.reduced_motion} onchange={(v) => usr('appearance', { reduced_motion: v })} /></Row>
-						<Row label="High contrast" hint="Stronger text and borders (7:1 contrast) in every theme."><Toggle checked={U.appearance.high_contrast} onchange={(v) => usr('appearance', { high_contrast: v })} /></Row>
+						<Row label={t('settings.reduceMotion')} hint={t('settings.reduceMotionHint')}><Toggle checked={U.appearance.reduced_motion} onchange={(v) => usr('appearance', { reduced_motion: v })} /></Row>
+						<Row label={t('settings.highContrast')} hint={t('settings.highContrastHint')}><Toggle checked={U.appearance.high_contrast} onchange={(v) => usr('appearance', { high_contrast: v })} /></Row>
 					</div>
 				</section>
 				<section id="home" aria-labelledby="h-home">
-					{@render group('home', 'Home')}
+					{@render group('home', t('settings.subHome'))}
 					<div class="group card">
-						<Row label="Home widgets" hint="Choose what appears on Home." stack>
+						<Row label={t('settings.homeWidgets')} hint={t('settings.homeWidgetsHint')} stack>
 							<div class="chips">
 								{#each WIDGETS as [id, label]}
 									{@const on = U.appearance.home_widgets.includes(id)}
@@ -406,47 +441,47 @@
 				</section>
 			{:else if section === 'assistant' && U.assistant}
 				<section id="style" aria-labelledby="h-style">
-					{@render group('style', 'Answers', () => resetSection('user', 'assistant', 'Answers'))}
+					{@render group('style', t('settings.subAnswers'), () => resetSection('user', 'assistant', t('settings.subAnswers')))}
 					<div class="group card">
-						<Row label="Answer length"><Slider value={U.assistant.verbosity} onchange={(v) => usr('assistant', { verbosity: v })} left="Brief" right="Detailed" /></Row>
-						<Row label="Tone"><Slider value={U.assistant.formality} onchange={(v) => usr('assistant', { formality: v })} left="Casual" right="Formal" /></Row>
-						<Row label="Dry wit" hint="A touch of humor when it fits."><Toggle checked={U.assistant.wit} onchange={(v) => usr('assistant', { wit: v })} /></Row>
-						<Row label="Show what Mimi is doing" hint="The activity trail: searches, articles read, lookups."><Toggle checked={U.assistant.show_tool_activity} onchange={(v) => usr('assistant', { show_tool_activity: v })} /></Row>
-						<Row label="Default mode">
+						<Row label={t('settings.answerLength')}><Slider value={U.assistant.verbosity} onchange={(v) => usr('assistant', { verbosity: v })} left={t('settings.brief')} right={t('settings.detailed')} /></Row>
+						<Row label={t('settings.tone')}><Slider value={U.assistant.formality} onchange={(v) => usr('assistant', { formality: v })} left={t('settings.casual')} right={t('settings.formal')} /></Row>
+						<Row label={t('settings.wit')} hint={t('settings.witHint')}><Toggle checked={U.assistant.wit} onchange={(v) => usr('assistant', { wit: v })} /></Row>
+						<Row label={t('settings.showActivity')} hint={t('settings.showActivityHint')}><Toggle checked={U.assistant.show_tool_activity} onchange={(v) => usr('assistant', { show_tool_activity: v })} /></Row>
+						<Row label={t('settings.defaultMode')}>
 							<select class="input sel" value={U.assistant.default_mode} onchange={(e) => usr('assistant', { default_mode: e.currentTarget.value })}>
-								{#each Object.entries(app.modes) as [id, m]}<option value={id}>{m.name}</option>{/each}
+								{#each Object.entries(app.modes) as [id, m]}<option value={id}>{t('settings.modeName', { id, name: m.name })}</option>{/each}
 							</select>
 						</Row>
 					</div>
-					<h4 class="label sub">Modes</h4>
+					<h4 class="label sub">{t('settings.modes')}</h4>
 					<ul class="modes">
 						{#each Object.entries(app.modes) as [id, m] (id)}
-							<li class="mode card"><b>{m.name}</b><small>{m.description}</small></li>
+							<li class="mode card"><b>{t('settings.modeName', { id, name: m.name })}</b><small>{t('settings.modeDescription', { id, text: m.description })}</small></li>
 						{/each}
 					</ul>
 				</section>
 				<section id="about" aria-labelledby="h-about">
-					{@render group('about', 'About you')}
+					{@render group('about', t('settings.subAbout'))}
 					<div class="group card">
-						<Row label="About you" hint="A few words Mimi keeps in mind (optional)." stack>
-							<textarea class="input" rows="2" maxlength="1000" value={U.assistant.about_me} onchange={(e) => usr('assistant', { about_me: e.currentTarget.value })} placeholder="e.g. Park ranger in Kentucky. I like short, practical answers."></textarea>
+						<Row label={t('settings.subAbout')} hint={t('settings.aboutYouHint')} stack>
+							<textarea class="input" rows="2" maxlength="1000" value={U.assistant.about_me} onchange={(e) => usr('assistant', { about_me: e.currentTarget.value })} placeholder={t('settings.aboutYouPlaceholder')}></textarea>
 						</Row>
-						<Row label="Custom instructions" hint="How Mimi should respond, always." stack>
-							<textarea class="input" rows="3" maxlength="2000" value={U.assistant.custom_instructions} onchange={(e) => usr('assistant', { custom_instructions: e.currentTarget.value })} placeholder="e.g. Use metric units. Explain like I'm new to the topic."></textarea>
+						<Row label={t('settings.customInstructions')} hint={t('settings.customInstructionsHint')} stack>
+							<textarea class="input" rows="3" maxlength="2000" value={U.assistant.custom_instructions} onchange={(e) => usr('assistant', { custom_instructions: e.currentTarget.value })} placeholder={t('settings.customInstructionsPlaceholder')}></textarea>
 						</Row>
 					</div>
 				</section>
 				{#if U.voice}
 					<section id="voice" aria-labelledby="h-voice">
-						{@render group('voice', 'Voice', () => resetSection('user', 'voice', 'Voice'))}
+						{@render group('voice', t('settings.subVoice'), () => resetSection('user', 'voice', t('settings.subVoice')))}
 						<div class="group card">
-							<Row label="Speaking speed"><Slider value={U.voice.speed} min={0.6} max={1.6} step={0.05} onchange={(v) => usr('voice', { speed: v })} fmt={(v) => v.toFixed(2) + '×'} /></Row>
-							<Row label="Read answers aloud" hint="Speak replies in text chats too."><Toggle checked={U.voice.read_aloud} onchange={(v) => usr('voice', { read_aloud: v })} /></Row>
-							<Row label="Transcription quality" hint="For Scribe notes. Best is slower but more accurate.">
-								<Segmented value={U.voice.stt_model} options={[['small', 'Fast'], ['turbo', 'Best']]} onchange={(v) => usr('voice', { stt_model: v })} />
+							<Row label={t('settings.speakingSpeed')}><Slider value={U.voice.speed} min={0.6} max={1.6} step={0.05} onchange={(v) => usr('voice', { speed: v })} fmt={(v) => fixed2(v) + '×'} /></Row>
+							<Row label={t('settings.readAloud')} hint={t('settings.readAloudHint')}><Toggle checked={U.voice.read_aloud} onchange={(v) => usr('voice', { read_aloud: v })} /></Row>
+							<Row label={t('settings.sttQuality')} hint={t('settings.sttQualityHint')}>
+								<Segmented value={U.voice.stt_model} options={[['small', t('settings.sttFast')], ['turbo', t('settings.sttBest')]]} onchange={(v) => usr('voice', { stt_model: v })} />
 							</Row>
 						</div>
-						<h4 class="label sub" id="voice-pick">Mimi's voice</h4>
+						<h4 class="label sub" id="voice-pick">{t('settings.mimisVoice')}</h4>
 						<div class="voices" role="radiogroup" aria-labelledby="voice-pick" use:radioGroup>
 							{#each voices as v (v.id)}
 								{@const on = U.voice.voice === v.id}
@@ -458,10 +493,11 @@
 									class:on
 									onclick={() => {
 										usr('voice', { voice: v.id });
+										// The voices speak English only, so the sample stays in English.
 										sample.play(v.id, "Hello. This is how I'll sound when we talk.");
 									}}
 								>
-									<span><b>{v.name}</b><small>{v.accent} · {v.gender}</small></span>
+									<span><b>{v.name}</b><small>{t('settings.voiceInfo', { id: v.id, accent: v.accent, gender: v.gender })}</small></span>
 									<Volume2 size={15} class={sample.playing === v.id ? 'playing' : ''} aria-hidden="true" />
 								</button>
 							{/each}
@@ -470,50 +506,54 @@
 				{/if}
 			{:else if section === 'intelligence' && D.models}
 				<section id="models" aria-labelledby="h-models">
-					{@render group('models', 'Models', () => resetSection('device', 'models', 'Models'))}
+					{@render group('models', t('settings.subModels'), () => resetSection('device', 'models', t('settings.subModels')))}
 					<div class="group card">
-						<Row label="Profile" hint="Auto picks the best models this hardware can run reliably.">
-							<Segmented value={D.models.profile} options={[['auto', `Auto (${models?.hardware_profile || '…'})`], ['lite', 'Lite'], ['standard', 'Standard'], ['plus', 'Plus'], ['max', 'Max']]} onchange={(v) => dev('models', { profile: v })} />
+						<Row label={t('settings.profile')} hint={t('settings.profileHint')}>
+							<Segmented value={D.models.profile} options={[['auto', t('settings.profileAuto', { profile: models?.hardware_profile || '…' })], ['lite', 'Lite'], ['standard', 'Standard'], ['plus', 'Plus'], ['max', 'Max']]} onchange={(v) => dev('models', { profile: v })} />
 						</Row>
 						{#if profileGap}
-							<p class="warn-line"><Info size={14} style="vertical-align:-2px" aria-hidden="true" /> The {profileGap.label} model isn't installed{profileGap.serving ? `, so Mimi is using ${profileGap.serving}` : ''}. Add it with <code>python -m mimi content add {profileGap.pack}</code>.</p>
+							<p class="warn-line">
+								<Info size={14} style="vertical-align:-2px" aria-hidden="true" />
+								{t('settings.profileMissing', { label: profileGap.label, serving: profileGap.serving })}
+								{#each slots(t('settings.profileAddWith')) as p}{#if p.slot}<code>python -m mimi content add {profileGap.pack}</code>{:else}{p.text}{/if}{/each}
+							</p>
 						{/if}
-						{#each [['main', 'Main model', 'Answers most questions.'], ['quick', 'Quick model', 'Used by battery saver, and for quick background jobs.'], ['reader', 'Reader model', "Photos and documents when the main model can't see."]] as [role, label, hint]}
+						{#each ROLES as [role, label, hint]}
 							<Row {label} {hint}>
 								<select class="input sel" value={D.models[role] || ''} onchange={(e) => dev('models', { [role]: e.currentTarget.value || null })}>
-									<option value="">Automatic · {chatModels.find((m: any) => m.id === models?.status?.roles?.[role])?.name || '—'}</option>
+									<option value="">{t('settings.modelAutomatic', { name: chatModels.find((m: any) => m.id === models?.status?.roles?.[role])?.name || '—' })}</option>
 									{#each installed as m}<option value={m.id}>{m.name}</option>{/each}
 								</select>
 							</Row>
 						{/each}
-						<Row label="Context length" hint="How much conversation Mimi can hold. Longer uses more memory.">
+						<Row label={t('settings.contextLength')} hint={t('settings.contextLengthHint')}>
 							<Segmented value={String(D.models.context)} options={[['4096', '4K'], ['8192', '8K'], ['12288', '12K'], ['16384', '16K']]} onchange={(v) => dev('models', { context: Number(v) })} />
 						</Row>
-						<Row label="Creativity" hint={D.models.temperature == null ? "Using the model's recommended setting." : 'Lower is more focused, higher more varied.'}>
-							<Slider value={D.models.temperature ?? 0.7} min={0} max={1.5} step={0.05} onchange={(v) => dev('models', { temperature: v })} fmt={(v) => v.toFixed(2)} />
-							{#if D.models.temperature != null}<button class="btn btn-sm btn-ghost" onclick={() => dev('models', { temperature: null })}>Default</button>{/if}
+						<Row label={t('settings.creativity')} hint={D.models.temperature == null ? t('settings.creativityDefaultHint') : t('settings.creativityHint')}>
+							<Slider value={D.models.temperature ?? 0.7} min={0} max={1.5} step={0.05} onchange={(v) => dev('models', { temperature: v })} fmt={fixed2} />
+							{#if D.models.temperature != null}<button class="btn btn-sm btn-ghost" onclick={() => dev('models', { temperature: null })}>{t('settings.useDefault')}</button>{/if}
 						</Row>
-						<Row label="Load the main model at startup" hint="First answers come faster; uses memory right away."><Toggle checked={D.models.preload} onchange={(v) => dev('models', { preload: v })} /></Row>
-						<Row label="Think harder" hint="Let the model reason step by step before answering. Much slower."><Toggle checked={D.models.think_harder} onchange={(v) => dev('models', { think_harder: v })} /></Row>
+						<Row label={t('settings.preload')} hint={t('settings.preloadHint')}><Toggle checked={D.models.preload} onchange={(v) => dev('models', { preload: v })} /></Row>
+						<Row label={t('settings.thinkHarder')} hint={t('settings.thinkHarderHint')}><Toggle checked={D.models.think_harder} onchange={(v) => dev('models', { think_harder: v })} /></Row>
 					</div>
-					<h4 class="label sub">Installed models</h4>
+					<h4 class="label sub">{t('settings.installedModels')}</h4>
 					<ul class="mlist">
 						{#each chatModels as m (m.id)}
 							<li class="mcard card" class:dim={!m.installed}>
 								<div class="mh">
 									<b>{m.name}</b>
-									{#if models?.status?.model === m.id}<span class="tag live">{models.status.status}</span>{/if}
-									{#if !m.installed}<span class="tag">Not installed</span>{/if}
+									{#if models?.status?.model === m.id}<span class="tag live">{t('settings.modelStatus', { status: models.status.status })}</span>{/if}
+									{#if !m.installed}<span class="tag">{t('settings.notInstalled')}</span>{/if}
 								</div>
-								<small>{m.publisher} · {m.params} · {m.quant} · {m.license}{#if m.size_gb} · {m.size_gb} GB{/if}{#if m.vision} · sees images{/if}</small>
-								<p>{m.blurb}</p>
+								<small>{m.publisher} · {m.params} · {m.quant} · {m.license}{#if m.size_gb} · {t('settings.sizeGb', { n: num(m.size_gb) })}{/if}{#if m.vision} · {t('settings.seesImages')}{/if}</small>
+								<p>{t('settings.modelBlurb', { id: m.id, text: m.blurb })}</p>
 								{#if m.installed && models?.status?.model !== m.id}
 									<button
 										class="btn btn-sm"
 										onclick={async () => {
 											await post('/api/models/load', { model: m.id });
-											app.toast(`Loading ${m.name}…`);
-										}}>Load now</button
+											app.toast(t('settings.loadingModel', { name: m.name }));
+										}}>{t('settings.loadNow')}</button
 									>
 								{/if}
 							</li>
@@ -522,48 +562,48 @@
 				</section>
 				{#if D.knowledge}
 					<section id="library" aria-labelledby="h-library">
-						{@render group('library', 'Library', () => resetSection('device', 'knowledge', 'Library'))}
+						{@render group('library', t('settings.subLibrary'), () => resetSection('device', 'knowledge', t('settings.subLibrary')))}
 						<div class="group card">
-							<Row label="Articles per search" hint="More context gives better answers but slower replies."><Segmented value={String(D.knowledge.articles_per_search)} options={[['2', '2'], ['3', '3'], ['4', '4'], ['5', '5']]} onchange={(v) => dev('knowledge', { articles_per_search: Number(v) })} /></Row>
-							<Row label="Passage length" hint="How much of each article Mimi reads."><Slider value={D.knowledge.snippet_chars} min={400} max={2400} step={100} onchange={(v) => dev('knowledge', { snippet_chars: v })} fmt={(v) => v + ' chars'} /></Row>
+							<Row label={t('settings.articlesPerSearch')} hint={t('settings.articlesPerSearchHint')}><Segmented value={String(D.knowledge.articles_per_search)} options={[['2', '2'], ['3', '3'], ['4', '4'], ['5', '5']]} onchange={(v) => dev('knowledge', { articles_per_search: Number(v) })} /></Row>
+							<Row label={t('settings.passageLength')} hint={t('settings.passageLengthHint')}><Slider value={D.knowledge.snippet_chars} min={400} max={2400} step={100} onchange={(v) => dev('knowledge', { snippet_chars: v })} fmt={(v) => t('settings.chars', { n: fmtNumber(v, { useGrouping: false }) })} /></Row>
 						</div>
-						<h4 class="label sub">Collections</h4>
+						<h4 class="label sub">{t('settings.collections')}</h4>
 						<div class="group card">
 							{#each books as b (b.name)}
-								<Row label={b.title} hint={`${b.collection_label} · ${b.articles.toLocaleString()} articles · ${fmtBytes(b.size)}`}>
+								<Row label={b.title} hint={`${t('settings.collectionLabel', { id: b.collection, text: b.collection_label })} · ${t('settings.bookArticles', { n: b.articles })} · ${fmtBytes(b.size)}`}>
 									<Toggle checked={b.enabled} onchange={() => toggleBook(b)} />
 								</Row>
 							{/each}
 						</div>
-						{#if app.boot?.local}<button class="btn btn-sm" onclick={() => post('/api/system/open-folder?which=zim')}><FolderOpen size={14} aria-hidden="true" /> Open library folder</button>{/if}
+						{#if app.boot?.local}<button class="btn btn-sm" onclick={() => post('/api/system/open-folder?which=zim')}><FolderOpen size={14} aria-hidden="true" /> {t('settings.openLibraryFolder')}</button>{/if}
 					</section>
 				{/if}
 				<section id="tools" aria-labelledby="h-tools">
-					{@render group('tools', 'Tools')}
-					<p class="intro">Tools are what Mimi can do beyond talking: search the library, plan routes, look around. Switch off any you don't want it to use.</p>
+					{@render group('tools', t('settings.subTools'))}
+					<p class="intro">{t('settings.toolsIntro')}</p>
 					{#if toolList}
-						<h4 class="label sub">Built in</h4>
+						<h4 class="label sub">{t('settings.builtIn')}</h4>
 						<div class="group card">
-							{#each toolList.tools.filter((t: any) => t.builtin) as t (t.name)}
-								<Row label={toolTitle(t.name)} hint={t.locked ? 'Controlled by the memory setting in Accounts & privacy.' : t.description}>
-									<Toggle checked={t.enabled} disabled={t.locked} onchange={(v) => toggleTool(t, v)} />
+							{#each toolList.tools.filter((x: any) => x.builtin) as tool (tool.name)}
+								<Row label={t('settings.toolName', { name: tool.name, title: toolTitle(tool.name) })} hint={tool.locked ? t('settings.toolLocked') : t('settings.toolDescription', { name: tool.name, text: tool.description })}>
+									<Toggle checked={tool.enabled} disabled={tool.locked} onchange={(v) => toggleTool(tool, v)} />
 								</Row>
 							{/each}
 						</div>
-						<h4 class="label sub">Community tools</h4>
+						<h4 class="label sub">{t('settings.communityTools')}</h4>
 						<div class="group card">
-							{#each toolList.tools.filter((t: any) => !t.builtin) as t (t.file)}
-								<Row label={toolTitle(t.name)} hint={t.error ? `Couldn't load ${t.file}: ${t.error}` : `${t.description} (${t.file} · ${toolCaps(t)})`}>
-									{#if t.error}<span class="tag err"><TriangleAlert size={12} aria-hidden="true" /> Error</span>{:else}<Toggle checked={t.enabled} onchange={(v) => toggleTool(t, v)} />{/if}
+							{#each toolList.tools.filter((x: any) => !x.builtin) as tool (tool.file)}
+								<Row label={toolTitle(tool.name)} hint={tool.error ? t('settings.toolLoadError', { file: tool.file, error: tool.error }) : `${tool.description} (${tool.file} · ${toolCaps(tool)})`}>
+									{#if tool.error}<span class="tag err"><TriangleAlert size={12} aria-hidden="true" /> {t('settings.error')}</span>{:else}<Toggle checked={tool.enabled} onchange={(v) => toggleTool(tool, v)} />{/if}
 								</Row>
 							{:else}
-								<Row label="No community tools yet" hint="Drop a Python tool file into the tools folder, then rescan." />
+								<Row label={t('settings.noCommunityTools')} hint={t('settings.noCommunityToolsHint')} />
 							{/each}
 						</div>
-						<p class="warn-line"><Info size={14} style="vertical-align:-2px" aria-hidden="true" /> Community tools are Python code that runs on this device with Mimi's permissions. Only turn on tools you trust.</p>
+						<p class="warn-line"><Info size={14} style="vertical-align:-2px" aria-hidden="true" /> {t('settings.communityWarning')}</p>
 						<div class="acts-row">
-							<button class="btn btn-sm" onclick={reloadTools}><RefreshCw size={14} aria-hidden="true" /> Rescan folder</button>
-							{#if app.boot?.local}<button class="btn btn-sm" onclick={() => post('/api/system/open-folder?which=tools')}><FolderOpen size={14} aria-hidden="true" /> Open tools folder</button>{/if}
+							<button class="btn btn-sm" onclick={reloadTools}><RefreshCw size={14} aria-hidden="true" /> {t('settings.rescanFolder')}</button>
+							{#if app.boot?.local}<button class="btn btn-sm" onclick={() => post('/api/system/open-folder?which=tools')}><FolderOpen size={14} aria-hidden="true" /> {t('settings.openToolsFolder')}</button>{/if}
 						</div>
 					{:else}
 						<div class="shimmer" style="height:200px"></div>
@@ -571,119 +611,130 @@
 				</section>
 			{:else if section === 'location' && D.location}
 				<div class="group card">
-					<Row label="Location source" hint="Auto uses GPS when connected, then a phone's location, then the place you set.">
-						<Segmented value={D.location.source} options={[['auto', 'Auto'], ['gps', 'GPS only'], ['manual', 'Set place'], ['off', 'Off']]} onchange={(v) => dev('location', { source: v })} />
+					<Row label={t('settings.locationSource')} hint={t('settings.locationSourceHint')}>
+						<Segmented value={D.location.source} options={[['auto', t('settings.auto')], ['gps', t('settings.sourceGps')], ['manual', t('settings.sourceManual')], ['off', t('settings.sourceOff')]]} onchange={(v) => dev('location', { source: v })} />
 					</Row>
-					<Row label="Current location" hint={app.location?.current ? `From ${app.location.current.source}` : 'Unknown'}>
+					<Row label={t('settings.currentLocation')} hint={app.location?.current ? t('settings.locationFrom', { source: app.location.current.source }) : t('settings.unknown')}>
 						<span class="muted">{app.location?.description?.description || '—'}</span>
-						<a class="btn btn-sm" href="/map">Set on map</a>
+						<a class="btn btn-sm" href="/map">{t('settings.setOnMap')}</a>
 					</Row>
-					<Row label="Live location from this device" hint="Streams this browser's GPS to Mimi while it's open, like a phone riding in the car. Directions and 'near me' follow along (needs Location source: Auto).">
+					<Row label={t('settings.liveLocation')} hint={t('settings.liveLocationHint')}>
 						<Toggle checked={app.live} onchange={(v) => (v ? app.startLive() : app.stopLive())} />
 					</Row>
-					<Row label="GPS receiver" hint={app.location?.gps?.port ? `Connected on ${app.location.gps.port}${app.location.gps.fix ? ' · fix acquired' : ' · waiting for fix'}` : 'Plug in a USB GPS; Mimi finds it automatically.'}>
+					<Row label={t('settings.gpsReceiver')} hint={app.location?.gps?.port ? t(app.location.gps.fix ? 'settings.gpsFix' : 'settings.gpsWaiting', { port: app.location.gps.port }) : t('settings.gpsHint')}>
+						<!-- "auto" is the value this field takes, so it is not translated. -->
 						<input class="input sel" value={D.location.gps_port} onchange={(e) => dev('location', { gps_port: e.currentTarget.value || 'auto' })} placeholder="auto" />
 					</Row>
-					<Row label="Remember trips" hint="Keep a private log of where Mimi has been."><Toggle checked={D.location.history} onchange={(v) => dev('location', { history: v })} /></Row>
+					<Row label={t('settings.rememberTrips')} hint={t('settings.rememberTripsHint')}><Toggle checked={D.location.history} onchange={(v) => dev('location', { history: v })} /></Row>
 					{#if D.location.history}
-						<Row label="Keep history for"><Segmented value={String(D.location.history_days)} options={[['7', 'A week'], ['30', 'A month'], ['365', 'A year']]} onchange={(v) => dev('location', { history_days: Number(v) })} /></Row>
+						<Row label={t('settings.keepHistoryFor')}><Segmented value={String(D.location.history_days)} options={[['7', t('settings.aWeek')], ['30', t('settings.aMonth')], ['365', t('settings.aYear')]]} onchange={(v) => dev('location', { history_days: Number(v) })} /></Row>
 					{/if}
 				</div>
 			{:else if section === 'sharing' && D.sharing}
 				<section id="access" aria-labelledby="h-access">
-					{@render group('access', 'Access')}
+					{@render group('access', t('settings.subAccess'))}
 					<div class="group card">
-						<Row label="Access from other devices" hint="Open Mimi in the web browser of any phone, tablet or laptop on the same network (your home Wi-Fi, a router, or Mimi's own hotspot).">
+						<Row label={t('settings.accessOther')} hint={t('settings.accessOtherHint')}>
 							<Toggle checked={D.sharing.enabled} onchange={(v) => dev('sharing', { enabled: v })} />
 						</Row>
 						{#if share?.ca?.notice}
 							<div class="ca-notice" role="status">
-								<p class="warn-line"><TriangleAlert size={14} style="vertical-align:-2px" aria-hidden="true" /> Mimi replaced its local certificate with one that can only vouch for this device on your network. On each phone or laptop that installed the old one, remove “Mimi Local Authority”, then install the <a href="/cert" download>new certificate</a>.</p>
-								{#if app.boot?.local}<button class="btn btn-sm" onclick={ackCaNotice}>Done</button>{/if}
+								<p class="warn-line">
+									<TriangleAlert size={14} style="vertical-align:-2px" aria-hidden="true" />
+									{#each slots(t('settings.caNotice')) as p}{#if p.slot}<a href="/cert" download>{t('settings.caNoticeLink')}</a>{:else}{p.text}{/if}{/each}
+								</p>
+								{#if app.boot?.local}<button class="btn btn-sm" onclick={ackCaNotice}>{t('settings.done')}</button>{/if}
 							</div>
 						{/if}
 						{#if D.sharing.enabled && share}
 							{#if share.error}
-								<Row label="Couldn't start" hint={share.error}><span class="tag err">Error</span></Row>
+								<Row label={t('settings.couldntStart')} hint={share.error}><span class="tag err">{t('settings.error')}</span></Row>
 							{:else if share.running}
 								<div class="access">
 									<div class="urls">
-										<span class="label">Open this address on the other device</span>
+										<span class="label">{t('settings.openAddress')}</span>
 										{#each share.urls?.addresses || [] as a (a.ip)}
 											<div class="url">
 												<code class="selectable">{a.url}</code>
-												<span class="net">{a.label}</span>
+												<span class="net">{t('settings.netLabel', { kind: a.kind, label: a.label })}</span>
 												<button
 													class="icon-btn sm"
 													onclick={() => {
 														navigator.clipboard?.writeText(a.url);
-														app.toast('Address copied', 'ok');
+														app.toast(t('settings.addressCopied'), 'ok');
 													}}
-													aria-label="Copy address"><Copy size={14} aria-hidden="true" /></button
+													aria-label={t('settings.copyAddress')}><Copy size={14} aria-hidden="true" /></button
 												>
 											</div>
 										{:else}
-											<p class="faint">This device isn't connected to a network yet.</p>
+											<p class="faint">{t('settings.noNetwork')}</p>
 										{/each}
 										{#if share.mdns}
-											<div class="url alt"><code class="selectable">{share.urls?.name}</code><span class="net">works on most phones and Macs</span></div>
+											<div class="url alt"><code class="selectable">{share.urls?.name}</code><span class="net">{t('settings.mdnsHint')}</span></div>
 										{/if}
 										<ol class="how steps-list">
-											<li>On the other device, open the address above (or scan the code).</li>
-											<li>If the browser warns about the connection, choose <b>Advanced → Continue</b>. It's Mimi's own local certificate. To remove the warning and enable the microphone and camera, install the <a href="/cert" download>Mimi certificate</a> on that device once.</li>
-											<li>Choose <b>Sign in</b> and enter <b>{share.owner_name || 'your name'}</b>. {share.owner_can_sign_in ? 'Type your PIN, or leave it blank' : 'Leave the PIN blank'} and tap <b>Allow</b> when this screen asks. Guests can join without an account.</li>
+											<li>{t('settings.shareStep1')}</li>
+											<li>
+												{#each slots(t('settings.shareStep2')) as p}{#if p.slot === 'advanced'}<b>{t('settings.shareStep2Advanced')}</b>{:else if p.slot === 'cert'}<a href="/cert" download>{t('settings.shareStep2Cert')}</a>{:else}{p.text}{/if}{/each}
+											</li>
+											<li>
+												{#each slots(t(share.owner_can_sign_in ? 'settings.shareStep3Pin' : 'settings.shareStep3NoPin')) as p}{#if p.slot === 'signIn'}<b>{t('settings.signIn')}</b>{:else if p.slot === 'name'}<b>{share.owner_name || t('settings.yourName')}</b>{:else if p.slot === 'allow'}<b>{t('settings.allow')}</b>{:else}{p.text}{/if}{/each}
+											</li>
 										</ol>
 										{#if !share.owner_can_sign_in}
-											<p class="fine-line"><Info size={14} style="vertical-align:-2px" aria-hidden="true" /> Tip: set a PIN in <a href="/settings/accounts#you">Accounts & privacy</a> to sign in without walking over to approve.</p>
+											<p class="fine-line">
+												<Info size={14} style="vertical-align:-2px" aria-hidden="true" />
+												{#each slots(t('settings.shareTip')) as p}{#if p.slot}<a href="/settings/accounts#you">{t('settings.secAccounts')}</a>{:else}{p.text}{/if}{/each}
+											</p>
 										{/if}
 									</div>
 									{#if qrUrl}
 										<figure class="qrbox">
-											<div class="code" role="img" aria-label="QR code for the address above">{@html qrUrl}</div>
-											<figcaption class="faint">Scan to open</figcaption>
+											<div class="code" role="img" aria-label={t('settings.qrAddress')}>{@html qrUrl}</div>
+											<figcaption class="faint">{t('settings.scanToOpen')}</figcaption>
 										</figure>
 									{/if}
 								</div>
-								<Row label="Allow through Windows Firewall" hint={share.firewall ? 'Other devices can reach Mimi.' : 'Needed once, or other devices can’t connect. Windows asks you to approve.'}>
-									{#if share.firewall}<span class="tag live"><ShieldCheck size={13} aria-hidden="true" /> Allowed</span>{:else if app.boot?.local}<button class="btn btn-sm btn-primary" onclick={requestFirewall}><ShieldCheck size={14} aria-hidden="true" /> Allow</button>{:else}<span class="tag">Blocked</span>{/if}
+								<Row label={t('settings.firewall')} hint={share.firewall ? t('settings.firewallOk') : t('settings.firewallNeeded')}>
+									{#if share.firewall}<span class="tag live"><ShieldCheck size={13} aria-hidden="true" /> {t('settings.allowed')}</span>{:else if app.boot?.local}<button class="btn btn-sm btn-primary" onclick={requestFirewall}><ShieldCheck size={14} aria-hidden="true" /> {t('settings.allow')}</button>{:else}<span class="tag">{t('settings.blocked')}</span>{/if}
 								</Row>
 							{:else}
-								<Row label="Starting…"><span class="tag">…</span></Row>
+								<Row label={t('settings.starting')}><span class="tag">…</span></Row>
 							{/if}
 						{/if}
 					</div>
 				</section>
 
 				<section id="wifi" aria-labelledby="h-wifi">
-					{@render group('wifi', "Mimi's own Wi-Fi (for places without a network)")}
+					{@render group('wifi', t('settings.wifiTitle'))}
 					<div class="group card">
-						<Row label="Network" hint={D.sharing.network_mode === 'router' ? 'Plug in a travel router set to this name and password. Most reliable in the field.' : 'Windows Mobile Hotspot broadcasts this network (the Wi-Fi hardware must support it).'}>
-							<Segmented value={D.sharing.network_mode} options={[['router', 'Travel router'], ['hotspot', 'Windows hotspot']]} onchange={(v) => dev('sharing', { network_mode: v })} />
+						<Row label={t('settings.network')} hint={D.sharing.network_mode === 'router' ? t('settings.networkRouterHint') : t('settings.networkHotspotHint')}>
+							<Segmented value={D.sharing.network_mode} options={[['router', t('settings.travelRouter')], ['hotspot', t('settings.windowsHotspot')]]} onchange={(v) => dev('sharing', { network_mode: v })} />
 						</Row>
 						{#if D.sharing.network_mode === 'hotspot' && app.boot?.local}
-							<Row label="Mobile hotspot" hint={share?.hotspot?.status ? `Last result: ${share.hotspot.status}` : `Broadcasts “${D.sharing.ssid}” with your password.`}>
-								<button class="btn btn-sm" onclick={() => hotspot(true)}><Wifi size={14} aria-hidden="true" /> Start</button>
-								<button class="btn btn-sm btn-ghost" onclick={() => hotspot(false)}>Stop</button>
+							<Row label={t('settings.mobileHotspot')} hint={share?.hotspot?.status ? t('settings.hotspotLast', { status: share.hotspot.status }) : t('settings.hotspotBroadcasts', { ssid: D.sharing.ssid })}>
+								<button class="btn btn-sm" onclick={() => hotspot(true)}><Wifi size={14} aria-hidden="true" /> {t('settings.start')}</button>
+								<button class="btn btn-sm btn-ghost" onclick={() => hotspot(false)}>{t('settings.stop')}</button>
 							</Row>
 						{/if}
-						<Row label="Wi-Fi name"><input class="input sel" value={D.sharing.ssid} onchange={(e) => dev('sharing', { ssid: e.currentTarget.value })} maxlength="32" /></Row>
-						<Row label="Wi-Fi password">
+						<Row label={t('settings.wifiName')}><input class="input sel" value={D.sharing.ssid} onchange={(e) => dev('sharing', { ssid: e.currentTarget.value })} maxlength="32" /></Row>
+						<Row label={t('settings.wifiPassword')}>
 							<input class="input sel" type={showPass ? 'text' : 'password'} value={D.sharing.wifi_password} onchange={(e) => dev('sharing', { wifi_password: e.currentTarget.value })} minlength="8" />
-							<button class="icon-btn sm" onclick={() => (showPass = !showPass)} aria-label={showPass ? 'Hide password' : 'Show password'} aria-pressed={showPass}>{#if showPass}<EyeOff size={14} aria-hidden="true" />{:else}<Eye size={14} aria-hidden="true" />{/if}</button>
+							<button class="icon-btn sm" onclick={() => (showPass = !showPass)} aria-label={showPass ? t('settings.hidePassword') : t('settings.showPassword')} aria-pressed={showPass}>{#if showPass}<EyeOff size={14} aria-hidden="true" />{:else}<Eye size={14} aria-hidden="true" />{/if}</button>
 						</Row>
 						{#if qrWifi}
-							<Row label="Join code" hint="Phones scan this to join the Mimi Wi-Fi, then open the address above.">
-								<div class="code small" role="img" aria-label="QR code to join the Wi-Fi network">{@html qrWifi}</div>
+							<Row label={t('settings.joinCode')} hint={t('settings.joinCodeHint')}>
+								<div class="code small" role="img" aria-label={t('settings.qrWifi')}>{@html qrWifi}</div>
 							</Row>
 						{/if}
 					</div>
 				</section>
 
 				<section id="guests" aria-labelledby="h-guests">
-					{@render group('guests', 'Guests')}
+					{@render group('guests', t('settings.subGuests'))}
 					<div class="group card">
-						<Row label="Allow guests" hint="People can join without an account. Guest chats aren't saved and Mimi won't remember them."><Toggle checked={D.sharing.guest_access} onchange={(v) => dev('sharing', { guest_access: v })} /></Row>
-						<Row label="What guests can use" stack>
+						<Row label={t('settings.allowGuests')} hint={t('settings.allowGuestsHint')}><Toggle checked={D.sharing.guest_access} onchange={(v) => dev('sharing', { guest_access: v })} /></Row>
+						<Row label={t('settings.guestFeatures')} stack>
 							<div class="chips">
 								{#each FEATURES as [id, label]}
 									{@const on = D.sharing.guest_features.includes(id)}
@@ -691,59 +742,59 @@
 								{/each}
 							</div>
 						</Row>
-						<Row label="Messages per guest per hour"><Slider value={D.sharing.guest_messages_per_hour} min={5} max={120} step={5} onchange={(v) => dev('sharing', { guest_messages_per_hour: v })} fmt={(v) => String(v)} /></Row>
-						<Row label="Maximum guests"><Slider value={D.sharing.max_guests} min={1} max={32} onchange={(v) => dev('sharing', { max_guests: v })} fmt={(v) => String(v)} /></Row>
+						<Row label={t('settings.guestMessages')}><Slider value={D.sharing.guest_messages_per_hour} min={5} max={120} step={5} onchange={(v) => dev('sharing', { guest_messages_per_hour: v })} fmt={(v) => fmtNumber(v)} /></Row>
+						<Row label={t('settings.maxGuests')}><Slider value={D.sharing.max_guests} min={1} max={32} onchange={(v) => dev('sharing', { max_guests: v })} fmt={(v) => fmtNumber(v)} /></Row>
 					</div>
 					{#if share?.clients?.length}
-						<h4 class="label sub">Connected now</h4>
-						<div class="group card">{#each share.clients as c}<Row label={c.name} hint={`${c.role} · ${c.ip}`}><span class="faint">{c.client?.slice(0, 40)}</span></Row>{/each}</div>
+						<h4 class="label sub">{t('settings.connectedNow')}</h4>
+						<div class="group card">{#each share.clients as c}<Row label={c.name} hint={t('settings.clientHint', { role: c.role, ip: c.ip })}><span class="faint">{c.client?.slice(0, 40)}</span></Row>{/each}</div>
 					{/if}
 				</section>
 			{:else if section === 'accounts'}
 				<section id="you" aria-labelledby="h-you">
-					{@render group('you', 'You')}
+					{@render group('you', t('settings.subYou'))}
 					<div class="group card">
-						<Row label="Signed in as" hint={app.me?.role === 'owner' ? 'Device owner' : app.me?.role}>
+						<Row label={t('settings.signedInAs')} hint={app.me ? t('settings.myRole', { role: app.me.role }) : undefined}>
 							<span class="avatar" style="--c:{app.me?.color}; --ink:{inkOn(app.me?.color || DEFAULT_ACCENT)}" aria-hidden="true">{app.me?.name?.charAt(0)}</span><b>{app.me?.name}</b>
 						</Row>
 						{#if !app.isGuest}
-							<Row label={app.me?.has_pin ? 'Change PIN' : 'Set a PIN'} hint="4–8 digits unlock this device. Signing in from a phone or laptop needs at least 6.">
+							<Row label={app.me?.has_pin ? t('settings.changePin') : t('settings.setPin')} hint={t('settings.pinHint')}>
 								<input class="input sel" type="password" inputmode="numeric" maxlength="8" bind:value={myPin} autocomplete="new-password" />
-								<button class="btn btn-sm" disabled={!/^\d{4,8}$/.test(myPin)} onclick={savePin}>Save</button>
+								<button class="btn btn-sm" disabled={!/^\d{4,8}$/.test(myPin)} onclick={savePin}>{t('settings.save')}</button>
 							</Row>
 							{#if (app.me as any)?.pin_network_ok === false}
-								<p class="warn-line"><Info size={14} style="vertical-align:-2px" aria-hidden="true" /> Your PIN is shorter than 6 digits, so it only works on this device. Choose a longer one to sign in from phones, or use “Ask the Mimi device” there.</p>
+								<p class="warn-line"><Info size={14} style="vertical-align:-2px" aria-hidden="true" /> {t('settings.pinShort')}</p>
 							{/if}
 						{/if}
 					</div>
 				</section>
 				{#if U.privacy && !app.isGuest}
 					<section id="privacy" aria-labelledby="h-privacy">
-						{@render group('privacy', 'Privacy')}
+						{@render group('privacy', t('settings.subPrivacy'))}
 						<div class="group card">
-							<Row label="Save chat history"><Toggle checked={U.privacy.history} onchange={(v) => usr('privacy', { history: v })} /></Row>
-							<Row label="Keep chats for" hint={U.privacy.history_days ? 'Older chats are deleted automatically. Pinned chats are kept.' : ''}>
-								<Segmented value={String(U.privacy.history_days)} options={[['0', 'Forever'], ['30', '30 days'], ['90', '90 days'], ['365', 'A year']]} onchange={(v) => usr('privacy', { history_days: Number(v) })} />
+							<Row label={t('settings.saveHistory')}><Toggle checked={U.privacy.history} onchange={(v) => usr('privacy', { history: v })} /></Row>
+							<Row label={t('settings.keepChatsFor')} hint={U.privacy.history_days ? t('settings.keepChatsHint') : ''}>
+								<Segmented value={String(U.privacy.history_days)} options={[['0', t('settings.forever')], ['30', t('settings.days30')], ['90', t('settings.days90')], ['365', t('settings.aYear')]]} onchange={(v) => usr('privacy', { history_days: Number(v) })} />
 							</Row>
-							<Row label="Memory" hint="See and manage everything Mimi remembers."><a class="btn btn-sm" href="/memory">Manage memory</a></Row>
-							<Row label="Delete all chats" hint="Erases every conversation on this device. You'll be asked to confirm."><button class="btn btn-sm btn-danger" onclick={deleteAllChats}><Trash2 size={14} aria-hidden="true" /> Delete all</button></Row>
+							<Row label={t('settings.memory')} hint={t('settings.memoryHint')}><a class="btn btn-sm" href="/memory">{t('settings.manageMemory')}</a></Row>
+							<Row label={t('settings.deleteAllChats')} hint={t('settings.deleteAllChatsHint')}><button class="btn btn-sm btn-danger" onclick={deleteAllChats}><Trash2 size={14} aria-hidden="true" /> {t('settings.deleteAll')}</button></Row>
 						</div>
 					</section>
 				{/if}
 				{#if app.isOwner}
 					<section id="people" aria-labelledby="h-people">
-						{@render group('people', 'People')}
+						{@render group('people', t('settings.subPeople'))}
 						<div class="group card">
 							{#each shownUsers as u (u.id)}
-								<Row label={u.name} hint={u.role === 'owner' ? 'Owner' : 'User'}>
-									{#if u.role !== 'owner'}<button class="icon-btn sm" onclick={() => removeUser(u)} aria-label="Remove {u.name}"><Trash2 size={15} aria-hidden="true" /></button>{/if}
+								<Row label={u.name} hint={u.role === 'owner' ? t('settings.owner') : t('settings.user')}>
+									{#if u.role !== 'owner'}<button class="icon-btn sm" onclick={() => removeUser(u)} aria-label={t('settings.removePerson', { name: u.name })}><Trash2 size={15} aria-hidden="true" /></button>{/if}
 								</Row>
 							{/each}
-							<Row label="Add a person" hint="They can sign in from their phone with this name and password." stack>
+							<Row label={t('settings.addPerson')} hint={t('settings.addPersonHint')} stack>
 								<div class="adduser">
-									<label class="field"><span class="field-label">Name</span><input class="input" bind:value={newUser.name} autocomplete="off" /></label>
-									<label class="field"><span class="field-label">Password (6+ characters)</span><input class="input" type="password" bind:value={newUser.password} autocomplete="new-password" /></label>
-									<button class="btn btn-primary" disabled={!newUser.name || newUser.password.length < 6} onclick={addUser}><Plus size={15} aria-hidden="true" /> Add</button>
+									<label class="field"><span class="field-label">{t('settings.name')}</span><input class="input" bind:value={newUser.name} autocomplete="off" /></label>
+									<label class="field"><span class="field-label">{t('settings.passwordMin')}</span><input class="input" type="password" bind:value={newUser.password} autocomplete="new-password" /></label>
+									<button class="btn btn-primary" disabled={!newUser.name || newUser.password.length < 6} onclick={addUser}><Plus size={15} aria-hidden="true" /> {t('settings.add')}</button>
 								</div>
 							</Row>
 						</div>
@@ -751,9 +802,9 @@
 				{/if}
 			{:else if section === 'controls' && D.controls}
 				<div class="group card">
-					<Row label="Gamepad" hint="Navigate with the D-pad or stick, A to select, B to go back."><Toggle checked={D.controls.gamepad} onchange={(v) => dev('controls', { gamepad: v })} /></Row>
+					<Row label={t('settings.gamepad')} hint={t('settings.gamepadHint')}><Toggle checked={D.controls.gamepad} onchange={(v) => dev('controls', { gamepad: v })} /></Row>
 				</div>
-				{@render group('buttons', 'Buttons', () => resetSection('device', 'controls', 'Controls'))}
+				{@render group('buttons', t('settings.buttons'), () => resetSection('device', 'controls', t('settings.secControls')))}
 				<div class="group card">
 					{#each BUTTONS as b}
 						<Row label={b}>
@@ -763,67 +814,68 @@
 						</Row>
 					{/each}
 				</div>
-				{@render group('keys', 'Keyboard')}
+				{@render group('keys', t('settings.keyboard'))}
 				<div class="group card keys">
-					<Row label="Search and jump anywhere"><kbd>Ctrl</kbd> + <kbd>K</kbd></Row>
-					<Row label="Talk to Mimi"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>V</kbd></Row>
-					<Row label="Push to talk (in voice)"><kbd>Space</kbd></Row>
-					<Row label="Full screen"><kbd>F11</kbd></Row>
-					<Row label="Show or hide Mimi"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>M</kbd></Row>
+					<Row label={t('settings.keySearch')}><kbd>Ctrl</kbd> + <kbd>K</kbd></Row>
+					<Row label={t('settings.actVoice')}><kbd>Ctrl</kbd> + <kbd>{t('settings.kbdShift')}</kbd> + <kbd>V</kbd></Row>
+					<Row label={t('settings.keyPushToTalk')}><kbd>{t('settings.kbdSpace')}</kbd></Row>
+					<Row label={t('settings.keyFullscreen')}><kbd>F11</kbd></Row>
+					<Row label={t('settings.keyShowHide')}><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>M</kbd></Row>
 				</div>
 			{:else if section === 'system'}
 				{#if sys}
 					<div class="group card">
-						<Row label="Mimi" hint={`Version ${sys.version} · ${sys.root}${sys.portable ? ' · portable drive' : ''}`}><span class="tag live">Offline</span></Row>
-						<Row label="Device" hint={`${sys.hardware.cpu} · ${sys.hardware.ram_installed_gb} GB RAM`}><span class="muted">{sys.hardware.device}</span></Row>
-						<Row label="Graphics" hint={(sys.hardware.gpus || []).map((g: any) => `${g.name} (${Math.round(g.total_mb / 1024)} GB)`).join(', ') || 'CPU only'}>
+						<Row label="Mimi" hint={t('settings.versionHint', { version: sys.version, root: sys.root, portable: !!sys.portable })}><span class="tag live">{t('settings.offline')}</span></Row>
+						<Row label={t('settings.secDevice')} hint={t('settings.ramHint', { cpu: sys.hardware.cpu, ram: num(sys.hardware.ram_installed_gb) })}><span class="muted">{sys.hardware.device}</span></Row>
+						<Row label={t('settings.graphics')} hint={(sys.hardware.gpus || []).map((g: any) => t('settings.gpu', { name: g.name, gb: fmtNumber(Math.round(g.total_mb / 1024)) })).join(', ') || t('settings.cpuOnly')}>
 							<span class="muted">{sys.hardware.backend} · {sys.hardware.profile}</span>
 						</Row>
 					</div>
-					{@render group('storage', 'Storage')}
+					{@render group('storage', t('settings.storage'))}
 					<div class="group card">
 						{#each sys.disk.items as it}
-							<Row label={it.label}><span class="muted">{fmtBytes(it.bytes)}</span></Row>
+							<Row label={t('settings.diskItem', { label: it.label })}><span class="muted">{fmtBytes(it.bytes)}</span></Row>
 						{/each}
-						<Row label="Free on drive" hint={`${fmtBytes(sys.disk.drive.used)} used of ${fmtBytes(sys.disk.drive.total)}`}>
-							<div class="bar" role="meter" aria-label="Drive used" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round((sys.disk.drive.used / sys.disk.drive.total) * 100)}><span style="width:{(sys.disk.drive.used / sys.disk.drive.total) * 100}%"></span></div>
+						<Row label={t('settings.freeOnDrive')} hint={t('settings.usedOf', { used: fmtBytes(sys.disk.drive.used), total: fmtBytes(sys.disk.drive.total) })}>
+							<div class="bar" role="meter" aria-label={t('settings.driveUsed')} aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round((sys.disk.drive.used / sys.disk.drive.total) * 100)}><span style="width:{(sys.disk.drive.used / sys.disk.drive.total) * 100}%"></span></div>
 							<b>{fmtBytes(sys.disk.drive.free)}</b>
 						</Row>
 					</div>
-					{@render group('services', 'Services')}
+					{@render group('services', t('settings.services'))}
 					<div class="group card">
-						<Row label="Language model" hint={sys.health.model.error || ''}><span class="tag" class:live={sys.health.model.status === 'ready'}>{sys.health.model.model_name || sys.health.model.status}</span></Row>
-						<Row label="Offline library"><span class="tag" class:live={sys.health.library.running}>{sys.health.library.files} collections</span></Row>
-						<Row label="Speech"><span class="tag" class:live={sys.health.voice.tts.available}>{sys.health.voice.tts.available ? 'Ready' : 'Missing'}</span></Row>
-						<Row label="Maps"><span class="tag" class:live={sys.health.maps.tiles}>{sys.health.maps.tiles ? 'Installed' : 'Missing'}</span></Row>
-						<Row label="Restart services" hint="Reloads the library and the model.">
+						<Row label={t('settings.languageModel')} hint={sys.health.model.error || ''}><span class="tag" class:live={sys.health.model.status === 'ready'}>{sys.health.model.model_name || t('settings.modelStatus', { status: sys.health.model.status })}</span></Row>
+						<Row label={t('settings.offlineLibrary')}><span class="tag" class:live={sys.health.library.running}>{t('settings.collectionCount', { n: sys.health.library.files })}</span></Row>
+						<Row label={t('settings.speech')}><span class="tag" class:live={sys.health.voice.tts.available}>{sys.health.voice.tts.available ? t('settings.speechReady') : t('settings.speechMissing')}</span></Row>
+						<Row label={t('settings.maps')}><span class="tag" class:live={sys.health.maps.tiles}>{sys.health.maps.tiles ? t('settings.mapsInstalled') : t('settings.mapsMissing')}</span></Row>
+						<Row label={t('settings.restartServices')} hint={t('settings.restartServicesHint')}>
 							<button
 								class="btn btn-sm"
 								onclick={async () => {
 									await post('/api/system/restart-services');
-									app.toast('Restarting services…');
-								}}><RotateCcw size={14} aria-hidden="true" /> Restart</button
+									app.toast(t('settings.restarting'));
+								}}><RotateCcw size={14} aria-hidden="true" /> {t('settings.restart')}</button
 							>
 						</Row>
 					</div>
-					{@render group('logs', 'Logs')}
+					{@render group('logs', t('settings.logs'))}
 					<div class="logs card">
 						<div class="lh">
-							<select class="input sel" bind:value={logName} onchange={loadLog} aria-label="Log file">{#each sys.logs as l}<option>{l}</option>{/each}</select>
-							<button class="icon-btn sm" onclick={loadLog} aria-label="Refresh log"><RotateCcw size={14} aria-hidden="true" /></button>
-							{#if app.boot?.local}<button class="btn btn-sm btn-ghost" onclick={() => post('/api/system/open-folder?which=logs')}><FolderOpen size={14} aria-hidden="true" /> Open folder</button>{/if}
+							<select class="input sel" bind:value={logName} onchange={loadLog} aria-label={t('settings.logFile')}>{#each sys.logs as l}<option>{l}</option>{/each}</select>
+							<button class="icon-btn sm" onclick={loadLog} aria-label={t('settings.refreshLog')}><RotateCcw size={14} aria-hidden="true" /></button>
+							{#if app.boot?.local}<button class="btn btn-sm btn-ghost" onclick={() => post('/api/system/open-folder?which=logs')}><FolderOpen size={14} aria-hidden="true" /> {t('settings.openFolder')}</button>{/if}
 						</div>
-						<pre class="selectable" aria-label="Log output">{logText}</pre>
+						<pre class="selectable" aria-label={t('settings.logOutput')}>{logText}</pre>
 					</div>
-					{@render group('backup', 'Backup')}
+					{@render group('backup', t('settings.backup'))}
 					<div class="group card">
-						<Row label="Export settings"><button class="btn btn-sm" onclick={exportSettings}><Download size={14} aria-hidden="true" /> Export</button></Row>
-						<Row label="Import settings"><label class="btn btn-sm"><Upload size={14} aria-hidden="true" /> Import<input type="file" accept="application/json" hidden onchange={importSettings} /></label></Row>
+						<Row label={t('settings.exportSettings')}><button class="btn btn-sm" onclick={exportSettings}><Download size={14} aria-hidden="true" /> {t('settings.export')}</button></Row>
+						<Row label={t('settings.importSettings')}><label class="btn btn-sm"><Upload size={14} aria-hidden="true" /> {t('settings.import')}<input type="file" accept="application/json" hidden onchange={importSettings} /></label></Row>
 					</div>
-					{@render group('about', 'About')}
+					{@render group('about', t('settings.about'))}
 					<div class="group card about">
-						<p><b>Mimi — Machine Intelligence, Minus the Internet.</b> Open source (MIT), non-commercial. Named for Mímir, keeper of wisdom. <a href="/dev/design">Design system</a></p>
-						<p class="faint">Knowledge: Wikipedia &amp; Wikimedia projects (CC BY-SA), Stack Exchange (CC BY-SA), iFixit, WikiProjectMed, Project Gutenberg, TED (CC BY-NC-ND). Maps © OpenStreetMap contributors, Protomaps; places © GeoNames (CC BY). Models: Gemma 4 (Google), Qwen3.5 (Alibaba), BGE-M3 (BAAI), Whisper (OpenAI), Kokoro. Engines: llama.cpp, kiwix-tools.</p>
+						<!-- The name's expansion is part of the name, so it stays as it is. -->
+						<p><b>Mimi — Machine Intelligence, Minus the Internet.</b> {t('settings.aboutText')} <a href="/dev/design">{t('settings.designSystem')}</a></p>
+						<p class="faint">{t('settings.credits')}</p>
 					</div>
 				{:else}
 					<div class="shimmer" style="height:200px"></div>
@@ -1079,7 +1131,9 @@
 		color: var(--text-2);
 		font-size: var(--fs-md);
 	}
-	.tag {
+	/* Core reports some states in lowercase English ("idle", "ready"); other languages
+	   come translated and already cased, so capitalizing them would be wrong. */
+	.tag:lang(en) {
 		text-transform: capitalize;
 	}
 	.voices {
@@ -1106,6 +1160,8 @@
 	.vc small {
 		color: var(--text-3);
 		font-size: var(--fs-xs);
+	}
+	.vc small:lang(en) {
 		text-transform: capitalize;
 	}
 	.vc :global(.playing) {
@@ -1169,6 +1225,20 @@
 		font-size: var(--fs-xs);
 		color: var(--text-3);
 		white-space: nowrap;
+	}
+	@media (max-width: 560px) {
+		/* Phones: the address gets a line of its own, with its network name (long in some
+		   languages) and the copy button under it, instead of breaking the address. */
+		.url {
+			flex-wrap: wrap;
+		}
+		.url code {
+			flex-basis: 100%;
+		}
+		.net {
+			flex: 1;
+			white-space: normal;
+		}
 	}
 	.how {
 		margin: var(--space-1-5) 0 0;

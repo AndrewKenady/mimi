@@ -1,24 +1,105 @@
 // Theme application: the one place that turns Appearance settings into attributes and
 // custom properties on <html>. Onboarding previews, Settings and boot all go through it,
 // so a preview is exactly what the saved setting will look like.
+//
+// Names and hints are getters, so whatever reads them gets the interface language.
 import { accentTokens, parseColor, type RGB } from './color';
-import { DEFAULT_ACCENT } from './accents';
-export { ACCENTS, DEFAULT_ACCENT, accentName } from './accents';
+import { ACCENTS as ACCENT_PRESETS, DEFAULT_ACCENT } from './accents';
+import { t, type Key } from './i18n/index.svelte';
+export { DEFAULT_ACCENT } from './accents';
 
 export type ThemeId = 'dark' | 'oled' | 'light';
 
 export const THEMES: { id: ThemeId; label: string; hint: string }[] = [
-	{ id: 'dark', label: 'Deep water', hint: 'Dark blue-black. The default.' },
-	{ id: 'oled', label: 'Midnight', hint: 'True black for OLED screens and night use.' },
-	{ id: 'light', label: 'Daylight', hint: 'Bright, for sunlight and well-lit rooms.' }
+	{
+		id: 'dark',
+		get label() {
+			return t('settings.themeDark');
+		},
+		get hint() {
+			return t('settings.themeDarkHint');
+		}
+	},
+	{
+		id: 'oled',
+		get label() {
+			return t('settings.themeOled');
+		},
+		get hint() {
+			return t('settings.themeOledHint');
+		}
+	},
+	{
+		id: 'light',
+		get label() {
+			return t('settings.themeLight');
+		},
+		get hint() {
+			return t('settings.themeLightHint');
+		}
+	}
 ];
 
 export const WELL_STYLES = [
-	{ id: 'tide', label: 'Tide', hint: 'Your accent over deep teal water.' },
-	{ id: 'aurora', label: 'Aurora', hint: 'Your accent over violet depths.' },
-	{ id: 'ember', label: 'Ember', hint: 'Warm firelight, whatever the accent.' },
-	{ id: 'mono', label: 'Mono', hint: 'Quiet grays. Least distracting.' }
+	{
+		id: 'tide',
+		get label() {
+			return t('settings.wellTide');
+		},
+		get hint() {
+			return t('settings.wellTideHint');
+		}
+	},
+	{
+		id: 'aurora',
+		get label() {
+			return t('settings.wellAurora');
+		},
+		get hint() {
+			return t('settings.wellAuroraHint');
+		}
+	},
+	{
+		id: 'ember',
+		get label() {
+			return t('settings.wellEmber');
+		},
+		get hint() {
+			return t('settings.wellEmberHint');
+		}
+	},
+	{
+		id: 'mono',
+		get label() {
+			return t('settings.wellMono');
+		},
+		get hint() {
+			return t('settings.wellMonoHint');
+		}
+	}
 ] as const;
+
+/** Each preset's message, by its English name in accents.ts. */
+const ACCENT_NAMES = {
+	Lagoon: 'settings.accentLagoon',
+	Glacier: 'settings.accentGlacier',
+	Lupine: 'settings.accentLupine',
+	Fireweed: 'settings.accentFireweed',
+	Amber: 'settings.accentAmber',
+	Moss: 'settings.accentMoss',
+	Lichen: 'settings.accentLichen',
+	Sunrise: 'settings.accentSunrise'
+} as const satisfies Record<(typeof ACCENT_PRESETS)[number]['name'], Key>;
+
+/** The accent presets with names in the interface language (what screen readers announce). */
+export const ACCENTS = ACCENT_PRESETS.map((a) => ({
+	hex: a.hex,
+	get name() {
+		return t(ACCENT_NAMES[a.name]);
+	}
+}));
+
+export const accentName = (hex: string) => ACCENTS.find((a) => a.hex.toLowerCase() === hex?.toLowerCase())?.name ?? t('settings.customColorHex', { hex });
 
 export type Appearance = {
 	theme?: string;
