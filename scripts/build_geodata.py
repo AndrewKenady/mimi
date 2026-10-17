@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build Mimi's offline geodata databases (``maps/places.sqlite``, ``maps/geowiki.sqlite``).
+"""Build Mimi's offline geodata databases (``maps/places.sqlite``, ``maps/geowiki.sqlite``, ``maps/pois.sqlite``).
 
 Mimi (Machine Intelligence, Minus the Internet) answers "where am I?" and "what's
-near me?" with no network connection. This script turns two public datasets into
+near me?" with no network connection. This script turns three public datasets into
 compact, indexed SQLite files. They are queried by ``core/mimi/geodata.py``.
 
 places.sqlite: GeoNames gazetteer (default countries: US, CA)
@@ -44,6 +44,24 @@ geowiki.sqlite: coordinates of English Wikipedia articles (global)
                GeoData; it comes from the page table and is used as a rough
                notability signal when ranking.
 
+pois.sqlite: fuel stations and health services from OpenStreetMap (the region's extract)
+    Source   the Geofabrik extract(s) the installer downloads for offline directions
+             (``--osm``, read with pyosmium; nothing else is downloaded)
+    License  ODbL 1.0. Attribution: "(c) OpenStreetMap contributors"
+    Tables   pois          one row per place: kind (fuel | hospital | clinic | pharmacy |
+                           ambulance), name, lat/lon, osm ('n123', 'w45', 'r6'), tags (JSON:
+                           brand, operator, opening_hours, phone, emergency, addr:*, fuel:*, ...)
+             pois_rtree    R*Tree over the points
+             meta          build information, attribution and ``bounds`` (the areas the
+                           extracts cover, so Mimi can tell "none here" from "no data here")
+    Notes    * amenity=fuel, amenity/healthcare=hospital, amenity/healthcare=clinic,
+               amenity/healthcare=pharmacy and emergency=ambulance_station; access=private
+               or no is left out. Areas (ways, multipolygons) become the mean of up to 16
+               of their nodes.
+             * One place mapped twice (a hospital campus and its main building, a fuel
+               station's canopy and its node) is merged when the kind and name match
+               within a short distance (POI_MERGE_M).
+
 Both dumps are streamed; nothing is loaded into memory whole. The Wikipedia
 join keeps one bit per page id (a bitmap of about 10 MB) plus SQLite staging
 tables on disk. On a handheld PC (2026 data), places takes about 1 minute and
@@ -59,6 +77,7 @@ Usage (from the repository root, with Mimi's portable Python):
     python\\python.exe scripts\\build_geodata.py --only places
     python\\python.exe scripts\\build_geodata.py --skip-download  # reuse files in the work dir
     python\\python.exe scripts\\build_geodata.py --wiki-mirror https://mirror.accum.se/mirror/wikimedia.org/dumps
+    python\\python.exe scripts\\build_geodata.py --only pois --osm .tools\\dl\\osm\\germany-latest.osm.pbf
 
 Downloads go to ``.tools/dl/geodata/`` and are resumed if interrupted. They are
 deleted after a successful build unless ``--keep-downloads`` is given. Outputs
@@ -78,12 +97,14 @@ import hashlib
 import http.client
 import io
 import json
+import math
 import operator
 import os
 import re
 import sqlite3
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import zipfile
@@ -106,6 +127,7 @@ USER_AGENT = "MIMI-geodata-builder/1.0 (offline assistant; scripts/build_geodata
 SCHEMA_VERSION = 1
 PLACES_ATTRIBUTION = "Place data © GeoNames (CC BY 4.0)"
 WIKI_ATTRIBUTION = "Wikipedia geotags, CC BY-SA 4.0"
+POIS_ATTRIBUTION = "© OpenStreetMap contributors (ODbL 1.0)"
 
 # GeoNames feature codes dropped as low-value noise ("<class>.<code>": reason).
 DROP_FCODES = {
@@ -974,6 +996,324 @@ def verify_geowiki(conn: sqlite3.Connection) -> None:
 
 
 # --------------------------------------------------------------------------
+# OpenStreetMap -> pois.sqlite
+# --------------------------------------------------------------------------
+
+POI_KINDS = ("fuel", "hospital", "clinic", "pharmacy", "ambulance")
+# Tags kept with each place (as JSON), besides its name; fuel:* yes/no values (diesel, lpg ...) too.
+POI_TAGS = ("brand", "operator", "opening_hours", "phone", "emergency", "healthcare", "healthcare:speciality",
+            "dispensing", "wheelchair", "addr:street", "addr:housenumber", "addr:postcode", "addr:city", "addr:place",
+            "addr:country")
+# Two objects of one kind and name closer than this (meters) are one place mapped twice.
+# (A hospital campus is big; two stations of one brand can face each other across a road.)
+POI_MERGE_M = {"fuel": 50, "hospital": 400, "clinic": 100, "pharmacy": 40, "ambulance": 100}
+POI_SAMPLE = 16  # nodes of a way that place an area
+NODE_WINDOW = 1 << 31  # ids per IdFilter pass (its bitmap: 256 MB), as in build_addresses.py
+
+POIS_SCHEMA = """
+CREATE TABLE pois (
+    id     INTEGER PRIMARY KEY,
+    kind   TEXT NOT NULL,          -- fuel | hospital | clinic | pharmacy | ambulance
+    name   TEXT,                   -- NULL when OpenStreetMap has none (brand/operator stand in)
+    lat    REAL NOT NULL,
+    lon    REAL NOT NULL,
+    osm    TEXT NOT NULL,          -- 'n123', 'w45', 'r6' (openstreetmap.org/node/123 ...)
+    tags   TEXT                    -- JSON object: POI_TAGS and fuel:*, only those present
+);
+CREATE VIRTUAL TABLE pois_rtree USING rtree(id, minlat, maxlat, minlon, maxlon);
+"""
+_POI_SCRATCH = """
+CREATE TABLE poi(id INTEGER PRIMARY KEY, osm TEXT UNIQUE, kind TEXT, name TEXT, lat REAL, lon REAL, tags TEXT, src INTEGER);
+CREATE TABLE refs(poi INTEGER, node INTEGER, PRIMARY KEY (poi, node)) WITHOUT ROWID;  -- nodes that place an area
+CREATE TABLE members(poi INTEGER, way INTEGER);                                     -- ways of a multipolygon
+CREATE TABLE nodes(id INTEGER PRIMARY KEY, lat REAL, lon REAL);
+"""
+
+
+def poi_kind(tags) -> str | None:
+    """Which kind of place an OSM object is (one of POI_KINDS), or None. ``tags``: anything with .get()."""
+    get = tags.get
+    if get("access") in ("private", "no") or get("disused") == "yes" or get("abandoned") == "yes":
+        return None
+    amenity, health = get("amenity"), get("healthcare")
+    if amenity == "hospital" or health == "hospital":
+        return "hospital"
+    if amenity == "clinic" or health == "clinic":
+        return "clinic"
+    if get("emergency") == "ambulance_station":
+        return "ambulance"
+    if amenity == "pharmacy" or health == "pharmacy":
+        return "pharmacy"
+    if amenity == "fuel":
+        return "fuel"
+    return None
+
+
+def poi_tags(tags) -> dict[str, str]:
+    """The useful tags of a place: opening hours, phone, brand, operator, emergency, address, fuels."""
+    pairs = list(tags.items()) if isinstance(tags, dict) else [(t.k, t.v) for t in tags]
+    get = dict(pairs).get
+    out: dict[str, str] = {}
+    for k in POI_TAGS:
+        v = (get(k) or "").strip()
+        if v:
+            out[k] = v[:200]
+    phone = (get("phone") or get("contact:phone") or "").strip()
+    if phone:
+        out["phone"] = phone[:120]
+    for k, v in pairs:
+        if k.startswith("fuel:") and v in ("yes", "no") and len(out) < 40:
+            out[k] = v
+    return out
+
+
+def _sample(refs: list[int], n: int = POI_SAMPLE) -> list[int]:
+    """Up to n nodes spread along a way (a closed way's repeated first node counted once)."""
+    if len(refs) > 1 and refs[0] == refs[-1]:
+        refs = refs[:-1]
+    if len(refs) <= n:
+        return refs
+    step = len(refs) / n
+    return [refs[int(i * step)] for i in range(n)]
+
+
+def _poi_key(text: str | None) -> str:
+    s = unicodedata.normalize("NFKD", text or "")
+    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    return " ".join("".join(c if c.isalnum() else " " for c in s).split())
+
+
+def _meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    k = math.cos(math.radians((lat1 + lat2) / 2))
+    return 111_195.0 * math.hypot(lat2 - lat1, (lon2 - lon1) * k)
+
+
+def dedupe_pois(pois: list[dict]) -> tuple[list[dict], int]:
+    """Merge places mapped twice; returns (kept, number merged).
+
+    Each poi is {osm, kind, name, lat, lon, tags}. Two of the same kind whose names match (or,
+    unnamed, whose brand or operator do) within POI_MERGE_M[kind] meters are one place. One with
+    neither name nor brand joins any place of its kind within half that (an unnamed building on a
+    named hospital's campus, a fuel station's bare canopy), unless it has an address or phone of
+    its own: then it is a place nobody named. The best-described one is kept and gains the other's
+    missing tags."""
+    grid: dict[tuple, list[dict]] = {}
+    kept: list[dict] = []
+    merged = 0
+    for p in sorted(pois, key=lambda p: (-(len(p["tags"]) + (3 if p["name"] else 0)), p["osm"][0] != "n", p["osm"])):
+        key = _poi_key(p["name"] or p["tags"].get("brand") or p["tags"].get("operator"))
+        limit = POI_MERGE_M[p["kind"]] * (1.0 if key else 0.5)
+        own = bool(p["tags"].get("phone") or p["tags"].get("addr:housenumber"))
+        gy, gx = math.floor(p["lat"] / 0.01), math.floor(p["lon"] / 0.01)
+        twin = next((q for dy in (-1, 0, 1) for dx in (-1, 0, 1) for q in grid.get((p["kind"], gy + dy, gx + dx), ())
+                     if (q["_key"] == key or not (key or own)) and _meters(p["lat"], p["lon"], q["lat"], q["lon"]) <= limit),
+                    None)
+        if twin is not None:
+            for k, v in p["tags"].items():
+                twin["tags"].setdefault(k, v)
+            twin["name"] = twin["name"] or p["name"]
+            merged += 1
+            continue
+        p["_key"] = key
+        grid.setdefault((p["kind"], gy, gx), []).append(p)
+        kept.append(p)
+    for p in kept:
+        p.pop("_key", None)
+    return kept, merged
+
+
+def pbf_bounds(osmium, path: Path) -> list[float] | None:
+    """[west, south, east, north] from the file's header (Geofabrik extracts have one), else None."""
+    r = osmium.io.Reader(str(path), osmium.osm.osm_entity_bits.NOTHING)
+    try:
+        box = r.header().box()
+        if not box.valid():
+            return None
+        return [box.bottom_left.lon, box.bottom_left.lat, box.top_right.lon, box.top_right.lat]
+    finally:
+        r.close()
+
+
+def _poi_objects(osmium, path: Path, sc: sqlite3.Connection, src: int = 0) -> dict[str, int]:
+    """Pass 1: every tagged place. Nodes are placed at once; areas note the nodes (or, for
+    multipolygons, the ways) that will place them."""
+    counts = {"nodes": 0, "ways": 0, "relations": 0, "skipped": 0}
+    rows: list[tuple] = []
+    insert = "INSERT OR IGNORE INTO poi(osm, kind, name, lat, lon, tags, src) VALUES (?,?,?,?,?,?,?)"
+    fp = osmium.FileProcessor(str(path), osmium.osm.NODE | osmium.osm.WAY | osmium.osm.RELATION) \
+        .with_filter(osmium.filter.KeyFilter("amenity", "healthcare", "emergency"))
+    for o in fp:
+        kind = poi_kind(o.tags)
+        if kind is None:
+            continue
+        name = (o.tags.get("name") or "").strip() or None
+        tags = json.dumps(poi_tags(o.tags), ensure_ascii=False, separators=(",", ":"))
+        osm = o.type_str() + str(o.id)
+        if o.is_node():
+            if o.location.valid():
+                rows.append((osm, kind, name, o.location.lat, o.location.lon, tags, src))
+                counts["nodes"] += 1
+                if len(rows) >= 20_000:
+                    sc.executemany(insert, rows)
+                    rows.clear()
+            else:
+                counts["skipped"] += 1
+            continue
+        cur = sc.execute(insert, (osm, kind, name, None, None, tags, src))
+        if not cur.rowcount:
+            continue  # the same object from an overlapping extract
+        pid = cur.lastrowid
+        if o.is_way():
+            sc.executemany("INSERT OR IGNORE INTO refs VALUES (?, ?)", ((pid, r) for r in _sample([n.ref for n in o.nodes])))
+            counts["ways"] += 1
+        else:
+            ways = [m.ref for m in o.members if m.type == "w"][:64]
+            nodes = [m.ref for m in o.members if m.type == "n"][:POI_SAMPLE]
+            sc.executemany("INSERT INTO members VALUES (?, ?)", ((pid, w) for w in ways))
+            sc.executemany("INSERT OR IGNORE INTO refs VALUES (?, ?)", ((pid, n) for n in nodes))
+            counts["relations"] += 1
+    sc.executemany(insert, rows)
+    sc.commit()
+    return counts
+
+
+def _id_windows(ids: list[int]) -> Iterator[list[int]]:
+    """The ids, a NODE_WINDOW-sized range at a time (each becomes one IdFilter pass)."""
+    by: dict[int, list[int]] = {}
+    for i in ids:
+        by.setdefault(i // NODE_WINDOW, []).append(i)
+    for w in sorted(by):
+        yield by[w]
+
+
+def _poi_member_ways(osmium, path: Path, sc: sqlite3.Connection) -> int:
+    """Pass 2 (only with multipolygon places): the ways they are made of, and a few nodes of each."""
+    owners: dict[int, list[int]] = {}
+    for pid, way in sc.execute("SELECT poi, way FROM members"):
+        owners.setdefault(way, []).append(pid)
+    found = 0
+    for window in _id_windows(sorted(owners)):
+        rows = []
+        for o in osmium.FileProcessor(str(path), osmium.osm.WAY).with_filter(osmium.filter.IdFilter(window)):
+            found += 1
+            refs = _sample([n.ref for n in o.nodes], 4)
+            rows += [(pid, r) for pid in owners.get(o.id, ()) for r in refs]
+        sc.executemany("INSERT OR IGNORE INTO refs VALUES (?, ?)", rows)
+    sc.execute("DELETE FROM members")
+    sc.commit()
+    return found
+
+
+def _poi_nodes(osmium, path: Path, sc: sqlite3.Connection) -> int:
+    """Pass 3: coordinates of the nodes that place the areas, a window of ids at a time."""
+    need = [n for (n,) in sc.execute("SELECT DISTINCT r.node FROM refs r LEFT JOIN nodes n ON n.id = r.node "
+                                     "WHERE n.id IS NULL ORDER BY 1")]
+    found = 0
+    for window in _id_windows(need):
+        rows = []
+        for o in osmium.FileProcessor(str(path), osmium.osm.NODE).with_filter(osmium.filter.IdFilter(window)):
+            if o.location.valid():
+                rows.append((o.id, o.location.lat, o.location.lon))
+        sc.executemany("INSERT OR IGNORE INTO nodes VALUES (?, ?, ?)", rows)
+        found += len(rows)
+    sc.commit()
+    return found
+
+
+def build_pois(args: argparse.Namespace) -> dict[str, object]:
+    """Fuel stations, hospitals, clinics, pharmacies and ambulance stations from OSM extracts."""
+    import osmium  # the `build` extra (pyosmium), as for routing and addresses
+
+    paths: list[Path] = list(args.osm or [])
+    if not paths:
+        raise SystemExit("--only pois needs --osm with the region's OpenStreetMap extract(s)")
+    for p in paths:
+        if not p.is_file():
+            raise SystemExit(f"--osm: {p} not found")
+    work: Path = args.work_dir
+    log(f"== pois.sqlite: OpenStreetMap {', '.join(p.name for p in paths)}")
+    scratch = work / "pois.scratch.sqlite"
+    scratch.unlink(missing_ok=True)
+    sc = sqlite3.connect(scratch)
+    try:
+        sc.execute("PRAGMA journal_mode = OFF")
+        sc.execute("PRAGMA synchronous = OFF")
+        sc.executescript(_POI_SCRATCH)
+        bounds: list[list[float] | None] = []
+        provenance: dict[str, object] = {}
+        for i, p in enumerate(paths):
+            t = time.monotonic()
+            bounds.append(pbf_bounds(osmium, p))
+            counts = _poi_objects(osmium, p, sc, i)
+            ways = _poi_member_ways(osmium, p, sc) if counts["relations"] else 0
+            nodes = _poi_nodes(osmium, p, sc)
+            log(f"  {p.name}: {counts['nodes']:,} nodes, {counts['ways']:,} ways, {counts['relations']:,} multipolygons "
+                f"({ways:,} member ways, {nodes:,} area nodes) in {time.monotonic() - t:.0f} s")
+            provenance[p.name] = {"file": p.name, "size": p.stat().st_size, **counts}
+        sc.execute("CREATE TEMP TABLE c AS SELECT r.poi AS id, avg(n.lat) AS lat, avg(n.lon) AS lon "
+                   "FROM refs r JOIN nodes n ON n.id = r.node GROUP BY r.poi")
+        sc.execute("CREATE UNIQUE INDEX temp.c_id ON c(id)")
+        sc.execute("UPDATE poi SET lat = (SELECT c.lat FROM c WHERE c.id = poi.id), lon = (SELECT c.lon FROM c WHERE c.id = poi.id) "
+                   "WHERE lat IS NULL")
+        unplaced = sc.execute("SELECT count(*) FROM poi WHERE lat IS NULL").fetchone()[0]
+        for i, b in enumerate(bounds):
+            if b is None:  # no box in the file's header: the area its places span, plus a margin
+                w, s, e, n = sc.execute("SELECT min(lon), min(lat), max(lon), max(lat) FROM poi WHERE src = ? AND lat IS NOT NULL",
+                                        (i,)).fetchone()
+                bounds[i] = [w - 0.1, s - 0.1, e + 0.1, n + 0.1] if w is not None else None
+        pois = [{"osm": osm, "kind": kind, "name": name, "lat": lat, "lon": lon, "tags": json.loads(tags or "{}")}
+                for osm, kind, name, lat, lon, tags in sc.execute(
+                    "SELECT osm, kind, name, lat, lon, tags FROM poi WHERE lat IS NOT NULL ORDER BY id")]
+    finally:
+        sc.close()
+        scratch.unlink(missing_ok=True)
+    kept, merged = dedupe_pois(pois)
+    log(f"  {len(pois):,} places; {merged:,} mapped twice and merged; {unplaced:,} areas without nodes in the file skipped")
+    build_path = work / "pois.build.sqlite"
+    conn = open_build_db(build_path)
+    conn.executescript(POIS_SCHEMA)
+    kept.sort(key=lambda p: hilbert_key(p["lat"], p["lon"]))  # neighbors share R-tree nodes
+    conn.executemany("INSERT INTO pois(id, kind, name, lat, lon, osm, tags) VALUES (?,?,?,?,?,?,?)",
+                     ((i, p["kind"], p["name"], round(p["lat"], 7), round(p["lon"], 7), p["osm"],
+                       json.dumps(p["tags"], ensure_ascii=False, separators=(",", ":")) if p["tags"] else None)
+                      for i, p in enumerate(kept, 1)))
+    conn.execute("CREATE INDEX idx_pois_kind ON pois(kind)")
+    conn.execute("INSERT INTO pois_rtree (id, minlat, maxlat, minlon, maxlon) SELECT id, lat, lat, lon, lon FROM pois")
+    conn.commit()
+    verify_pois(conn)
+    by_kind = dict(conn.execute("SELECT kind, count(*) FROM pois GROUP BY kind ORDER BY kind").fetchall())
+    write_meta(conn, {
+        "name": "Mimi fuel stations and health services (OpenStreetMap)",
+        "schema_version": str(SCHEMA_VERSION),
+        "source": "OpenStreetMap extracts (Geofabrik), https://www.openstreetmap.org/",
+        "source_files": provenance,
+        "license": "ODbL 1.0 (https://opendatacommons.org/licenses/odbl/1-0/)",
+        "attribution": POIS_ATTRIBUTION,
+        "kinds": list(POI_KINDS),
+        "bounds": [[round(x, 4) for x in b] for b in bounds if b],
+        "build_date": utc_now_iso(),
+        "builder": "scripts/build_geodata.py",
+        "row_count": str(len(kept)),
+        "row_counts_by_kind": by_kind,
+        "merged_duplicates": str(merged),
+    })
+    conn.commit()
+    stats = {"pois": len(kept), "by_kind": by_kind, "merged": merged, "unplaced": unplaced}
+    stats["file"] = str(finalize_db(conn, build_path, args.maps_dir / "pois.sqlite"))
+    return stats
+
+
+def verify_pois(conn: sqlite3.Connection) -> None:
+    n, = conn.execute("SELECT count(*) FROM pois").fetchone()
+    nr, = conn.execute("SELECT count(*) FROM pois_rtree").fetchone()
+    bad, = conn.execute(f"SELECT count(*) FROM pois WHERE kind NOT IN ({','.join('?' * len(POI_KINDS))}) "
+                        "OR lat NOT BETWEEN -90 AND 90 OR lon NOT BETWEEN -180 AND 180", POI_KINDS).fetchone()
+    if n != nr or bad:
+        raise SystemExit(f"verification failed: {n} places, {nr} in the R-tree, {bad} with a bad kind or position")
+    log(f"  verification passed ({n:,} places)")
+
+
+# --------------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------------
 
@@ -990,7 +1330,9 @@ def remove_downloads(work: Path, patterns: Sequence[str]) -> None:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--only", choices=("places", "geowiki"), help="build just one of the two databases")
+    ap.add_argument("--only", choices=("places", "geowiki", "pois"), help="build just one of the databases")
+    ap.add_argument("--osm", nargs="+", type=Path, metavar="PBF",
+                    help="OpenStreetMap extract(s) for pois.sqlite (the routing download; nothing is fetched)")
     ap.add_argument("--skip-download", action="store_true", help="use files already in the work dir; no network")
     ap.add_argument("--keep-downloads", action="store_true", help="do not delete downloaded source files after building")
     ap.add_argument("--countries", default="US,CA", help="GeoNames country codes, comma-separated (default: US,CA)")
@@ -1021,6 +1363,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             summary["geowiki"] = build_geowiki(args)
             if not args.keep_downloads:
                 remove_downloads(args.work_dir, [f"{WIKI_NAME}-*-geo_tags.sql.gz", f"{WIKI_NAME}-*-page.sql.gz"])
+        if args.only == "pois" or (args.only is None and args.osm):
+            summary["pois"] = build_pois(args)  # the extracts belong to the caller: never deleted here
     except DownloadError as e:
         log(f"ERROR: {e}")
         return 2

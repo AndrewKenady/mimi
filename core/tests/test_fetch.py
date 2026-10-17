@@ -298,9 +298,11 @@ def test_regional_items_follow_the_region():
     build = next(i for i in us if i.kind == "build")
     args = build.build_args()
     assert args[0] == "--tiger" and "--nar" not in args
-    assert fetch.pack_problem("addresses", fetch.resolve_region("uk"))
+    assert not any(i.kind == "osm" for i in us)  # the US index is TIGER's, as before
+    assert fetch.pack_problem("addresses", fetch.resolve_region("japan"))  # block addresses: none
     assert fetch.pack_problem("addresses", fetch.resolve_region("canada")) is None
-    routing = fetch.plan(["routing"], fetch.resolve_region("uk"))[0]
+    assert fetch.pack_problem("addresses", fetch.resolve_region("uk")) is None  # from OpenStreetMap
+    routing = next(i for i in fetch.plan(["routing"], fetch.resolve_region("uk")) if i.spec.get("script") == "scripts/build_routing.py")
     assert routing.build_args()[:3] == ["--regions", "europe/united-kingdom", "europe/ireland-and-northern-ireland"]
 
 
@@ -415,3 +417,104 @@ def test_an_engine_that_did_not_unpack_is_never_marked_installed(tmp_path, monke
     assert not fetch.runtime_ready(r)  # an empty folder is not an installed engine
     (tmp_path / "bin/x/kiwix/kiwix-serve.exe").write_text("")
     assert fetch.runtime_ready(r)
+
+
+# --------------------------------------------------------------------------- one OpenStreetMap extract, several builds
+class _Builds:
+    """Stand-ins for the region's extract download and the builds that read it: they record what
+    they were given and whether the extract was still on disk."""
+
+    def __init__(self, monkeypatch, fail: str | None = None):
+        self.calls: list[tuple] = []
+        self.downloads = 0
+
+        def fake_download(region, dest_dir=None, dry=False):
+            self.downloads += 1
+            p = fetch.osm_extract_path(region, dest_dir)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(b"pbf")
+            return p
+
+        def fake_build(item, dry):
+            script = Path(item.spec["script"]).name
+            self.calls.append((item.pack, script, list(item.extra_args), all(p.exists() for p in _extracts(item.region))))
+            if fail == f"{item.pack}/{script}":
+                raise fetch.subprocess.CalledProcessError(1, script)
+            for t in item.targets():
+                t.parent.mkdir(parents=True, exist_ok=True)
+                t.write_text("built")
+
+        monkeypatch.setattr(fetch, "download_osm_extract", fake_download)
+        monkeypatch.setattr(fetch.Item, "_fetch_build", fake_build)
+
+
+def _extracts(region: dict) -> list[Path]:
+    return [fetch.osm_extract_path(r) for r in region["geofabrik"]]
+
+
+def test_one_download_feeds_addresses_pois_and_routing(monkeypatch):
+    uk = fetch.resolve_region("uk")
+    items = fetch.plan(["addresses", "routing"], uk)  # the standard tier's order
+    assert [i.kind for i in items].count("osm") == 1
+    pois = next(i for i in items if i.spec.get("script") == "scripts/build_geodata.py")
+    assert pois.build_args()[:4] == ["--only", "pois", "--osm", str(_extracts(uk)[0])] and str(_extracts(uk)[1]) in pois.build_args()
+    b = _Builds(monkeypatch)
+    assert fetch.run(fetch.todo(items)) == []
+    assert b.downloads == 2  # the region's two Geofabrik files, once
+    assert b.calls == [("addresses", "build_addresses.py", [], True), ("routing", "build_geodata.py", [], True),
+                       ("routing", "build_routing.py", [], True)]  # routing is last: it may free the extract early
+    assert not any(p.exists() for p in _extracts(uk))  # gone once the last reader is done
+
+
+def test_routing_keeps_the_extract_for_a_later_build(monkeypatch):
+    uk = fetch.resolve_region("uk")
+    b = _Builds(monkeypatch)
+    assert fetch.run(fetch.todo(fetch.plan(["routing", "addresses"], uk))) == []
+    assert [c[1:3] for c in b.calls] == [("build_geodata.py", []), ("build_routing.py", ["--keep-download"]),
+                                         ("build_addresses.py", [])]
+    assert all(c[3] for c in b.calls) and not any(p.exists() for p in _extracts(uk))
+
+
+def test_us_addresses_do_not_read_the_extract():
+    us = fetch.resolve_region("us")
+    items = fetch.plan(["routing", "addresses"], us)
+    osm = next(i for i in items if i.kind == "osm")
+    assert {Path(b.spec["script"]).name for b in items if b.kind == "build" and fetch.reads(b, osm)} == {
+        "build_geodata.py", "build_routing.py"}
+    assert not any(fetch.reads(b, osm) for b in items if b.pack == "addresses" and b.kind == "build")
+
+
+def test_a_failed_build_keeps_the_extract_for_the_next_run(monkeypatch):
+    uk = fetch.resolve_region("uk")
+    b = _Builds(monkeypatch, fail="routing/build_geodata.py")
+    errors = fetch.run(fetch.todo(fetch.plan(["routing", "addresses"], uk)))
+    assert len(errors) == 1 and errors[0].startswith("routing:")
+    assert [c[:2] for c in b.calls] == [("routing", "build_geodata.py"), ("addresses", "build_addresses.py")]
+    assert all(p.exists() for p in _extracts(uk))  # routing still needs it: kept, so running again resumes
+    _Builds(monkeypatch)
+    todo = fetch.todo(fetch.plan(["routing", "addresses"], uk))
+    assert [i.kind for i in todo] == ["osm", "build", "build"]  # the extract (on disk) and the two routing builds
+    assert fetch.run(todo) == [] and not any(p.exists() for p in _extracts(uk))
+    assert fetch.todo(fetch.plan(["routing", "addresses"], uk)) == []  # all built: nothing to fetch again
+
+
+def test_osm_extract_download_is_md5_checked(srv, monkeypatch):
+    monkeypatch.setattr(fetch, "geofabrik_url", lambda region: srv.url)
+    md5 = hashlib.md5(BLOB).hexdigest()
+    monkeypatch.setattr(fetch, "fetch_bytes", lambda url, timeout=120: f"{md5}  file.bin\n".encode())
+    p = fetch.download_osm_extract("europe/nowhere")
+    assert p == fetch.cache_dir() / "osm" / "file.bin" and p.read_bytes() == BLOB
+    n = len(srv.requests)
+    assert fetch.download_osm_extract("europe/nowhere") == p and len(srv.requests) == n  # on disk: no network
+    p.unlink()
+    monkeypatch.setattr(fetch, "fetch_bytes", lambda url, timeout=120: b"0" * 32 + b"  file.bin\n")
+    with pytest.raises(fetch.IntegrityError, match="MD5"):
+        fetch.download_osm_extract("europe/nowhere")
+    assert not p.exists() and not p.with_name(p.name + ".part").exists()
+
+
+def test_osm_item_in_the_plan():
+    uk = fetch.resolve_region("uk")
+    osm = next(i for i in fetch.plan(["addresses"], uk) if i.kind == "osm")
+    assert osm.temporary and "united-kingdom" in osm.label and not osm.installed()
+    assert [i.kind for i in fetch.plan(["routing"], fetch.resolve_region("japan"))] == ["osm", "build", "build"]

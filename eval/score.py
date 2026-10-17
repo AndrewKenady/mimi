@@ -72,7 +72,7 @@ def score_chat(item: dict, row: dict, *, judge: Judge | None = None, embed=None)
         except Exception as e:  # a flaky judge must not sink the scoring run
             verdict = {"error": str(e)}
     observed = (verdict or {}).get("behavior") if (verdict or {}).get("behavior") in goldset.BEHAVIORS else heuristic
-    expected = goldset.expected_behavior(item, row.get("location_known"))
+    expected = goldset.expected_behavior(item, row.get("location_known"), row.get("services_known"))
     b_ok = goldset.behavior_ok(expected, observed, facts, violations)
 
     sources = row.get("sources") or []
@@ -399,7 +399,7 @@ Reply with JSON only: {{"behavior": "answer|hedge|refuse", "correct": true|false
 def openai_judge(url: str, model: str | None = None) -> Judge:
     def judge(item: dict, row: dict) -> dict | None:
         passages = "\n\n".join(f"[{s.get('n')}] {s.get('title')}: {(s.get('text') or s.get('snippet') or '')[:1500]}" for s in row.get("sources") or [])
-        prompt = JUDGE_PROMPT.format(question=item["question"], behavior=goldset.expected_behavior(item, row.get("location_known")),
+        prompt = JUDGE_PROMPT.format(question=item["question"], behavior=goldset.expected_behavior(item, row.get("location_known"), row.get("services_known")),
                                      answer=row.get("answer", ""), passages=passages or "(none)")
         body = {"messages": [{"role": "user", "content": prompt}], "temperature": 0, "max_tokens": 400}
         if model:

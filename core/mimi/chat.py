@@ -814,7 +814,8 @@ def _pending_label(name: str, args: dict) -> str:
         "search_my_files": f"Searching your files for “{q}”…",
         "remember": "Noting that…",
         "where_am_i": "Checking location…",
-        "nearby_places": "Looking around…",
+        "nearby_places": (f"Looking for {tools.SERVICE_WORDS[args.get('kind')]}…" if args.get("kind") in tools.SERVICE_WORDS
+                          else "Looking around…"),
         "calculate": "Calculating…",
         "get_directions": f"Planning a route to {args.get('destination') or 'there'}…",
     }.get(name) or f"{(tools.PLUGINS[name].label if name in tools.PLUGINS else '') or 'Using ' + name}…"

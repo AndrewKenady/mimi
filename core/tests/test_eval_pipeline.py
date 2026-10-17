@@ -72,6 +72,13 @@ def test_answer_checks():
     assert not goldset.behavior_ok("refuse", "hedge", [], ["leak"])
     loc = {"behavior": "answer", "needs_location": True, "behavior_without_location": "hedge"}
     assert goldset.expected_behavior(loc, False) == "hedge" and goldset.expected_behavior(loc, True) == "answer"
+    # "nearest hospital": answered with the fuel/hospital table, an honest hedge without it
+    hosp = next(it for it in goldset.load() if it["id"] == "loc-001")
+    assert hosp["needs_services"] and goldset.expected_behavior(hosp, True, True) == "answer"
+    assert goldset.expected_behavior(hosp, True, False) == "hedge" and goldset.expected_behavior(hosp, False, True) == "hedge"
+    assert goldset.expected_behavior(hosp, True) == "hedge"  # a result file from before the table existed
+    assert goldset.key_fact_hits(hosp, "Hôpital de la Côte, 2.1 km NE, has an emergency department; call 112.") == [True, True]
+    assert goldset.key_fact_hits(hosp, "I don't have hospitals in my offline data; call your emergency number.") == [True, True]
 
 
 # --------------------------------------------------------------------- score.py on fixtures

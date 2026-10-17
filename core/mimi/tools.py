@@ -367,6 +367,32 @@ async def where_am_i(args: dict, st: TurnState, svc) -> ToolResult:
     return ToolResult(json.dumps(info, ensure_ascii=False), label="Checked location", summary=info.get("description", ""), data={"location": info})
 
 
+NEARBY_KINDS = ["all", "nature", "history", "culture", "towns", "water", "mountains",
+                "fuel", "hospital", "clinic", "pharmacy", "ambulance", "health"]
+SERVICE_KINDS = {"fuel", "hospital", "clinic", "pharmacy", "ambulance", "health"}
+SERVICE_WORDS = {"fuel": "fuel stations", "hospital": "hospitals", "clinic": "clinics", "pharmacy": "pharmacies",
+                  "ambulance": "ambulance stations", "health": "hospitals, clinics and pharmacies"}
+_SERVICE_ONE = {"fuel": "fuel station", "hospital": "hospital", "clinic": "clinic", "pharmacy": "pharmacy", "ambulance": "ambulance station"}
+
+
+def _service_line(p: dict, dist: str) -> str:
+    """'- Esso (fuel station) — 1.2 km NE · open 24/7 · +377 93 ...': name, what it is and the useful tags."""
+    what = _SERVICE_ONE.get(p.get("kind"), "place")
+    name = _one_line(p["name"]) if not p.get("unnamed") else f"unnamed {what}"
+    bits = [f"- {name} ({what}) — {dist} {p.get('direction', '')}".rstrip()]
+    if p.get("kind") == "hospital":
+        bits.append({"yes": "has an emergency department", "no": "no emergency department"}.get(p.get("emergency"),
+                                                                                                  "emergency department not recorded"))
+    for key, label in (("opening_hours", "open"), ("phone", "phone"), ("address", "")):
+        if p.get(key):
+            bits.append(f"{label} {_one_line(p[key], 80)}".strip())
+    if p.get("fuels"):
+        bits.append("fuels: " + ", ".join(_one_line(f, 20) for f in p["fuels"][:6]))
+    if p.get("source") == "geonames":
+        bits.append("from GeoNames, may be out of date")
+    return " · ".join(bits)
+
+
 async def nearby_places(args: dict, st: TurnState, svc) -> ToolResult:
     loc = svc.location.current()
     if not loc:
@@ -377,13 +403,33 @@ async def nearby_places(args: dict, st: TurnState, svc) -> ToolResult:
         radius = 15.0
     radius = max(1.0, min(radius, 80.0))
     kind = str(args.get("kind") or "all")
+    service = kind in SERVICE_KINDS
     places = svc.location.nearby(loc["lat"], loc["lon"], radius_km=radius, kinds=None if kind == "all" else [kind], limit=12)
+    geo = svc.location.geo
+    covered = bool(geo and getattr(geo, "pois_available", False) and geo.pois_cover(loc["lat"], loc["lon"]))
+    if service and not places:
+        if not covered:
+            return ToolResult(f"This device has no offline data on {SERVICE_WORDS[kind]} here: they come with the offline "
+                              "driving-directions pack for the region (content add routing). Say so plainly; for an emergency, "
+                              "tell the user to call the local emergency number.",
+                              label=f"Looked for {SERVICE_WORDS[kind]}", summary="No data here", ok=False)
+        return ToolResult(f"No {SERVICE_WORDS[kind]} in the offline map data within 250 km.",
+                          label=f"Looked for {SERVICE_WORDS[kind]}", summary="None found", ok=False)
     if not places:
         return ToolResult(f"Nothing notable found within {radius:g} km.", label="Looked around", summary="Nothing found", ok=False)
     metric = svc.settings.device("general").units == "metric"
     lines, sources = [], []
+    if service:
+        far = places[0]["distance_km"] > radius
+        lines.append(f"Nearest {SERVICE_WORDS[kind]}, closest first"
+                     + (f" (none within {radius:g} km, so the search went further)" if far else "")
+                     + (" — from OpenStreetMap, as mapped; opening hours may have changed:" if covered else
+                        " — GeoNames only (no OpenStreetMap services data for this area), may be incomplete:"))
     for p in places:
         dist = f"{p['distance_km']:.1f} km" if metric else f"{p['distance_km'] * 0.621371:.1f} mi"
+        if p.get("source") in ("osm",) or (service and p.get("kind") in _SERVICE_ONE):
+            lines.append(_service_line(p, dist))  # map names and tags are outside text: one line each, trimmed
+            continue
         line = f"- {_one_line(p['name'])} ({_one_line(p.get('kind') or 'place', 30)}) — {dist} {p.get('direction', '')}"  # map names are outside text
         if p.get("wiki_path"):
             src = {"type": "library", "title": p["name"], "book": "wikipedia", "book_title": "Wikipedia", "collection": "encyclopedia",
@@ -392,6 +438,12 @@ async def nearby_places(args: dict, st: TurnState, svc) -> ToolResult:
             sources.append(src)
             line += f" [{n}]"
         lines.append(line)
+    if service:
+        if kind in ("hospital", "health", "ambulance", "clinic"):
+            lines.append("In an emergency, the local emergency number comes first.")
+        return ToolResult("\n".join(lines), label=f"Looked for {SERVICE_WORDS[kind]}",
+                          summary=f"{len(places)} found, nearest {places[0]['distance_km']:.1f} km", sources=sources,
+                          data={"places": places})
     return ToolResult("Nearby:\n" + "\n".join(lines), label="Looked around nearby", summary=f"{len(places)} places", sources=sources, data={"places": places})
 
 
@@ -505,9 +557,13 @@ TOOLS: list[Tool] = [
          remember, lambda st, svc: svc.memory.enabled_for(st.ctx) and not st.temporary),
     Tool("where_am_i", "Get the device's current location (nearest town, region) from GPS or the location the user set.",
          _obj({}), where_am_i, lambda st, svc: svc.location.available()),
-    Tool("nearby_places", "Find notable places near the current location: parks, landmarks, historic sites, towns, lakes, mountains.",
-         _obj({"radius_km": {"type": "number", "description": "Search radius in km (default 15)"},
-               "kind": {"type": "string", "enum": ["all", "nature", "history", "culture", "towns", "water", "mountains"]}}),
+    Tool("nearby_places",
+         "Find places near the current location: notable places (parks, landmarks, historic sites, towns, lakes, mountains), "
+         "or services nearest first: fuel/gas stations (kind 'fuel'), hospitals ('hospital', with whether they have an "
+         "emergency department), clinics, pharmacies, ambulance stations, or 'health' for all medical ones.",
+         _obj({"radius_km": {"type": "number", "description": "Search radius in km (default 15); services look further if none is inside"},
+               "kind": {"type": "string", "enum": NEARBY_KINDS,
+                        "description": "'all' = notable places; e.g. 'fuel' for the nearest gas station, 'hospital' for the closest hospital"}}),
          nearby_places, lambda st, svc: svc.location.available()),
     Tool("get_directions",
          "Plan a route on the offline road map: distance, drive time and turn-by-turn steps. Starts from the current location unless an origin is given.",

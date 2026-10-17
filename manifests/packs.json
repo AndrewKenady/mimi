@@ -221,13 +221,20 @@
     },
     "routing": {
       "title": "Offline driving directions", "group": "routing", "regional": true,
-      "description": "Valhalla routing graph built from OpenStreetMap (Geofabrik) for your region. A US state takes minutes; US + Canada takes hours and ~50 GB of scratch space.",
-      "items": [ { "type": "build", "script": "scripts/build_routing.py", "outputs": ["maps/routing/config.json"], "remove": ["maps/routing"], "size_mb": "routing_mb",
-                   "args": ["--regions", "{geofabrik}", "--out", "{maps}/routing", "--download-dir", "{cache}/osm"] } ]
+      "description": "Valhalla routing graph built from OpenStreetMap (Geofabrik) for your region, and from the same extract the fuel stations, hospitals, clinics, pharmacies and ambulance stations for 'near me'. A US state takes minutes; US + Canada takes hours and ~50 GB of scratch space.",
+      "$comment": "The osm item is the region's Geofabrik extract(s), MD5-checked (fetch.py). Every build that reads it (here, and the addresses pack outside North America) runs before it is deleted; build_routing.py frees it before its tile build when nothing later needs it (keep_inputs otherwise). pois.sqlite size_mb is a rough upper bound (US + Canada); smaller regions take a few MB.",
+      "items": [
+        { "type": "osm", "temporary": true },
+        { "type": "build", "script": "scripts/build_geodata.py", "outputs": ["maps/pois.sqlite"], "size_mb": 100,
+          "args": ["--only", "pois", "--osm", "{osm}", "--maps-dir", "{maps}", "--work-dir", "{cache}/geodata"] },
+        { "type": "build", "script": "scripts/build_routing.py", "outputs": ["maps/routing/config.json"], "remove": ["maps/routing"], "size_mb": "routing_mb",
+          "inputs": ["osm"], "keep_inputs": "--keep-download",
+          "args": ["--regions", "{geofabrik}", "--out", "{maps}/routing", "--download-dir", "{cache}/osm"] }
+      ]
     },
     "addresses": {
-      "title": "Street-address search (US and Canada)", "group": "addresses", "regional": true, "requires_region": "addresses",
-      "description": "House-number search from US Census TIGER and the Statistics Canada National Address Register. ~3.3 GB download, ~45 min build.",
+      "title": "Street-address search", "group": "addresses", "regional": true, "requires_region": "addresses",
+      "description": "House-number search. US and Canada: Census TIGER and the Statistics Canada National Address Register (~3.3 GB download, ~45 min build). Regions marked addresses: osm (UK, Germany, France, Australia, New Zealand): OpenStreetMap's address points, from the region's extract (the one offline directions use), only as complete as OpenStreetMap is there.",
       "items": [
         { "type": "file", "path": ".tools/dl/tiger/tiger2025-nominatim-preprocessed.csv.tar.gz", "url": "https://nominatim.org/data/tiger2025-nominatim-preprocessed.csv.tar.gz",
           "size": 1896468161, "sha256": "353c18b6801fef838e269db614ca03905b2198bd05cfed0f523909cec81eea23", "temporary": true, "countries": ["US"], "arg": "--tiger" },
@@ -236,8 +243,11 @@
         { "type": "file", "path": ".tools/dl/nar/202606.zip", "url": "https://www150.statcan.gc.ca/n1/pub/46-26-0002/2022001/202606.zip",
           "size": null, "sha256": null, "temporary": true, "countries": ["CA"], "arg": "--nar",
           "$comment": "No hash yet: Statistics Canada's server was unreachable when this manifest was pinned. Fill in with python scripts/fetch.py --hash URL." },
-        { "type": "build", "script": "scripts/build_addresses.py", "outputs": ["maps/addresses.sqlite"], "size_mb": 5500,
-          "args": ["{inputs}", "--out", "{maps}/addresses.sqlite"] }
+        { "type": "build", "script": "scripts/build_addresses.py", "outputs": ["maps/addresses.sqlite"], "size_mb": 5500, "countries": ["US", "CA"],
+          "args": ["{inputs}", "--out", "{maps}/addresses.sqlite"] },
+        { "type": "osm", "temporary": true, "if_region": { "addresses": "osm" } },
+        { "type": "build", "script": "scripts/build_addresses.py", "outputs": ["maps/addresses.sqlite"], "if_region": { "addresses": "osm" },
+          "inputs": ["osm"], "args": ["--osm-roads", "{osm}", "--osm-points", "{osm}", "--out", "{maps}/addresses.sqlite"] }
       ]
     }
   }
