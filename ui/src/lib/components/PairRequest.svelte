@@ -9,6 +9,7 @@
 	import { post } from '$lib/api';
 	import { dialog } from '$lib/dialog';
 	import { motion } from '$lib/motion';
+	import { fmtNumber, t } from '$lib/i18n/index.svelte';
 	import { MonitorSmartphone, Check, X, BellOff } from '@lucide/svelte';
 
 	const req = $derived(app.pairRequests[0]);
@@ -27,6 +28,8 @@
 		return () => clearTimeout(t);
 	});
 	const armed = $derived(!busy && !!req && armedFor === req.id);
+	/** A message cut around its {placeholders}, so they can be filled with markup (a bold name). */
+	const parts = (msg: string) => msg.split(/(\{\w+\})/).filter(Boolean);
 
 	$effect(() => {
 		const t = setInterval(() => {
@@ -42,12 +45,12 @@
 		const r = req;
 		try {
 			const { status } = await post(`/api/auth/pair/${r.id}/decide`, { approve });
-			if (status === 'approved' && approve) app.toast(`${r.client} can now sign in as ${r.name}`, 'ok');
-			else if (status === 'denied' && !approve) app.toast('Sign-in request declined. That device must wait 10 minutes to ask again.', 'info');
-			else if (status === 'expired') app.toast('That request had already expired', 'error');
-			else app.toast(`That request was already ${status}`, 'info');
+			if (status === 'approved' && approve) app.toast(t('auth.approved', { client: r.client, name: r.name }), 'ok');
+			else if (status === 'denied' && !approve) app.toast(t('auth.denied'), 'info');
+			else if (status === 'expired') app.toast(t('auth.alreadyExpired'), 'error');
+			else app.toast(t('auth.already', { status }), 'info');
 		} catch (e: any) {
-			app.toast(e.message || 'That request has expired', 'error');
+			app.toast(e.message || t('auth.expired'), 'error');
 		} finally {
 			app.pairRequests = app.pairRequests.filter((x) => x.id !== r.id);
 			busy = false;
@@ -58,9 +61,9 @@
 		try {
 			await post('/api/auth/pair/pause');
 			app.pairRequests = [];
-			app.toast('Sign-in requests paused for 10 minutes. PINs still work.', 'info');
+			app.toast(t('auth.paused'), 'info');
 		} catch (e: any) {
-			app.toast(e.message || 'Could not pause requests', 'error');
+			app.toast(e.message || t('auth.pauseFailed'), 'error');
 		}
 	}
 </script>
@@ -74,22 +77,22 @@
 		transition:scale={motion({ start: 0.96, duration: 'base' })}
 	>
 		<span class="ic" aria-hidden="true"><MonitorSmartphone size={26} /></span>
-		<h2 id="pr-title">Sign-in request</h2>
-		<p id="pr-desc"><b>{req.client}</b> at {req.ip} wants to sign in as <b>{req.name}</b>.</p>
-		<p class="lbl">Check that this code matches the one on that screen</p>
-		<div class="code" role="img" aria-label="Code {req.code.split('').join(' ')}">
+		<h2 id="pr-title">{t('auth.request')}</h2>
+		<p id="pr-desc">{#each parts(t('auth.wants')) as p}{#if p === '{client}'}<b>{req.client}</b>{:else if p === '{ip}'}{req.ip}{:else if p === '{name}'}<b>{req.name}</b>{:else}{p}{/if}{/each}</p>
+		<p class="lbl">{t('auth.matchCode')}</p>
+		<div class="code" role="img" aria-label={t('auth.code', { code: req.code.split('').join(' ') })}>
 			{#each req.code.split('') as d}<span aria-hidden="true">{d}</span>{/each}
 		</div>
 		{#key req.id}
 			<div class="acts">
 				<!-- Focus starts on Deny, never Allow. -->
-				<button class="btn btn-lg" data-deny onclick={() => decide(false)} aria-disabled={!armed}><X size={17} aria-hidden="true" /> Deny</button>
-				<button class="btn btn-lg btn-primary" onclick={() => decide(true)} aria-disabled={!armed}><Check size={17} aria-hidden="true" /> Allow</button>
+				<button class="btn btn-lg" data-deny onclick={() => decide(false)} aria-disabled={!armed}><X size={17} aria-hidden="true" /> {t('auth.deny')}</button>
+				<button class="btn btn-lg btn-primary" onclick={() => decide(true)} aria-disabled={!armed}><Check size={17} aria-hidden="true" /> {t('auth.allow')}</button>
 			</div>
 		{/key}
-		<button class="pause" onclick={pause}><BellOff size={14} aria-hidden="true" /> Pause sign-in requests for 10 minutes</button>
+		<button class="pause" onclick={pause}><BellOff size={14} aria-hidden="true" /> {t('auth.pause')}</button>
 		<p class="fine">
-			Expires in {Math.max(0, Math.round(req.expires - now))} s{#if app.pairRequests.length > 1} · {app.pairRequests.length - 1} more waiting{/if}. Only allow devices you recognize.
+			{t('auth.expiresIn', { s: fmtNumber(Math.max(0, Math.round(req.expires - now))) })}{#if app.pairRequests.length > 1} · {t('auth.moreWaiting', { n: app.pairRequests.length - 1 })}{/if}. {t('auth.onlyKnown')}
 		</p>
 	</div>
 {/if}

@@ -7,6 +7,7 @@
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
 	import { app } from '$lib/app.svelte';
+	import { i18n, t } from '$lib/i18n/index.svelte';
 	import { ArrowRight, Check, ChevronUp, ExternalLink, Library, MessageCircle, Palette, Route } from '@lucide/svelte';
 	import { R } from './core';
 	import { demo } from './state.svelte';
@@ -15,11 +16,13 @@
 	const REPO = 'https://github.com/andrewkenady/mimi';
 	const q = (id: string) => R.chats.find((c) => c.id === id)?.question ?? '';
 
+	// Labels are message keys, so the tour follows the interface language. The question the first
+	// step asks is the recorded one, in English (the banner says so in the visitor's language).
 	const steps = [
-		{ id: 'ask', label: 'Ask how to treat hypothermia', short: 'Ask about hypothermia', icon: MessageCircle, run: () => ask(q('grounded')) },
-		{ id: 'library', label: 'Open the Medical Library', short: 'Medical Library', icon: Library, run: () => goto('/library/book/zimgit-medicine_en') },
-		{ id: 'design', label: 'See the design system', short: 'Design system', icon: Palette, run: () => goto('/dev/design') }
-	];
+		{ id: 'ask', label: 'demo.tourAsk', short: 'demo.tourAskShort', icon: MessageCircle, run: () => ask(q('grounded')) },
+		{ id: 'library', label: 'demo.tourLibrary', short: 'demo.tourLibraryShort', icon: Library, run: () => goto('/library/book/zimgit-medicine_en') },
+		{ id: 'design', label: 'demo.tourDesign', short: 'demo.tourDesignShort', icon: Palette, run: () => goto('/dev/design') }
+	] as const;
 	const current = $derived(steps.find((s) => !demo.done.includes(s.id)));
 	const stepNo = $derived(current ? steps.indexOf(current) + 1 : steps.length);
 
@@ -52,7 +55,7 @@
 	async function ask(text: string) {
 		if (demo.playing) return;
 		const onChat = demo.path === '/' || demo.path.startsWith('/chat');
-		const box = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Message"]');
+		const box = document.querySelector<HTMLTextAreaElement>('.composer textarea'); // not by its label, which follows the language
 		if (!onChat || !box) {
 			app.ask(text);
 			await goto('/chat');
@@ -98,21 +101,21 @@
 {#if demo.folded}
 	<button bind:this={pill} class="pill" onclick={() => fold(false)} aria-expanded="false" aria-controls="mimi-demo-bar">
 		<span class="orb" aria-hidden="true"></span>
-		Live demo
-		{#if demo.playing}<span class="sr-only">, an answer is playing</span>{/if}
+		{t('demo.liveDemo')}
+		{#if demo.playing}<span class="sr-only">{t('demo.answerPlaying')}</span>{/if}
 	</button>
 {:else}
-	<section id="mimi-demo-bar" class="bar" bind:this={bar} aria-label="About this demo">
+	<section id="mimi-demo-bar" class="bar" bind:this={bar} aria-label={t('demo.about')}>
 		<div class="top">
 			<span class="orb" aria-hidden="true"></span>
 			<p class="what">
-				<b>Live demo</b> — the real Mimi interface, running in your browser on recorded answers. <span class="real">The real thing runs offline on your own device.</span>
+				<b>{t('demo.liveDemo')}</b> {t('demo.what')} <span class="real">{t('demo.real')}</span>
 			</p>
-			<nav class="links" aria-label="About Mimi">
-				<a href={CASE_STUDY} target="_blank" rel="noopener">Case study<ExternalLink size={12} aria-hidden="true" /><span class="sr-only"> (opens in a new tab)</span></a>
-				<a href={REPO} target="_blank" rel="noopener">GitHub<ExternalLink size={12} aria-hidden="true" /><span class="sr-only"> (opens in a new tab)</span></a>
+			<nav class="links" aria-label={t('demo.aboutMimi')}>
+				<a href={CASE_STUDY} target="_blank" rel="noopener">{t('demo.caseStudy')}<ExternalLink size={12} aria-hidden="true" /><span class="sr-only">{t('demo.newTab')}</span></a>
+				<a href={REPO} target="_blank" rel="noopener">GitHub<ExternalLink size={12} aria-hidden="true" /><span class="sr-only">{t('demo.newTab')}</span></a>
 			</nav>
-			<button bind:this={foldBtn} class="icon-btn sm fold" onclick={() => fold(true)} aria-expanded="true" aria-controls="mimi-demo-bar" aria-label="Fold the demo banner" title="Fold">
+			<button bind:this={foldBtn} class="icon-btn sm fold" onclick={() => fold(true)} aria-expanded="true" aria-controls="mimi-demo-bar" aria-label={t('demo.fold')} title={t('demo.foldTitle')}>
 				<ChevronUp size={16} aria-hidden="true" />
 			</button>
 		</div>
@@ -120,33 +123,34 @@
 			{#if demo.playing}
 				<p class="playing">
 					<span class="dot" aria-hidden="true"></span>
-					{#if demo.fast}Replaying 8× faster than the handheld.{:else}<span class="long">Replaying at the handheld’s real speed: sources first, then the answer.</span><span class="short">Handheld speed: sources first, then the answer.</span>{/if}
+					{#if demo.fast}{t('demo.replayFast')}{:else}<span class="long">{t('demo.replayReal')}</span><span class="short">{t('demo.replayRealShort')}</span>{/if}
 				</p>
 			{:else}
-				<div class="scroll" role="group" aria-label="Try Mimi">
+				<div class="scroll" role="group" aria-label={t('demo.tryMimi')}>
 					{#if current}
 						{@const Icon = current.icon}
 						<button class="step" onclick={current.run}>
 							<span class="n" aria-hidden="true">{stepNo}/{steps.length}</span>
 							<Icon size={15} aria-hidden="true" />
-							<span><span class="sr-only">Step {stepNo} of {steps.length}: </span><span class="long">{current.label}</span><span class="short">{current.short}</span></span>
+							<span><span class="sr-only">{t('demo.stepOf', { n: stepNo, total: steps.length })}</span><span class="long">{t(current.label)}</span><span class="short">{t(current.short)}</span></span>
 							<ArrowRight size={15} aria-hidden="true" />
 						</button>
 					{:else}
-						<span class="tourdone"><Check size={15} aria-hidden="true" /> Tour done. Explore freely.</span>
+						<span class="tourdone"><Check size={15} aria-hidden="true" /> {t('demo.tourDone')}</span>
 					{/if}
-					<span class="or" aria-hidden="true">or try</span>
-					{#each tries as t (t.label)}
-						<button class="chip" onclick={t.run}>
-							{#if t.route}<Route size={14} aria-hidden="true" />{/if}{t.label}
+					<span class="or" aria-hidden="true">{t('demo.orTry')}</span>
+					{#each tries as tr (tr.label)}
+						<!-- the recorded questions are English: say so to screen readers too -->
+						<button class="chip" onclick={tr.run} lang={tr.route || i18n.locale === 'en' ? undefined : 'en'}>
+							{#if tr.route}<Route size={14} aria-hidden="true" />{/if}{tr.label}
 						</button>
 					{/each}
-					<a class="chip mlink" href={CASE_STUDY} target="_blank" rel="noopener">Case study<ExternalLink size={12} aria-hidden="true" /><span class="sr-only"> (opens in a new tab)</span></a>
-					<a class="chip mlink" href={REPO} target="_blank" rel="noopener">GitHub<ExternalLink size={12} aria-hidden="true" /><span class="sr-only"> (opens in a new tab)</span></a>
+					<a class="chip mlink" href={CASE_STUDY} target="_blank" rel="noopener">{t('demo.caseStudy')}<ExternalLink size={12} aria-hidden="true" /><span class="sr-only">{t('demo.newTab')}</span></a>
+					<a class="chip mlink" href={REPO} target="_blank" rel="noopener">GitHub<ExternalLink size={12} aria-hidden="true" /><span class="sr-only">{t('demo.newTab')}</span></a>
 				</div>
 			{/if}
 			<button class="skip" class:on={demo.fast} class:nudge={demo.playing && !demo.fast} role="switch" aria-checked={demo.fast} onclick={() => demo.setFast(!demo.fast)}>
-				<span class="lbl">Skip the wait</span>
+				<span class="lbl">{t('demo.skipWait')}</span>
 				<span class="track" aria-hidden="true"><span class="knob"></span></span>
 			</button>
 		</div>
