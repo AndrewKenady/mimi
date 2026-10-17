@@ -85,6 +85,7 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - Removing content or upgrading an engine while Mimi is running says to close Mimi first, instead of crashing halfway.
 - A fresh install crashed or failed 25 tests: selectolax 1.0 removed a module Core imports.
 - The library showed "21,673,012 articles· 118.7 GB" (missing space).
+- Points of interest on the map trailed behind it while panning or zooming, and never grew on hover.
 - The chat list on phones covered the conversation and never closed.
 - Saving a PIN always reported success.
 - The sign-in request's "Deny" never received focus.
