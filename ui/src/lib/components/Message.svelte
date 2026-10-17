@@ -245,7 +245,7 @@
 			{#if meta.error}
 				<div class="error" role="alert">
 					<CircleAlert size={16} />
-					<span class="etxt">{meta.error}{#if hasText} {t('chat.answerIncomplete')}{/if}</span>
+					<span class="etxt">{meta.error}{#if hasText}{' '}{t('chat.answerIncomplete')}{/if}</span>
 					{#if onregenerate && !live}
 						<button class="btn btn-sm retry" onclick={onregenerate}><RotateCcw size={14} /> {t('chat.tryAgain')}</button>
 					{/if}
