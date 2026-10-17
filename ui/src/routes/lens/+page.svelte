@@ -3,6 +3,7 @@
 	import { onDestroy } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { upload } from '$lib/api';
+	import { fmtNumber, i18n, t, type Locale } from '$lib/i18n/index.svelte';
 	import { Camera, ImageUp, ScanText, Sparkles, Languages, HelpCircle, Copy, Check, RotateCcw, Loader, SwitchCamera, BookImage } from '@lucide/svelte';
 
 	let video: HTMLVideoElement | undefined = $state();
@@ -28,7 +29,7 @@
 				await video.play();
 			}
 		} catch {
-			app.toast('No camera available. You can upload a photo instead.', 'error');
+			app.toast(t('lens.noCamera'), 'error');
 		}
 	}
 	function stopCam() {
@@ -66,7 +67,7 @@
 		try {
 			ocr = await upload('/api/lens/ocr', new File([b], 'photo.jpg', { type: b.type || 'image/jpeg' }));
 		} catch (e: any) {
-			app.toast(e.message || 'Could not read that image', 'error');
+			app.toast(e.message || t('lens.readFailed'), 'error');
 		} finally {
 			reading = false;
 		}
@@ -92,6 +93,9 @@
 		url = '';
 	}
 
+	// The prompts the buttons send stay in English; Translate asks for the interface language.
+	const LANGUAGE_NAME: Record<Locale, string> = { en: 'English', es: 'Spanish', fr: 'French' };
+
 	const polys = $derived((ocr?.lines || []).filter((l: any) => l.box).map((l: any) => ({ text: l.text, pts: l.box.map((p: number[]) => p.join(',')).join(' ') })));
 </script>
 
@@ -100,20 +104,20 @@
 <div class="page">
 	<div class="page-inner">
 		<h1 class="page-title">Lens</h1>
-		<p class="page-sub">Point, shoot, understand. Mimi reads the text instantly and can explain, translate or identify what it sees, all offline.</p>
+		<p class="page-sub">{t('lens.intro')}</p>
 
 		<div class="stage" class:has={!!url || camOn}>
 			{#if camOn}
 				<!-- svelte-ignore a11y_media_has_caption -->
 				<video bind:this={video} playsinline muted class="feed"></video>
 				<div class="camctl">
-					<button class="icon-btn" onclick={stopCam} aria-label="Cancel"><RotateCcw size={20} /></button>
-					<button class="shutter" onclick={capture} aria-label="Take photo"></button>
-					<button class="icon-btn" onclick={flip} aria-label="Switch camera"><SwitchCamera size={20} /></button>
+					<button class="icon-btn" onclick={stopCam} aria-label={t('lens.cancel')}><RotateCcw size={20} /></button>
+					<button class="shutter" onclick={capture} aria-label={t('lens.takePhoto')}></button>
+					<button class="icon-btn" onclick={flip} aria-label={t('lens.switchCamera')}><SwitchCamera size={20} /></button>
 				</div>
 			{:else if url}
 				<div class="shot">
-					<img src={url} alt="Your capture" />
+					<img src={url} alt={t('lens.yourCapture')} />
 					{#if ocr && showBoxes && polys.length}
 						<svg viewBox="0 0 {ocr.width} {ocr.height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
 							{#each polys as p}<polygon points={p.pts}><title>{p.text}</title></polygon>{/each}
@@ -125,10 +129,10 @@
 				<div class="empty">
 					<ScanText size={34} />
 					<div class="btns">
-						<button class="btn btn-primary btn-lg" onclick={startCam}><Camera size={18} /> Open camera</button>
-						<button class="btn btn-lg" onclick={() => fileInput?.click()}><ImageUp size={18} /> Choose a photo</button>
+						<button class="btn btn-primary btn-lg" onclick={startCam}><Camera size={18} /> {t('lens.openCamera')}</button>
+						<button class="btn btn-lg" onclick={() => fileInput?.click()}><ImageUp size={18} /> {t('lens.choosePhoto')}</button>
 					</div>
-					<small class="faint">Signs, menus, labels, documents, plants, parts…</small>
+					<small class="faint">{t('lens.examples')}</small>
 				</div>
 			{/if}
 		</div>
@@ -138,32 +142,32 @@
 			<div class="results">
 				<section class="card textcard">
 					<header>
-						<span class="label">Text found</span>
+						<span class="label">{t('lens.textFound')}</span>
 						<span class="grow"></span>
 						{#if ocr?.lines?.length}
-							<button class="btn btn-sm btn-ghost" onclick={() => (showBoxes = !showBoxes)}>{showBoxes ? 'Hide' : 'Show'} boxes</button>
-							<button class="icon-btn sm" onclick={copyText} aria-label="Copy text">{#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}</button>
+							<button class="btn btn-sm btn-ghost" onclick={() => (showBoxes = !showBoxes)}>{showBoxes ? t('lens.hideBoxes') : t('lens.showBoxes')}</button>
+							<button class="icon-btn sm" onclick={copyText} aria-label={t('lens.copyText')}>{#if copied}<Check size={15} />{:else}<Copy size={15} />{/if}</button>
 						{/if}
 					</header>
-					{#if reading}<p class="faint" role="status"><Loader size={14} class="spin" aria-hidden="true" /> Reading…</p>
+					{#if reading}<p class="faint" role="status"><Loader size={14} class="spin" aria-hidden="true" /> {t('lens.reading')}</p>
 					{:else if ocr?.text}<pre class="ocr selectable">{ocr.text}</pre>
-					{:else}<p class="faint">No text detected. You can still ask Mimi about the picture.</p>{/if}
-					{#if ocr?.ms}<small class="faint">Read on-device in {ocr.ms} ms</small>{/if}
+					{:else}<p class="faint">{t('lens.noText')}</p>{/if}
+					{#if ocr?.ms}<small class="faint">{t('lens.readIn', { ms: fmtNumber(ocr.ms, { useGrouping: false }) })}</small>{/if}
 				</section>
 
 				<section class="card askcard">
-					<span class="label">Ask about this photo</span>
+					<span class="label">{t('lens.askTitle')}</span>
 					<div class="actions">
-						<button class="act" onclick={() => ask('What is in this photo? Explain it clearly.')}><Sparkles size={17} /> Explain</button>
-						<button class="act" onclick={() => ask('Translate all the text in this photo into English, then explain anything unclear.')}><Languages size={17} /> Translate</button>
-						<button class="act" onclick={() => ask('What is this? Identify it, and compare it with a reference picture from the library if you can.')}><BookImage size={17} /> Identify</button>
-						<button class="act" onclick={() => ask('Summarize this document and list anything I need to act on.')}><HelpCircle size={17} /> Summarize</button>
+						<button class="act" onclick={() => ask('What is in this photo? Explain it clearly.')}><Sparkles size={17} /> {t('lens.explain')}</button>
+						<button class="act" onclick={() => ask(`Translate all the text in this photo into ${LANGUAGE_NAME[i18n.locale]}, then explain anything unclear.`)}><Languages size={17} /> {t('lens.translate')}</button>
+						<button class="act" onclick={() => ask('What is this? Identify it, and compare it with a reference picture from the library if you can.')}><BookImage size={17} /> {t('lens.identify')}</button>
+						<button class="act" onclick={() => ask('Summarize this document and list anything I need to act on.')}><HelpCircle size={17} /> {t('lens.summarize')}</button>
 					</div>
 					<form class="custom" onsubmit={(e) => { e.preventDefault(); if (prompt.trim()) ask(prompt.trim()); }}>
-						<input class="input" placeholder="Or ask your own question…" aria-label="Your question about this photo" bind:value={prompt} />
-						<button class="btn btn-primary" disabled={!prompt.trim()}>Ask</button>
+						<input class="input" placeholder={t('lens.askPlaceholder')} aria-label={t('lens.askLabel')} bind:value={prompt} />
+						<button class="btn btn-primary" disabled={!prompt.trim()}>{t('lens.ask')}</button>
 					</form>
-					<button class="btn btn-sm btn-ghost again" onclick={reset}><RotateCcw size={14} /> New photo</button>
+					<button class="btn btn-sm btn-ghost again" onclick={reset}><RotateCcw size={14} /> {t('lens.newPhoto')}</button>
 				</section>
 			</div>
 		{/if}
