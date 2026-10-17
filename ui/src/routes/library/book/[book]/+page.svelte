@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { fmtBytes, get } from '$lib/api';
+	import { t } from '$lib/i18n/index.svelte';
 	import { ArrowLeft, BookOpen, FileText, Film, Music, File, Search, X, Image as ImageIcon, BookText } from '@lucide/svelte';
 
 	const PAGE = 120;
@@ -39,7 +40,7 @@
 			total = r.total;
 			items = offset ? [...items, ...r.items] : r.items;
 		} catch (e: any) {
-			error = e.message || 'This collection is not in the library.';
+			error = e.message || t('library.collectionMissing');
 		} finally {
 			loading = false;
 			more = false;
@@ -52,32 +53,40 @@
 	}
 
 	const ICONS: Record<string, any> = { pdf: FileText, video: Film, audio: Music, image: ImageIcon, html: BookText, epub: BookOpen };
-	const TYPE: Record<string, string> = { pdf: 'PDF', video: 'Video', audio: 'Audio', image: 'Image', epub: 'EPUB', html: 'Page', text: 'Text' };
+	const TYPE: Record<string, string> = $derived({
+		pdf: 'PDF',
+		video: t('library.typeVideo'),
+		audio: t('library.typeAudio'),
+		image: t('library.typeImage'),
+		epub: 'EPUB',
+		html: t('library.typePage'),
+		text: t('library.typeText')
+	});
 
 	function meta(d: any): string {
 		return [
-			TYPE[d.kind] || (d.mime || 'File').split('/').pop()?.toUpperCase(),
-			d.pages ? `${d.pages.toLocaleString()} ${d.pages === 1 ? 'page' : 'pages'}` : '',
+			TYPE[d.kind] || (d.mime || t('library.typeFile')).split('/').pop()?.toUpperCase(),
+			d.pages ? t('library.pages', { n: d.pages }) : '',
 			d.size ? fmtBytes(d.size) : '',
-			d.kind === 'pdf' ? (d.indexed ? 'Searchable' : h.indexing ? 'Being read for search…' : 'Not searchable') : ''
+			d.kind === 'pdf' ? t(d.indexed ? 'library.searchable' : h.indexing ? 'library.searchIndexing' : 'library.notSearchable') : ''
 		]
 			.filter(Boolean)
 			.join(' · ');
 	}
 </script>
 
-<svelte:head><title>{info?.title || 'Library'} · Mimi</title></svelte:head>
+<svelte:head><title>{info?.title || t('library.title')} · Mimi</title></svelte:head>
 
 <div class="coll">
 	<header class="bar glass">
-		<button class="icon-btn" onclick={() => (history.length > 1 ? history.back() : goto('/library'))} aria-label="Back"><ArrowLeft size={19} /></button>
-		<a class="crumb" href="/library"><BookOpen size={15} /> Library</a>
+		<button class="icon-btn" onclick={() => (history.length > 1 ? history.back() : goto('/library'))} aria-label={t('library.back')}><ArrowLeft size={19} /></button>
+		<a class="crumb" href="/library"><BookOpen size={15} /> {t('library.title')}</a>
 	</header>
 
 	<div class="scroll" data-scroll>
 		<div class="inner">
 			{#if error}
-				<div class="msg"><h2>Not in the library</h2><p>{error}</p><a class="btn" href="/library">Back to the library</a></div>
+				<div class="msg"><h2>{t('library.notFoundTitle')}</h2><p>{error}</p><a class="btn" href="/library">{t('library.backToLibrary')}</a></div>
 			{:else}
 				<div class="top">
 					<span class="bicon">{#if info?.icon}<img src={info.icon} alt="" />{:else}<BookOpen size={22} />{/if}</span>
@@ -85,7 +94,7 @@
 						<h1>{info?.title || ' '}</h1>
 						{#if info?.summary}<p class="sum">{info.summary}</p>{/if}
 						{#if info}
-							<p class="sub">{[`${total.toLocaleString()} ${info.item_noun}`, info.size ? fmtBytes(info.size) : '', h.note || ''].filter(Boolean).join(' · ')}</p>
+							<p class="sub">{[t('library.itemCount', { n: total, noun: info.item_noun }), info.size ? fmtBytes(info.size) : '', h.note || ''].filter(Boolean).join(' · ')}</p>
 						{/if}
 					</div>
 				</div>
@@ -93,15 +102,15 @@
 				{#if info && (info.items > 8 || q)}
 					<div class="filter">
 						<Search size={17} />
-						<input bind:value={q} oninput={onInput} placeholder={`Filter ${info.item_noun} by title or author…`} />
-						{#if q}<button class="icon-btn sm" onclick={() => { q = ''; load(book, '', 0); }} aria-label="Clear"><X size={15} /></button>{/if}
+						<input bind:value={q} oninput={onInput} placeholder={t('library.filterPlaceholder', { noun: info.item_noun })} />
+						{#if q}<button class="icon-btn sm" onclick={() => { q = ''; load(book, '', 0); }} aria-label={t('library.clear')}><X size={15} /></button>{/if}
 					</div>
 				{/if}
 
 				{#if loading}
 					<div class="list">{#each Array(6) as _}<div class="shimmer" style="height:76px;border-radius:16px"></div>{/each}</div>
 				{:else if !items.length}
-					<p class="faint empty">{q ? 'Nothing matches that filter.' : "Mimi couldn't find anything to list in this collection."}</p>
+					<p class="faint empty">{q ? t('library.filterNoMatch') : t('library.collectionEmpty')}</p>
 				{:else if kind === 'videos'}
 					<div class="tiles">
 						{#each items as d (d.id + d.path)}
@@ -133,7 +142,7 @@
 				{/if}
 
 				{#if items.length < total && !loading}
-					<button class="btn more" onclick={() => load(book, q, items.length)} disabled={more}>{more ? 'Loading…' : `Show more (${(total - items.length).toLocaleString()} left)`}</button>
+					<button class="btn more" onclick={() => load(book, q, items.length)} disabled={more}>{more ? t('library.loading') : t('library.showMore', { n: total - items.length })}</button>
 				{/if}
 			{/if}
 		</div>
@@ -231,6 +240,8 @@
 	}
 	.filter input {
 		flex: 1;
+		min-width: 0;
+		text-overflow: ellipsis;
 		border: 0;
 		background: none;
 		color: var(--text);

@@ -1,3 +1,38 @@
 import type { Messages } from '../index.svelte';
 
-export default {} satisfies Messages['scribe'];
+export default {
+	intro: 'Graba una reunión, una clase o una idea. Mimi transcribe la grabación en el dispositivo y escribe el resumen, los puntos clave y las tareas pendientes.',
+	micUnavailable: 'El micrófono no está disponible. Comprueba que Mimi tenga permiso para usarlo.',
+	consentReminder: '¿Vas a grabar a otras personas? Asegúrate de que todos estén de acuerdo. Las leyes varían según el lugar.',
+	transcribingToast: 'Transcribiendo tu grabación…',
+	tooShort: 'La grabación fue demasiado corta.',
+	recordingTime: 'Tiempo de grabación',
+	stopRecording: 'Detener la grabación',
+	startRecording: 'Empezar a grabar',
+	recordingHint: 'Grabando. Toca para detener y transcribir.',
+	saving: 'Guardando…',
+	tapToRecord: 'Toca para grabar',
+	uploadAudio: 'O sube un archivo de audio',
+	notes: 'Notas',
+	noNotes: 'Todavía no hay notas. Tus grabaciones aparecerán aquí.',
+	listSummarizing: 'Escribiendo el resumen…',
+	listQueued: 'En espera…',
+	listTranscribing: 'Transcribiendo… {pct}',
+
+	note: 'Nota',
+	noteTitle: 'Título de la nota',
+	renameNote: 'Cambiar el nombre de la nota',
+	rename: 'Cambiar nombre',
+	askMimi: 'Preguntar a Mimi',
+	export: 'Exportar',
+	delete: 'Eliminar',
+	deleted: 'Se eliminó “{title}”',
+	summarizing: 'Escribiendo el resumen…',
+	queued: 'Esperando para empezar…',
+	transcribing: 'Transcribiendo en el dispositivo…',
+	keyPoints: 'Puntos clave',
+	actionItems: 'Tareas pendientes',
+	transcript: 'Transcripción',
+	playFrom: 'Reproducir desde {time}',
+	askNote: 'Según mi nota de Scribe “{title}”, ¿cuáles fueron las principales decisiones y los próximos pasos?'
+} satisfies Messages['scribe'];

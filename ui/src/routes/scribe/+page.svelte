@@ -3,6 +3,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { get, timeAgo, upload } from '$lib/api';
+	import { fmtNumber, t } from '$lib/i18n/index.svelte';
 	import { Recorder } from '$lib/audio';
 	import { Mic, Square, Upload, AudioLines, Loader, CircleAlert, ChevronRight, NotebookPen } from '@lucide/svelte';
 
@@ -67,7 +68,7 @@
 		try {
 			await rec.start();
 		} catch {
-			return app.toast('Microphone unavailable. Check that Mimi may use it.', 'error');
+			return app.toast(t('scribe.micUnavailable'), 'error');
 		}
 		recording = true;
 		elapsed = 0;
@@ -75,7 +76,7 @@
 		draw();
 		const consent = localStorage.getItem('mimi.scribeConsent');
 		if (!consent) {
-			app.toast('Recording others? Make sure everyone agrees. Laws vary by place.', 'info', undefined, 7000);
+			app.toast(t('scribe.consentReminder'), 'info', undefined, 7000);
 			localStorage.setItem('mimi.scribeConsent', '1');
 		}
 	}
@@ -89,9 +90,9 @@
 		try {
 			if (blob && blob.size > 2000) {
 				const n = await upload('/api/scribe', new File([blob], 'recording.webm', { type: blob.type }));
-				app.toast('Transcribing your recording…', 'info');
+				app.toast(t('scribe.transcribingToast'), 'info');
 				goto(`/scribe/${n.id}`);
-			} else app.toast('That recording was too short.', 'error');
+			} else app.toast(t('scribe.tooShort'), 'error');
 		} catch (e: any) {
 			app.toast(e.message, 'error');
 		} finally {
@@ -119,23 +120,23 @@
 <div class="page">
 	<div class="page-inner">
 		<h1 class="page-title">Scribe</h1>
-		<p class="page-sub">Record a meeting, lecture or thought. Mimi transcribes it on-device and writes the summary, key points and action items.</p>
+		<p class="page-sub">{t('scribe.intro')}</p>
 
 		<section class="recorder card" class:live={recording}>
 			{#if recording}
 				<canvas bind:this={canvas} class="wave"></canvas>
-				<div class="timer" role="timer" aria-label="Recording time">{mmss(elapsed)}</div>
-				<button class="rec stop" onclick={stop} aria-label="Stop recording"><Square size={26} fill="currentColor" /></button>
-				<p class="faint">Recording. Tap to stop and transcribe.</p>
+				<div class="timer" role="timer" aria-label={t('scribe.recordingTime')}>{mmss(elapsed)}</div>
+				<button class="rec stop" onclick={stop} aria-label={t('scribe.stopRecording')}><Square size={26} fill="currentColor" /></button>
+				<p class="faint">{t('scribe.recordingHint')}</p>
 			{:else}
-				<button class="rec" onclick={start} disabled={saving} aria-label="Start recording">{#if saving}<Loader size={28} class="spin" />{:else}<span class="dotrec"></span>{/if}</button>
-				<p class="big">{saving ? 'Saving…' : 'Tap to record'}</p>
-				<button class="btn btn-sm btn-ghost" onclick={() => input?.click()}><Upload size={14} /> Or upload an audio file</button>
+				<button class="rec" onclick={start} disabled={saving} aria-label={t('scribe.startRecording')}>{#if saving}<Loader size={28} class="spin" />{:else}<span class="dotrec"></span>{/if}</button>
+				<p class="big">{saving ? t('scribe.saving') : t('scribe.tapToRecord')}</p>
+				<button class="btn btn-sm btn-ghost" onclick={() => input?.click()}><Upload size={14} /> {t('scribe.uploadAudio')}</button>
 				<input bind:this={input} type="file" accept="audio/*,video/mp4" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) addFile(f); e.currentTarget.value = ''; }} />
 			{/if}
 		</section>
 
-		<h2 class="label notes-h">Notes</h2>
+		<h2 class="label notes-h">{t('scribe.notes')}</h2>
 		<div class="list">
 			{#each notes.filter((n) => !app.isPending(`scribe:${n.id}`)) as n (n.id)}
 				<a class="note card card-hover" href="/scribe/{n.id}">
@@ -143,16 +144,17 @@
 					<span class="info">
 						<b>{n.title}</b>
 						<small>
-							{#if n.status === 'ready'}{timeAgo(n.created_at)}{#if n.duration} · {mmss(Math.round(n.duration))}{/if}{#if n.summary?.summary} · {n.summary.summary}{:else if n.preview} · {n.preview}{/if}
+							<!-- One string: Svelte trims whitespace at the edge of {#if} blocks, which ate the space before "·". -->
+							{#if n.status === 'ready'}{[timeAgo(n.created_at), n.duration ? mmss(Math.round(n.duration)) : '', n.summary?.summary || n.preview || ''].filter(Boolean).join(' · ')}
 							{:else if n.status === 'error'}<span class="err"><CircleAlert size={12} /> {n.error}</span>
-							{:else}{n.status === 'summarizing' ? 'Writing summary…' : n.status === 'queued' ? 'Waiting…' : `Transcribing… ${Math.round((n.progress || 0) * 100)}%`}{/if}
+							{:else}{n.status === 'summarizing' ? t('scribe.listSummarizing') : n.status === 'queued' ? t('scribe.listQueued') : t('scribe.listTranscribing', { pct: fmtNumber(Math.round((n.progress || 0) * 100) / 100, { style: 'percent' }) })}{/if}
 						</small>
 						{#if n.status !== 'ready' && n.status !== 'error'}<span class="prog"><span style="width:{Math.max(4, (n.progress || 0) * 100)}%"></span></span>{/if}
 					</span>
 					<ChevronRight size={18} class="chev" />
 				</a>
 			{:else}
-				{#if !loading}<p class="faint">No notes yet. Your recordings will appear here.</p>{/if}
+				{#if !loading}<p class="faint">{t('scribe.noNotes')}</p>{/if}
 			{/each}
 		</div>
 	</div>
