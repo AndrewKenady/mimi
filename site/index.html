@@ -483,7 +483,7 @@ footer a { color: var(--ink-2); }
           <div class="id"><span>2.3</span><span>MAPS</span></div>
           <h3>Maps that need no signal</h3>
           <p>A world map plus your own region down to street level: the US, Canada, the UK, Germany, France, Australia, New Zealand, Japan, or any box you draw. Turn-by-turn driving directions are worked out on the device for the named regions.</p>
-          <ul><li>Street-address search (US and Canada)</li><li>"What's near me" from GeoNames and 1.2M geotagged Wikipedia articles</li></ul>
+          <ul><li>Street-address search: the US and Canada from national address registers; the UK, Germany, France, Australia and New Zealand from OpenStreetMap</li><li>"What's near me" from GeoNames and 1.2M geotagged Wikipedia articles, plus the nearest fuel station, hospital, clinic or pharmacy from OpenStreetMap, which come with offline directions</li></ul>
         </article>
         <article class="item">
           <div class="id"><span>2.4</span><span>POSITION</span></div>
@@ -675,6 +675,7 @@ footer a { color: var(--ink-2); }
                 <tr><td>macOS on Apple silicon</td><td>Untested; chat uses the Metal (GPU) build, with a CPU fallback</td></tr>
                 <tr><td>Linux arm64, Steam Deck</td><td>Untested</td></tr>
                 <tr><td>Plus and Max profiles (28 GB+ of memory or a 16 GB+ graphics card)</td><td>Untested</td></tr>
+                <tr><td>Addresses outside the US and Canada; fuel stations and hospitals</td><td><b>Tested</b> on small real OpenStreetMap areas (Liechtenstein, Monaco, Andorra, San Marino, Jersey, part of Switzerland and of Heidelberg); not yet on a whole country</td></tr>
               </tbody>
             </table>
           </div>
@@ -701,7 +702,7 @@ footer a { color: var(--ink-2); }
         <li><span class="sign plan">Planned</span><span><b>Testing on more hardware:</b> Apple silicon, Linux and Docker with a GPU, arm64 boards and the Steam Deck, which all should work but haven&rsquo;t been tried yet.</span></li>
         <li><span class="sign plan">Planned</span><span><b>A bootable Mimi USB and ready-made drive images</b>, so you don&rsquo;t have to run setup yourself.</span></li>
         <li><span class="sign plan">Planned</span><span><b>More languages,</b> for the interface, the library and the eval set. Today it&rsquo;s English only.</span></li>
-        <li><span class="sign plan">Planned</span><span><b>Street-address search beyond the US and Canada,</b> and fuel stations and hospitals from OpenStreetMap in &ldquo;near me&rdquo;.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>Whole-country runs of the new map data:</b> address search for the UK, Germany, France, Australia and New Zealand, and fuel stations and hospitals in &ldquo;near me&rdquo;, so far tested on small real areas only.</span></li>
         <li><span class="sign plan">Planned</span><span><b>A long offline field test</b> with measured battery life, and the Plus and Max profiles run on real hardware.</span></li>
       </ul>
     </div>
