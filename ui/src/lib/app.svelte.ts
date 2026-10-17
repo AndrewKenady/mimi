@@ -1,7 +1,7 @@
 // Global app state (Svelte 5 runes). One instance, imported everywhere as `app`.
 import { api, del, patch, post } from './api';
 import { onHost } from './host';
-import { resolveLocale, setLocale } from './i18n/index.svelte';
+import { resolveLocale, setLocale, t } from './i18n/index.svelte';
 import { applyTheme } from './theme';
 
 export type Toast = { id: number; text: string; kind: 'info' | 'ok' | 'error'; action?: { label: string; run: () => void } };
@@ -136,7 +136,7 @@ class AppState {
 			if (!p.build || !this.boot?.build || p.build === this.boot.build) return;
 			this.boot.build = p.build; // ask once per update
 			if (!this.me) location.reload();
-			else this.toast('Mimi was updated.', 'info', { label: 'Reload', run: () => location.reload() }, 20000);
+			else this.toast(t('shell.updated'), 'info', { label: t('shell.reload'), run: () => location.reload() }, 20000);
 		} catch {
 			/* Core unreachable: the reconnect logic handles it */
 		}
@@ -207,7 +207,7 @@ class AppState {
 		} catch (e: any) {
 			this.settings[scope] = { ...this.settings[scope], [section]: prev };
 			this.applyAppearance();
-			this.toast(e.message || 'Could not save that setting', 'error');
+			this.toast(e.message || t('shell.saveFailed'), 'error');
 			throw e;
 		}
 	}
@@ -264,14 +264,14 @@ class AppState {
 				await opts.commit();
 				opts.onDone?.();
 			} catch (e: any) {
-				this.toast(e?.message || 'Could not delete that', 'error');
+				this.toast(e?.message || t('shell.deleteFailed'), 'error');
 			} finally {
 				finish();
 			}
 		};
 		this.commits.set(opts.key, commit);
 		const id = this.toast(opts.text, 'info', {
-			label: 'Undo',
+			label: t('shell.undo'),
 			run: () => {
 				undone = true;
 				this.commits.delete(opts.key);
@@ -306,7 +306,7 @@ class AppState {
 	 */
 	startLive(quiet = false): boolean {
 		if (!('geolocation' in navigator)) {
-			if (!quiet) this.toast('This device has no location sensor available.', 'error');
+			if (!quiet) this.toast(t('shell.noLocationSensor'), 'error');
 			return false;
 		}
 		if (this.watchId !== null) return true;
@@ -326,7 +326,7 @@ class AppState {
 			},
 			(err) => {
 				if (!quiet || err.code === err.PERMISSION_DENIED) {
-					this.toast(err.code === err.PERMISSION_DENIED ? 'Location permission was denied for this browser.' : 'No location fix yet. Mimi will keep trying.', 'error');
+					this.toast(err.code === err.PERMISSION_DENIED ? t('shell.locationDenied') : t('shell.noLocationFix'), 'error');
 				}
 				if (err.code === err.PERMISSION_DENIED) this.stopLive();
 			},
@@ -340,7 +340,7 @@ class AppState {
 		try {
 			localStorage.setItem('mimi.live', '1');
 		} catch {}
-		if (!quiet) this.toast('Sharing this device’s live location with Mimi', 'ok');
+		if (!quiet) this.toast(t('shell.sharingLocation'), 'ok');
 		return true;
 	}
 
@@ -376,3 +376,7 @@ class AppState {
 export { shade } from './color';
 
 export const app = new AppState();
+
+// app.html names the boot splash in English, before any script knows the language. By now
+// the browser's language is known, and the splash stays up while Core can't be reached.
+if (typeof document !== 'undefined') document.getElementById('boot')?.setAttribute('aria-label', t('shell.starting'));

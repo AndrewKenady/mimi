@@ -5,9 +5,19 @@
 	import { get } from '$lib/api';
 	import { toggleFullscreen } from '$lib/host';
 	import { SETTINGS_SECTIONS, settingsHref } from '$lib/settings-sections';
-	import { Search, House, MessageSquarePlus, Library, Map, AudioLines, ScanText, Brain, Settings, Moon, Maximize, QrCode, MessagesSquare, CornerDownLeft, NotebookPen } from '@lucide/svelte';
+	import { LOCALES, i18n, t, type Locale } from '$lib/i18n/index.svelte';
+	import { Search, House, MessageSquarePlus, Library, Map, AudioLines, ScanText, Brain, Settings, Moon, Maximize, QrCode, MessagesSquare, CornerDownLeft, NotebookPen, Languages } from '@lucide/svelte';
 
-	type Item = { id: string; label: string; hint?: string; icon: any; run: () => void; group: string; keys?: string; owner?: boolean };
+	// `group` is a stable id (it also names the group's element); GROUPS gives its words.
+	type Group = 'Go' | 'Settings' | 'Actions' | 'Chats' | 'Ask';
+	type Item = { id: string; label: string; hint?: string; icon: any; run: () => void; group: Group; keys?: string; owner?: boolean };
+	const GROUPS = { Go: 'shell.groupGo', Settings: 'shell.groupSettings', Actions: 'shell.groupActions', Chats: 'shell.groupChats', Ask: 'shell.groupAsk' } as const;
+	// Each language answers to its own name, its name in the other two, and the English one.
+	const LANGUAGE_KEYS: Record<Locale, string> = {
+		en: 'english inglés anglais',
+		es: 'spanish español espagnol castellano',
+		fr: 'french français francés'
+	};
 	let q = $state('');
 	let sel = $state(0);
 	let chats = $state<any[]>([]);
@@ -16,21 +26,24 @@
 	let opener: HTMLElement | null = null;
 	const uid = $props.id();
 	const optId = (i: number) => `${uid}-opt-${i}`;
+	/** Lowercase without accents, so "configuracion" finds "Configuración". */
+	const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
-	const base: Item[] = [
-		{ id: 'new', label: 'New chat', icon: MessageSquarePlus, run: () => goto('/chat'), group: 'Go' },
-		{ id: 'talk', label: 'Talk to Mimi', hint: 'Voice', icon: AudioLines, run: () => (app.voice = true), group: 'Go' },
-		{ id: 'home', label: 'Home', icon: House, run: () => goto('/'), group: 'Go' },
-		{ id: 'lib', label: 'Library', icon: Library, run: () => goto('/library'), group: 'Go' },
-		{ id: 'map', label: 'Map', icon: Map, run: () => goto('/map'), group: 'Go' },
-		{ id: 'scribe', label: 'Scribe — record a note', icon: NotebookPen, run: () => goto('/scribe'), group: 'Go' },
-		{ id: 'lens', label: 'Lens — read a photo', icon: ScanText, run: () => goto('/lens'), group: 'Go' },
-		{ id: 'memory', label: 'Memory', icon: Brain, run: () => goto('/memory'), group: 'Go' },
-		{ id: 'settings', label: 'Settings', icon: Settings, run: () => goto('/settings'), group: 'Go' },
-		...SETTINGS_SECTIONS.flatMap((s) => [
+	// A $derived, not a list built once at startup, so every label follows the interface language.
+	const base: Item[] = $derived([
+		{ id: 'new', label: t('shell.newChat'), icon: MessageSquarePlus, run: () => goto('/chat'), group: 'Go' },
+		{ id: 'talk', label: t('shell.talkToMimi'), hint: t('shell.voice'), icon: AudioLines, run: () => (app.voice = true), group: 'Go' },
+		{ id: 'home', label: t('shell.home'), icon: House, run: () => goto('/'), group: 'Go' },
+		{ id: 'lib', label: t('shell.library'), icon: Library, run: () => goto('/library'), group: 'Go' },
+		{ id: 'map', label: t('shell.map'), icon: Map, run: () => goto('/map'), group: 'Go' },
+		{ id: 'scribe', label: t('shell.scribeCommand'), icon: NotebookPen, run: () => goto('/scribe'), group: 'Go' },
+		{ id: 'lens', label: t('shell.lensCommand'), icon: ScanText, run: () => goto('/lens'), group: 'Go' },
+		{ id: 'memory', label: t('shell.memory'), icon: Brain, run: () => goto('/memory'), group: 'Go' },
+		{ id: 'settings', label: t('shell.settings'), icon: Settings, run: () => goto('/settings'), group: 'Go' },
+		...SETTINGS_SECTIONS.flatMap((s): Item[] => [
 			{
 				id: 'set-' + s.id,
-				label: `Settings: ${s.label}`,
+				label: t('shell.settingsSection', { section: s.label }),
 				icon: s.icon,
 				run: () => goto(settingsHref(s.id)),
 				group: 'Settings',
@@ -38,40 +51,53 @@
 				owner: s.ownerOnly
 			},
 			// Sub-sections jump straight to their anchor, so "voice" or "tools" still lands where it used to.
-			...s.subsections.map((x) => ({
-				id: `set-${s.id}-${x.id}`,
-				label: `Settings: ${s.label} › ${x.label}`,
-				icon: s.icon,
-				run: () => goto(settingsHref(s.id, x.id)),
-				group: 'Settings',
-				keys: x.keywords,
-				owner: s.ownerOnly
-			}))
+			...s.subsections.map(
+				(x): Item => ({
+					id: `set-${s.id}-${x.id}`,
+					label: t('shell.settingsSubsection', { section: s.label, sub: x.label }),
+					icon: s.icon,
+					run: () => goto(settingsHref(s.id, x.id)),
+					group: 'Settings',
+					keys: x.keywords,
+					owner: s.ownerOnly
+				})
+			)
 		]),
 		{
 			id: 'theme',
-			label: 'Toggle light / dark',
+			label: t('shell.toggleTheme'),
 			icon: Moon,
 			run: () => app.setSetting('user', 'appearance', { theme: app.settings.user?.appearance?.theme === 'light' ? 'dark' : 'light' }),
 			group: 'Actions'
 		},
-		{ id: 'fs', label: 'Toggle full screen', hint: 'F11', icon: Maximize, run: () => toggleFullscreen(), group: 'Actions' },
-		{ id: 'share', label: 'Share Mimi with nearby phones', icon: QrCode, run: () => goto(settingsHref('sharing')), group: 'Actions' }
-	];
+		{ id: 'fs', label: t('shell.toggleFullscreen'), hint: 'F11', icon: Maximize, run: () => toggleFullscreen(), group: 'Actions' },
+		{ id: 'share', label: t('shell.shareCommand'), icon: QrCode, run: () => goto(settingsHref('sharing')), group: 'Actions' },
+		...(Object.keys(LOCALES) as Locale[]).map(
+			(language): Item => ({
+				id: 'lang-' + language,
+				label: t('shell.languageCommand', { name: LOCALES[language] }),
+				hint: language === i18n.locale ? t('shell.languageCurrent') : undefined,
+				icon: Languages,
+				run: () => app.setSetting('user', 'appearance', { language }),
+				group: 'Actions',
+				keys: `language idioma langue ${LANGUAGE_KEYS[language]}`
+			})
+		)
+	]);
 
 	const items = $derived.by(() => {
-		const needle = q.trim().toLowerCase();
+		const needle = fold(q.trim());
 		const list = base.filter(
-			(i) => (!i.owner || app.isOwner) && (!needle || i.label.toLowerCase().includes(needle) || (needle.length > 2 && !!i.keys?.includes(needle)))
+			(i) => (!i.owner || app.isOwner) && (!needle || fold(i.label).includes(needle) || (needle.length > 2 && !!i.keys && fold(i.keys).includes(needle)))
 		);
-		const chatItems: Item[] = chats.map((c) => ({ id: c.id, label: c.title || 'Untitled chat', hint: 'Chat', icon: MessagesSquare, run: () => goto('/chat/' + c.id), group: 'Chats' }));
+		const chatItems: Item[] = chats.map((c) => ({ id: c.id, label: c.title || t('shell.untitledChat'), hint: t('shell.chat'), icon: MessagesSquare, run: () => goto('/chat/' + c.id), group: 'Chats' }));
 		if (needle.length > 1)
-			list.push({ id: 'ask', label: `Ask Mimi: “${q.trim()}”`, icon: Search, run: () => { app.ask(q.trim()); goto('/chat'); }, group: 'Ask' });
+			list.push({ id: 'ask', label: t('shell.askMimi', { q: q.trim() }), icon: Search, run: () => { app.ask(q.trim()); goto('/chat'); }, group: 'Ask' });
 		return [...list, ...chatItems];
 	});
 
 	const groups = $derived.by(() => {
-		const out: { name: string; items: { it: Item; i: number }[] }[] = [];
+		const out: { name: Group; items: { it: Item; i: number }[] }[] = [];
 		items.forEach((it, i) => {
 			if (!out.length || out[out.length - 1].name !== it.group) out.push({ name: it.group, items: [] });
 			out[out.length - 1].items.push({ it, i });
@@ -160,7 +186,7 @@
 		data-layer
 		role="dialog"
 		aria-modal="true"
-		aria-label="Command palette"
+		aria-label={t('shell.palette')}
 		tabindex="-1"
 		onkeydown={trap}
 		transition:scale={{ start: 0.97, duration: 180 }}
@@ -172,9 +198,9 @@
 				bind:value={q}
 				oninput={onInput}
 				onkeydown={onKey}
-				placeholder="Search chats, go anywhere, or ask…"
+				placeholder={t('shell.paletteSearch')}
 				role="combobox"
-				aria-label="Search chats, places and commands"
+				aria-label={t('shell.paletteSearchLabel')}
 				aria-expanded="true"
 				aria-controls="{uid}-list"
 				aria-autocomplete="list"
@@ -182,12 +208,12 @@
 				autocomplete="off"
 				spellcheck="false"
 			/>
-			<kbd aria-hidden="true">Esc</kbd>
+			<kbd aria-hidden="true">{t('shell.paletteEsc')}</kbd>
 		</div>
-		<div class="list" id="{uid}-list" role="listbox" aria-label="Results">
+		<div class="list" id="{uid}-list" role="listbox" aria-label={t('shell.paletteResults')}>
 			{#each groups as g (g.name)}
 				<div role="group" aria-labelledby="{uid}-g-{g.name}">
-					<div class="group" id="{uid}-g-{g.name}" role="presentation">{g.name}</div>
+					<div class="group" id="{uid}-g-{g.name}" role="presentation">{t(GROUPS[g.name])}</div>
 					{#each g.items as { it, i } (it.id)}
 						{@const Icon = it.icon}
 						<!-- Options are driven from the combobox (aria-activedescendant), so they are not tab stops. -->
@@ -210,7 +236,7 @@
 					{/each}
 				</div>
 			{:else}
-				<div class="none" role="presentation">Nothing matches “{q}”.</div>
+				<div class="none" role="presentation">{t('shell.paletteNone', { q })}</div>
 			{/each}
 		</div>
 	</div>
@@ -245,11 +271,14 @@
 		gap: 12px;
 		padding: 0 18px;
 		height: 60px;
+		flex: none; /* a long result list must not squeeze the search row */
 		border-bottom: 1px solid var(--line);
 		color: var(--text-3);
 	}
 	.search input {
 		flex: 1;
+		min-width: 0;
+		text-overflow: ellipsis; /* the hint is longer than a phone is wide */
 		background: none;
 		border: 0;
 		font-size: 1.05rem;

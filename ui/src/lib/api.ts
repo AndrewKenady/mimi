@@ -1,5 +1,5 @@
 // Thin client for Mimi Core's HTTP API.
-import { i18n } from './i18n/index.svelte';
+import { fmtDate, fmtNumber, i18n, t } from './i18n/index.svelte';
 
 export class ApiError extends Error {
 	status: number;
@@ -29,7 +29,7 @@ export async function api<T = any>(path: string, opts: Opts = {}): Promise<T> {
 		} catch {
 			/* not JSON */
 		}
-		throw new ApiError(res.status, msg || `Request failed (${res.status})`);
+		throw new ApiError(res.status, msg || t('shell.requestFailed', { status: res.status }));
 	}
 	if (opts.raw) return res as unknown as T;
 	const ct = res.headers.get('content-type') || '';
@@ -60,7 +60,7 @@ export async function* stream(path: string, body: unknown, signal?: AbortSignal)
 		signal
 	});
 	if (!res.ok || !res.body) {
-		let msg = `Request failed (${res.status})`;
+		let msg = t('shell.requestFailed', { status: res.status });
 		try {
 			msg = (await res.json()).detail ?? msg;
 		} catch {
@@ -95,18 +95,21 @@ export async function* stream(path: string, body: unknown, signal?: AbortSignal)
 	}
 }
 
+/** A size in the interface language: "1.5 GB", "1,5 GB", "1,5 Go". */
 export function fmtBytes(n: number): string {
-	if (!n) return '0 B';
-	const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+	const u = t('shell.byteUnits').split(' ');
+	if (!n) return `${fmtNumber(0)} ${u[0]}`;
 	const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
-	return `${(n / 1024 ** i).toFixed(i >= 3 ? 1 : 0)} ${u[i]}`;
+	const digits = i >= 3 ? 1 : 0;
+	return `${fmtNumber(n / 1024 ** i, { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false })} ${u[i]}`;
 }
 
+/** How long ago a Unix time was, briefly ("5m ago"), or its date once it is a week old. */
 export function timeAgo(ts: number): string {
 	const s = Date.now() / 1000 - ts;
-	if (s < 45) return 'just now';
-	if (s < 3600) return `${Math.round(s / 60)}m ago`;
-	if (s < 86400) return `${Math.round(s / 3600)}h ago`;
-	if (s < 86400 * 7) return `${Math.round(s / 86400)}d ago`;
-	return new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+	if (s < 45) return t('shell.justNow');
+	if (s < 3600) return t('shell.minutesAgo', { n: fmtNumber(Math.round(s / 60)) });
+	if (s < 86400) return t('shell.hoursAgo', { n: fmtNumber(Math.round(s / 3600)) });
+	if (s < 86400 * 7) return t('shell.daysAgo', { n: fmtNumber(Math.round(s / 86400)) });
+	return fmtDate(ts * 1000, { month: 'short', day: 'numeric' });
 }
