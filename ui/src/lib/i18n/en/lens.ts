@@ -1,2 +1,36 @@
 // Text for the lens area. Keys are camelCase; see docs/I18N.md.
-export default {};
+// The prompts the action buttons send to the model stay in English, in the page itself.
+export default {
+	intro: 'Point, shoot, understand. Mimi reads the text instantly and can explain, translate or identify what it sees, all offline.',
+	noCamera: 'No camera available. You can upload a photo instead.',
+	readFailed: 'Could not read that image',
+
+	// Camera
+	cancel: 'Cancel',
+	takePhoto: 'Take photo',
+	switchCamera: 'Switch camera',
+	yourCapture: 'Your capture',
+	openCamera: 'Open camera',
+	choosePhoto: 'Choose a photo',
+	examples: 'Signs, menus, labels, documents, plants, parts…',
+
+	// Text found in the photo
+	textFound: 'Text found',
+	hideBoxes: 'Hide boxes',
+	showBoxes: 'Show boxes',
+	copyText: 'Copy text',
+	reading: 'Reading…',
+	noText: 'No text detected. You can still ask Mimi about the picture.',
+	readIn: 'Read on-device in {ms} ms',
+
+	// Asking about it
+	askTitle: 'Ask about this photo',
+	explain: 'Explain',
+	translate: 'Translate',
+	identify: 'Identify',
+	summarize: 'Summarize',
+	askPlaceholder: 'Or ask your own question…',
+	askLabel: 'Your question about this photo',
+	ask: 'Ask',
+	newPhoto: 'New photo'
+};

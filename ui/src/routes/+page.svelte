@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { get, timeAgo } from '$lib/api';
+	import { fmtNumber, t } from '$lib/i18n/index.svelte';
 	import Well from '$components/Well.svelte';
 	import Composer from '$components/Composer.svelte';
 	import { Mic, ScanText, AudioLines, Compass, MapPin, ArrowRight, BookOpen, MessagesSquare, Shuffle, Library as LibIcon, Navigation, NotebookPen } from '@lucide/svelte';
@@ -16,7 +17,7 @@
 
 	const widgets = $derived<string[]>(app.settings.user?.appearance?.home_widgets || ['nearby', 'notes', 'onthisday', 'continue']);
 	const hour = app.clock.getHours();
-	const greeting = $derived(hour < 5 ? 'Still up' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening');
+	const greeting = $derived(hour < 5 ? 'home.greetingNight' : hour < 12 ? 'home.greetingMorning' : hour < 18 ? 'home.greetingAfternoon' : 'home.greetingEvening');
 	const articles = $derived(books.reduce((n, b) => n + (b.articles || 0), 0));
 	const wellState = $derived(app.model?.status === 'loading' ? 'thinking' : 'idle');
 
@@ -40,11 +41,13 @@
 
 	function openPlace(p: any) {
 		if (p.wiki_path) return goto(`/library/read/wikipedia/${p.wiki_path}`);
-		app.ask(`Tell me about ${p.name}`);
+		app.ask(t('home.tellMeAbout', { name: p.name }));
 		goto('/chat');
 	}
 
-	const fmtDist = (km: number) => (app.settings.device?.general?.units === 'metric' ? `${km.toFixed(1)} km` : `${(km * 0.621371).toFixed(1)} mi`);
+	// One decimal, rounded as toFixed() rounds and without digit grouping, as English has always shown it.
+	const dist1 = (n: number) => fmtNumber(+n.toFixed(1), { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
+	const fmtDist = (km: number) => (app.settings.device?.general?.units === 'metric' ? t('map.km', { n: dist1(km) }) : t('map.mi', { n: dist1(km * 0.621371) }));
 </script>
 
 <svelte:head><title>Mimi</title></svelte:head>
@@ -53,22 +56,22 @@
 	<div class="home">
 		<section class="hero fade-up">
 			<Well size={210} mood={wellState} />
-			<h1>{greeting}{app.isGuest ? '' : `, ${app.me?.name}`}.</h1>
+			<h1>{t(greeting, { name: app.isGuest ? '' : (app.me?.name ?? '') })}</h1>
 			<p class="lede">
 				{#if articles}
-					{Math.round(articles / 1e6)} million pages of knowledge, plus maps and guides. All on this device.
+					{t('home.ledeLibrary', { n: Math.round(articles / 1e6) })}
 				{:else}
-					What would you like to know?
+					{t('home.ledeEmpty')}
 				{/if}
 			</p>
 			<div class="composer-wrap">
-				<Composer onsend={send} bind:mode big placeholder="Ask Mimi anything…" autofocus />
+				<Composer onsend={send} bind:mode big placeholder={t('home.composerPlaceholder')} autofocus />
 			</div>
 			<div class="quick">
-				<button class="qa" onclick={() => (app.voice = true)}><AudioLines size={18} /> Talk</button>
-				<a class="qa" href="/lens"><ScanText size={18} /> Read a photo</a>
-				{#if !app.isGuest}<a class="qa" href="/scribe"><NotebookPen size={18} /> Record a note</a>{/if}
-				<a class="qa" href="/map"><Compass size={18} /> What's nearby</a>
+				<button class="qa" onclick={() => (app.voice = true)}><AudioLines size={18} /> {t('home.talk')}</button>
+				<a class="qa" href="/lens"><ScanText size={18} /> {t('home.readPhoto')}</a>
+				{#if !app.isGuest}<a class="qa" href="/scribe"><NotebookPen size={18} /> {t('home.recordNote')}</a>{/if}
+				<a class="qa" href="/map"><Compass size={18} /> {t('home.whatsNearby')}</a>
 			</div>
 		</section>
 
@@ -76,13 +79,13 @@
 			{#if widgets.includes('onthisday')}
 				<article class="w card discover">
 					<header>
-						<span class="label">Discover</span>
-						<button class="icon-btn sm" onclick={loadDiscover} aria-label="Another article"><Shuffle size={15} /></button>
+						<span class="label">{t('home.discover')}</span>
+						<button class="icon-btn sm" onclick={loadDiscover} aria-label={t('home.anotherArticle')}><Shuffle size={15} /></button>
 					</header>
 					{#if discover === null}
 						<div class="shimmer" style="height:120px"></div>
 					{:else if discover.none}
-						<p class="faint">Your library is still getting ready.</p>
+						<p class="faint">{t('home.libraryNotReady')}</p>
 					{:else}
 						<a class="disc" href="/library/read/{discover.book}/{discover.path}">
 							{#if discover.image}<img src={discover.image} alt="" loading="lazy" />{/if}
@@ -98,14 +101,14 @@
 
 			{#if widgets.includes('nearby')}
 				<article class="w card">
-					<header><span class="label">Nearby</span><a href="/map" class="more">Map <ArrowRight size={14} /></a></header>
+					<header><span class="label">{t('home.nearby')}</span><a href="/map" class="more">{t('home.map')} <ArrowRight size={14} /></a></header>
 					{#if nearby === null}
 						<div class="shimmer" style="height:110px"></div>
 					{:else if !nearby.length}
 						<div class="empty">
 							<MapPin size={20} />
-							<p>{app.location?.current ? 'Nothing notable close by.' : 'Set your location to see places, parks and history around you.'}</p>
-							{#if !app.location?.current}<a class="btn btn-sm" href="/map"><Navigation size={14} /> Set location</a>{/if}
+							<p>{app.location?.current ? t('home.nothingClose') : t('home.setLocationHint')}</p>
+							{#if !app.location?.current}<a class="btn btn-sm" href="/map"><Navigation size={14} /> {t('home.setLocation')}</a>{/if}
 						</div>
 					{:else}
 						<ul class="rows">
@@ -113,7 +116,7 @@
 								<li>
 									<button onclick={() => openPlace(p)}>
 										<span class="rt">{p.name}</span>
-										<span class="rs">{p.kind || 'place'} · {fmtDist(p.distance_km)} {p.direction}</span>
+										<span class="rs">{t('map.placeKind', { kind: p.kind || 'place' })} · {fmtDist(p.distance_km)} {p.direction ? t('map.direction', { dir: p.direction }) : ''}</span>
 									</button>
 								</li>
 							{/each}
@@ -124,15 +127,15 @@
 
 			{#if widgets.includes('continue')}
 				<article class="w card">
-					<header><span class="label">Continue</span><a href="/chat" class="more">All chats <ArrowRight size={14} /></a></header>
+					<header><span class="label">{t('home.continue')}</span><a href="/chat" class="more">{t('home.allChats')} <ArrowRight size={14} /></a></header>
 					{#if chats === null}
 						<div class="shimmer" style="height:110px"></div>
 					{:else if !chats.length}
-						<div class="empty"><MessagesSquare size={20} /><p>Your conversations will show up here.</p></div>
+						<div class="empty"><MessagesSquare size={20} /><p>{t('home.chatsEmpty')}</p></div>
 					{:else}
 						<ul class="rows">
 							{#each chats as c (c.id)}
-								<li><a href="/chat/{c.id}"><span class="rt">{c.title || 'Untitled'}</span><span class="rs">{timeAgo(c.updated_at)}</span></a></li>
+								<li><a href="/chat/{c.id}"><span class="rt">{c.title || t('home.untitled')}</span><span class="rs">{timeAgo(c.updated_at)}</span></a></li>
 							{/each}
 						</ul>
 					{/if}
@@ -141,15 +144,15 @@
 
 			{#if widgets.includes('notes') && !app.isGuest}
 				<article class="w card">
-					<header><span class="label">Recent notes</span><a href="/scribe" class="more">Scribe <ArrowRight size={14} /></a></header>
+					<header><span class="label">{t('home.recentNotes')}</span><a href="/scribe" class="more">Scribe <ArrowRight size={14} /></a></header>
 					{#if notes === null}
 						<div class="shimmer" style="height:110px"></div>
 					{:else if !notes.length}
-						<div class="empty"><NotebookPen size={20} /><p>Record a meeting or a thought, and Mimi writes the summary.</p><a class="btn btn-sm" href="/scribe">Start recording</a></div>
+						<div class="empty"><NotebookPen size={20} /><p>{t('home.notesEmpty')}</p><a class="btn btn-sm" href="/scribe">{t('home.startRecording')}</a></div>
 					{:else}
 						<ul class="rows">
 							{#each notes as n (n.id)}
-								<li><a href="/scribe/{n.id}"><span class="rt">{n.title}</span><span class="rs">{n.status === 'ready' ? timeAgo(n.created_at) : n.status + '…'}</span></a></li>
+								<li><a href="/scribe/{n.id}"><span class="rt">{n.title}</span><span class="rs">{n.status === 'ready' ? timeAgo(n.created_at) : t('home.noteStatus', { status: n.status })}</span></a></li>
 							{/each}
 						</ul>
 					{/if}
@@ -158,7 +161,7 @@
 		</section>
 
 		{#if books.length}
-			<a class="libline" href="/library"><LibIcon size={15} /> {books.length} offline collections · {articles.toLocaleString()} articles <ArrowRight size={14} /></a>
+			<a class="libline" href="/library"><LibIcon size={15} /> {t('home.libraryLine', { collections: books.length, articles })} <ArrowRight size={14} /></a>
 		{/if}
 	</div>
 </div>
@@ -287,6 +290,13 @@
 		font-size: var(--fs-xs);
 		color: var(--text-3);
 		text-transform: capitalize;
+	}
+	/* English capitalizes each word ("Hot Spring(s) · 1.2 Mi N"); Spanish and French use sentence case. */
+	:global(:root:not(:lang(en))) .rs {
+		text-transform: none;
+	}
+	:global(:root:not(:lang(en))) .rs::first-letter {
+		text-transform: uppercase;
 	}
 	.empty {
 		display: flex;
