@@ -285,6 +285,7 @@
 			const d = document.createElement('button');
 			d.className = 'poi';
 			d.title = p.name;
+			d.append(document.createElement('span'));
 			d.onclick = (ev) => {
 				ev.stopPropagation();
 				select(p);
@@ -1049,17 +1050,28 @@
 			box-shadow: 0 0 0 12px transparent, 0 0 26px var(--accent);
 		}
 	}
+	/* MapLibre keeps a marker in place by rewriting its transform every frame, so the
+	   marker element itself must never transition transform (it would trail the map).
+	   The dot inside it carries the look and the hover scale. */
 	:global(.poi) {
 		width: 14px;
 		height: 14px;
+		padding: 0;
+		border: 0;
+		background: none;
+		cursor: pointer;
+	}
+	:global(.poi > span) {
+		display: block;
+		width: 100%;
+		height: 100%;
 		border-radius: var(--radius-round);
 		background: var(--accent-2);
 		border: 2px solid var(--bg);
 		box-shadow: 0 1px 6px var(--media-scrim);
-		cursor: pointer;
 		transition: transform var(--dur-fast);
 	}
-	:global(.poi:hover) {
+	:global(.poi:hover > span) {
 		transform: scale(1.4);
 	}
 	:global(.maplibregl-ctrl-group) {

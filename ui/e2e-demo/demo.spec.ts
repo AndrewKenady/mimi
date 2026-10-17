@@ -83,6 +83,17 @@ test('switching the theme works for the session', async ({ page }) => {
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });
 
+test('map points of interest move with the map instead of trailing it', async ({ page }) => {
+	await open(page, 'map');
+	const poi = page.locator('.maplibregl-marker.poi').first();
+	await expect(poi).toBeVisible({ timeout: 20_000 });
+	// MapLibre moves a marker by rewriting its transform every frame, so any transition on
+	// that property makes the marker slide after the map while panning or zooming.
+	const props = (await poi.evaluate((el) => getComputedStyle(el).transitionProperty)).split(', ');
+	expect(props).not.toContain('transform');
+	expect(props).not.toContain('all');
+});
+
 for (const path of ['', 'library', 'chat']) {
 	test(`no serious accessibility violations on /${path} with the banner`, async ({ page }) => {
 		await open(page, path);
