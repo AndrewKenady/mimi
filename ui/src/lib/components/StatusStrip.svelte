@@ -1,50 +1,51 @@
 <script lang="ts">
 	import { app } from '$lib/app.svelte';
+	import { fmtDate, fmtNumber, t } from '$lib/i18n/index.svelte';
 	import { WifiOff, Cpu, BatteryFull, BatteryMedium, BatteryLow, BatteryCharging, MapPin, Users, Leaf, Radio } from '@lucide/svelte';
 
 	const model = $derived(app.model);
 	const battery = $derived(app.system?.battery ?? app.hardware?.battery);
 	const guests = $derived((app.share?.clients || []).length);
 	const loc = $derived(app.location?.description?.description || app.location?.description?.label || "");
-	const time = $derived(
-		app.clock.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: app.settings.device?.general?.time_format !== '24h' })
-	);
+	// The 12- or 24-hour clock is a device setting; the words around it (AM, p. m.) follow the interface language.
+	const time = $derived(fmtDate(app.clock, { hour: 'numeric', minute: '2-digit', hour12: app.settings.device?.general?.time_format !== '24h' }));
 	const modelLabel = $derived.by(() => {
-		if (!model) return 'No model';
-		if (model.status === 'loading') return `Waking ${model.model_name || 'model'}…`;
-		if (model.status === 'error') return 'Model unavailable';
-		return model.model_name || 'Model idle';
+		if (!model) return t('shell.modelNone');
+		if (model.status === 'loading') return model.model_name ? t('shell.modelWaking', { name: model.model_name }) : t('shell.modelWakingModel');
+		if (model.status === 'error') return t('shell.modelUnavailable');
+		return model.model_name || t('shell.modelIdle');
 	});
+	const address = $derived((app.share?.urls?.ips?.[0] || '').replace('https://', '').replace(/\/$/, ''));
 </script>
 
 <!-- Not a live region as a whole: the clock and battery change constantly. Only the model's
      state (waking, ready, unavailable) is worth announcing. -->
-<div class="strip" role="region" aria-label="Device status">
-	<span class="pill offline" title="Mimi runs entirely on this device">
+<div class="strip" role="region" aria-label={t('shell.deviceStatus')}>
+	<span class="pill offline" title={t('shell.offlineTitle')}>
 		<WifiOff size={13} strokeWidth={2} aria-hidden="true" />
-		<span class="txt">Offline · all local</span>
+		<span class="txt">{t('shell.offlineAllLocal')}</span>
 	</span>
-	<a href="/settings/intelligence#models" class="pill" class:loading={model?.status === 'loading'} class:bad={model?.status === 'error'} title={model?.error || 'Language model'}>
+	<a href="/settings/intelligence#models" class="pill" class:loading={model?.status === 'loading'} class:bad={model?.status === 'error'} title={model?.error || t('shell.modelTitle')}>
 		<Cpu size={13} strokeWidth={2} aria-hidden="true" />
 		<span aria-live="polite">{modelLabel}</span>
 	</a>
 	{#if app.system?.battery_saver}
-		<span class="pill warn" title="Battery saver: using the quick model"><Leaf size={13} strokeWidth={2} />Saver</span>
+		<span class="pill warn" title={t('shell.saverTitle')}><Leaf size={13} strokeWidth={2} />{t('shell.saver')}</span>
 	{/if}
 	<span class="spacer"></span>
 	{#if loc}
-		<a href="/map" class="pill ghost" title={app.live ? 'Live location from this device' : 'Location'}>{#if app.live}<Radio size={13} strokeWidth={2} class="live-ico" />{:else}<MapPin size={13} strokeWidth={2} />{/if}{loc}</a>
+		<a href="/map" class="pill ghost" title={app.live ? t('shell.locationLive') : t('shell.location')}>{#if app.live}<Radio size={13} strokeWidth={2} class="live-ico" />{:else}<MapPin size={13} strokeWidth={2} />{/if}{loc}</a>
 	{/if}
 	{#if app.share?.running}
-		<a href="/settings/sharing" class="pill share" title="Other devices can open Mimi at this address"><Users size={13} strokeWidth={2} />Shared · {(app.share?.urls?.ips?.[0] || '').replace('https://', '').replace(/\/$/, '')}{guests ? ` · ${guests} connected` : ''}</a>
+		<a href="/settings/sharing" class="pill share" title={t('shell.sharedTitle')}><Users size={13} strokeWidth={2} />{t('shell.shared', { address })}{guests ? ` · ${t('shell.connected', { n: guests })}` : ''}</a>
 	{/if}
 	{#if battery}
-		<span class="pill ghost" title="Battery">
+		<span class="pill ghost" title={t('shell.battery')}>
 			{#if battery.plugged}<BatteryCharging size={15} strokeWidth={1.8} />{:else if battery.percent > 60}<BatteryFull size={15} strokeWidth={1.8} />{:else if battery.percent > 25}<BatteryMedium
 					size={15}
 					strokeWidth={1.8}
 				/>{:else}<BatteryLow size={15} strokeWidth={1.8} />{/if}
-			{battery.percent}%
+			{fmtNumber(battery.percent / 100, { style: 'percent' })}
 		</span>
 	{/if}
 	<span class="clock">{time}</span>
