@@ -179,7 +179,7 @@ def plan(args) -> tuple[list[tuple[Path, Path, list[str] | None]], int, list[str
     # Maps
     maps = ROOT / "maps"
     if args.edition != "lite" or args.map_bbox:
-        for f in ("places.sqlite", "geowiki.sqlite", "tiles.json"):
+        for f in ("places.sqlite", "geowiki.sqlite", "pois.sqlite", "tiles.json"):  # pois: fuel and hospitals
             total += add(f"maps/{f}")
         total += add("maps/assets")
         if args.map_bbox:
@@ -197,7 +197,7 @@ def plan(args) -> tuple[list[tuple[Path, Path, list[str] | None]], int, list[str
             else:
                 notes.append("Routing tiles aren't built yet, so the drive won't have driving directions (scripts\\build_routing.py).")
     else:
-        for f in ("places.sqlite", "geowiki.sqlite"):
+        for f in ("places.sqlite", "geowiki.sqlite", "pois.sqlite"):
             total += add(f"maps/{f}")
         notes.append("Lite edition: no map tiles unless you pass --map-bbox (nearby places and 'where am I' still work).")
 

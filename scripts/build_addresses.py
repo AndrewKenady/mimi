@@ -18,13 +18,25 @@ Sources (any subset; with no input options the files under ``.tools/dl`` are use
     --osm-points  OpenStreetMap extracts: addr:housenumber + addr:street nodes and
                   buildings become exact address points (ODbL).
 
+Built from OpenStreetMap alone (no TIGER, ZIP or NAR input: every region outside the US
+and Canada), the index also reads postcodes in other countries' formats ("10115",
+"SW1A 2AA", "1012 AB"), house numbers such as "5a", "12bis", "5/1" and "16-18" (both
+ends), and addr:place where a hamlet's houses have no street ("Ahorn 2"). Their
+postcodes get centroids (and UK districts, "SW1A", like Canadian FSAs), and the towns
+the addresses name (addr:city) a ``localities`` table, so "München" is found where the
+gazetteer calls it "Munich". US state codes in addr:state are ignored there (Swiss "AR"
+is Appenzell, not Arkansas). A US or Canadian build is unchanged.
+
 Tables (coordinates are INTEGER degrees * 1e6)
     streets    one row per (street_key, 0.1 degree grid cell), all sources merged;
                name is the fullest spelling seen, lat/lon a point in the cell
     ranges     TIGER house-number ranges; geom is a Google polyline (precision 6)
                in the direction the numbers run from ``lo`` (rev=0) or ``hi`` (rev=1)
     points     exact civic numbers (NAR, OSM), one per (street, number, unit)
-    postcodes  US ZIPs, Canadian postal codes and FSAs (means of NAR points)
+    postcodes  US ZIPs, Canadian postal codes and FSAs (means of NAR points); outside North
+               America the means of OSM points' postcodes, and UK districts
+    localities towns as the addresses name them (OSM addr:city): name key, centroid, radius (m),
+               number of addresses; one row per town and 0.5 degree cell
     meta       norm_version (must match address_norm.VERSION), built_at, sources, counts
 
 Everything is streamed. Rows are staged in scratch SQLite files next to the output
@@ -73,7 +85,10 @@ from typing import Iterable, Iterator, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "core"))
 
-from mimi.address_norm import STATE_CODES, VERSION, house_number, street_base, street_key
+from mimi.address_norm import (
+    STATE_CODES, VERSION, house_number, house_number_intl, intl_postcode, street_base, street_key, uk_outward,
+)
+from mimi.geodata import name_key
 
 DL = ROOT / ".tools" / "dl"
 DEFAULT_OUT = ROOT / "maps" / "addresses.sqlite"
@@ -116,13 +131,17 @@ CREATE TABLE ranges(sid INTEGER NOT NULL, lo INTEGER NOT NULL, hi INTEGER NOT NU
 CREATE TABLE points(sid INTEGER NOT NULL, num INTEGER NOT NULL, numtext TEXT NOT NULL, unit TEXT, lat INTEGER NOT NULL,
                     lon INTEGER NOT NULL, postcode TEXT, source TEXT NOT NULL);
 CREATE TABLE postcodes(code TEXT PRIMARY KEY, lat INTEGER NOT NULL, lon INTEGER NOT NULL, region TEXT);
+CREATE TABLE localities(key TEXT NOT NULL, name TEXT NOT NULL, lat INTEGER NOT NULL, lon INTEGER NOT NULL,
+                        radius INTEGER NOT NULL, n INTEGER NOT NULL);
 """
 STAGE_SCHEMA = """
 CREATE TABLE {s}.obs(key TEXT, base TEXT, name TEXT, cell INTEGER, lat INTEGER, lon INTEGER, region TEXT, postcode TEXT);
 CREATE TABLE {s}.ranges(key TEXT, cell INTEGER, lo INTEGER, hi INTEGER, parity INTEGER, rev INTEGER, postcode TEXT, geom TEXT);
 CREATE TABLE {s}.points(key TEXT, cell INTEGER, num INTEGER, numtext TEXT, unit TEXT, lat INTEGER, lon INTEGER, postcode TEXT,
                         source TEXT);
+CREATE TABLE {s}.cities(key TEXT, name TEXT, lat INTEGER, lon INTEGER);
 """
+LOCALITY_CELL = 500_000  # micro-degrees: same-named towns more than ~0.5 degree apart stay apart
 # SQL twin of cell_of() for integer micro-degrees
 TMP_VARS = ("SQLITE_TMPDIR", "TMP", "TEMP", "TMPDIR")
 CELL_SQL = "((({lat}) + 90000000) / 100000) * 3600 + ((({lon}) + 180000000) / 100000)"
@@ -310,6 +329,9 @@ class Build:
         self.pc_region: dict[str, dict[str, int]] = {}  # US ZIP -> state counts (TIGER)
         self.pc_sum: dict[str, list[float]] = {}  # US ZIP -> [lat sum, lon sum, n] of TIGER segments
         self.sources: list[dict] = []
+        # No TIGER, ZIP or NAR input: an index for a region outside the US and Canada, built from
+        # OpenStreetMap alone, which reads international postcodes, house numbers and towns.
+        self.intl = False
 
     def open(self) -> None:
         self.cleanup()
@@ -659,6 +681,7 @@ OSM_SCRATCH = """
 CREATE TABLE scratch.ways(node INTEGER, key TEXT, base TEXT, name TEXT);
 CREATE TABLE scratch.addrs(node INTEGER, key TEXT, base TEXT, name TEXT, num INTEGER, numtext TEXT, unit TEXT,
                            postcode TEXT, region TEXT);
+CREATE TABLE scratch.citynodes(node INTEGER, key TEXT, name TEXT);
 CREATE TABLE scratch.nodes(id INTEGER PRIMARY KEY, lat INTEGER, lon INTEGER);
 """
 
@@ -672,8 +695,15 @@ def _osm_names(tags) -> list[str]:
     return [x for x in names if x]
 
 
-def _osm_numbers(text: str) -> list[tuple[int, str]]:
-    return [hn for part in re.split(r"[;,]", text) if (hn := house_number(part))]
+def _osm_numbers(text: str, intl: bool = False) -> list[tuple[int, str]]:
+    """'10;12' -> [(10, '10'), (12, '12')]; with ``intl`` also '12bis', '5/1' and '16-18' (both ends)."""
+    out: list[tuple[int, str]] = []
+    for part in re.split(r"[;,]", text):
+        if intl and (hns := house_number_intl(part)):
+            out += hns  # as written: "5a", "12bis"
+        elif hn := house_number(part):
+            out.append(hn)
+    return out
 
 
 def load_osm(b: Build, path: Path, roads: bool, points: bool, limit: int | None) -> dict:
@@ -686,8 +716,9 @@ def load_osm(b: Build, path: Path, roads: bool, points: bool, limit: int | None)
     b.reset_scratch(OSM_SCRATCH)
     keys = (["highway"] if roads else []) + (["addr:housenumber"] if points else [])
     ents = osmium.osm.WAY | osmium.osm.NODE if points else osmium.osm.WAY
-    ways, addrs, direct = [], [], []
+    ways, addrs, direct, cities, citynodes = [], [], [], [], []
     n_ways = n_addr = seen = 0
+    intl = b.intl
     prog = Progress("osm objects")
     b.begin()
     fp = osmium.FileProcessor(str(path), ents).with_filter(osmium.filter.KeyFilter(*keys))
@@ -695,14 +726,17 @@ def load_osm(b: Build, path: Path, roads: bool, points: bool, limit: int | None)
         seen += 1
         t = o.tags
         if points and "addr:housenumber" in t:
-            street = t.get("addr:street")
+            # outside North America a hamlet's houses are often numbered by the place, with no street
+            street = t.get("addr:street") or (t.get("addr:place") if intl else None)
             key, base = keys_of(street) if street else ("", "")
-            nums = _osm_numbers(t.get("addr:housenumber", "")) if key else []
+            nums = _osm_numbers(t.get("addr:housenumber", ""), intl) if key else []
             if nums:
                 unit = t.get("addr:unit") or None
-                pc = any_postcode(t.get("addr:postcode"))
+                pc = intl_postcode(t.get("addr:postcode")) if intl else any_postcode(t.get("addr:postcode"))
                 st = (t.get("addr:state") or t.get("addr:province") or "").strip().lower()
-                region = st if st in STATE_CODES else None
+                region = st if st in STATE_CODES and not intl else None
+                city = (t.get("addr:city") or "").strip() if intl else ""
+                ckey = name_key(city) if city else ""
                 if o.is_node():
                     if o.location.valid():
                         ilat, ilon = round(o.location.lat * E6), round(o.location.lon * E6)
@@ -710,10 +744,14 @@ def load_osm(b: Build, path: Path, roads: bool, points: bool, limit: int | None)
                         b.observe(key, base, street, cell, ilat, ilon, region, pc)
                         direct.extend((key, cell, num, numtext, unit, ilat, ilon, pc, "osm") for num, numtext in nums)
                         n_addr += len(nums)
+                        if ckey:
+                            cities.append((ckey, city, ilat, ilon))
                 elif o.is_way() and len(o.nodes):
                     ref = o.nodes[0].ref
                     addrs.extend((ref, key, base, street, num, numtext, unit, pc, region) for num, numtext in nums)
                     n_addr += len(nums)
+                    if ckey:
+                        citynodes.append((ref, ckey, city))
         if roads and o.is_way() and t.get("highway") in ROAD_TYPES:
             names = _osm_names(t)
             if names:
@@ -728,13 +766,17 @@ def load_osm(b: Build, path: Path, roads: bool, points: bool, limit: int | None)
             db.executemany("INSERT INTO scratch.ways VALUES (?,?,?,?)", ways)
             db.executemany("INSERT INTO scratch.addrs VALUES (?,?,?,?,?,?,?,?,?)", addrs)
             db.executemany("INSERT INTO stage.points VALUES (?,?,?,?,?,?,?,?,?)", direct)
+            db.executemany("INSERT INTO stage.cities VALUES (?,?,?,?)", cities)
+            db.executemany("INSERT INTO scratch.citynodes VALUES (?,?,?)", citynodes)
             prog.add(len(ways) + len(addrs) + len(direct))
-            ways.clear(), addrs.clear(), direct.clear()
+            ways.clear(), addrs.clear(), direct.clear(), cities.clear(), citynodes.clear()
         if limit and seen >= limit:
             break
     db.executemany("INSERT INTO scratch.ways VALUES (?,?,?,?)", ways)
     db.executemany("INSERT INTO scratch.addrs VALUES (?,?,?,?,?,?,?,?,?)", addrs)
     db.executemany("INSERT INTO stage.points VALUES (?,?,?,?,?,?,?,?,?)", direct)
+    db.executemany("INSERT INTO stage.cities VALUES (?,?,?,?)", cities)
+    db.executemany("INSERT INTO scratch.citynodes VALUES (?,?,?)", citynodes)
     prog.add(len(ways) + len(addrs) + len(direct))
     b.flush()
     db.execute("CREATE TABLE scratch.need(id INTEGER PRIMARY KEY)")
@@ -768,6 +810,8 @@ def load_osm(b: Build, path: Path, roads: bool, points: bool, limit: int | None)
                    FROM scratch.addrs a JOIN scratch.nodes n ON n.id = a.node""")
     db.execute(f"""INSERT INTO stage.points SELECT a.key, {cell}, a.num, a.numtext, a.unit, n.lat, n.lon, a.postcode, 'osm'
                    FROM scratch.addrs a JOIN scratch.nodes n ON n.id = a.node""")
+    db.execute("""INSERT INTO stage.cities SELECT c.key, c.name, n.lat, n.lon
+                  FROM scratch.citynodes c JOIN scratch.nodes n ON n.id = c.node""")
     b.commit()
     found = db.execute("SELECT count(*) FROM scratch.nodes").fetchone()[0]
     prog.done(f" in {len(windows)} pass(es); {need - found:,} of {need:,} nodes missing from the file")
@@ -826,10 +870,11 @@ def merge(b: Build) -> dict[str, int]:
     b.begin()
     db.execute("""INSERT INTO ranges SELECT s.id, r.lo, r.hi, r.parity, r.rev, r.postcode, r.geom
                   FROM stage.ranges r JOIN streets s ON s.key = r.key AND s.cell = r.cell""")
-    # exact duplicates (the same number and unit on the same street) keep one row, NAR first
+    # exact duplicates (the same number and unit on the same street) keep one row, NAR first;
+    # "16-18" is filed under 16 and under 18
     db.execute("""INSERT INTO points SELECT sid, num, numtext, unit, lat, lon, postcode, source FROM (
                       SELECT s.id AS sid, p.num, p.numtext, p.unit, p.lat, p.lon, p.postcode, p.source,
-                             row_number() OVER (PARTITION BY s.id, p.numtext, p.unit ORDER BY p.source) AS rn
+                             row_number() OVER (PARTITION BY s.id, p.num, p.numtext, p.unit ORDER BY p.source) AS rn
                       FROM stage.points p JOIN streets s ON s.key = p.key AND s.cell = p.cell
                   ) WHERE rn = 1""")
     b.commit()
@@ -839,6 +884,8 @@ def merge(b: Build) -> dict[str, int]:
         raise RuntimeError(f"{staged['ranges'] - counts['ranges']:,} ranges found no street; the merge is broken")
     log(f"  ranges: {counts['ranges']:,}; points: {counts['points']:,} ({staged['points'] - counts['points']:,} "
         f"duplicates dropped) ({time.monotonic() - t:.0f} s)")
+    if b.intl:
+        _localities(b)
     db.execute("DETACH DATABASE stage")
     b.stage["stage"].unlink(missing_ok=True)
 
@@ -850,11 +897,45 @@ def merge(b: Build) -> dict[str, int]:
                        SELECT {code}, CAST(round(avg(p.lat)) AS INTEGER), CAST(round(avg(p.lon)) AS INTEGER), max(s.region)
                        FROM points p JOIN streets s ON s.id = p.sid
                        WHERE p.source = 'nar' AND p.postcode IS NOT NULL GROUP BY 1""")
+    if b.intl:  # elsewhere, OpenStreetMap's own: each postcode, and each UK district ("SW1A"), at its addresses' mean
+        db.create_function("uk_outward", 1, uk_outward, deterministic=True)
+        for code in ("p.postcode", "uk_outward(p.postcode)"):
+            db.execute(f"""INSERT OR IGNORE INTO postcodes
+                           SELECT {code} AS c, CAST(round(avg(p.lat)) AS INTEGER), CAST(round(avg(p.lon)) AS INTEGER), NULL
+                           FROM points p WHERE p.source = 'osm' AND p.postcode IS NOT NULL AND c IS NOT NULL GROUP BY 1""")
     db.execute("CREATE INDEX ranges_sid ON ranges(sid, lo)")
     db.execute("CREATE INDEX points_sid ON points(sid, num)")
+    db.execute("CREATE INDEX localities_key ON localities(key)")
     b.commit()
     log(f"  postcodes + indexes ({time.monotonic() - t:.0f} s)")
-    return {k: db.execute(f"SELECT count(*) FROM {k}").fetchone()[0] for k in ("streets", "ranges", "points", "postcodes")}
+    tables = ("streets", "ranges", "points", "postcodes") + (("localities",) if b.intl else ())
+    return {k: db.execute(f"SELECT count(*) FROM {k}").fetchone()[0] for k in tables}
+
+
+def _localities(b: Build) -> None:
+    """Towns as the addresses name them (addr:city): the mean of their addresses, a radius from
+    how far those spread (1-25 km), and the spelling most of them use. Same-named towns far
+    apart (the many Neustadts) stay separate rows, one per 0.5 degree cell."""
+    db = b.db
+    t = time.monotonic()
+    cell = f"(lat + 90000000) / {LOCALITY_CELL}, (lon + 180000000) / {LOCALITY_CELL}"
+    names: dict[tuple, tuple[int, str]] = {}
+    for key, gy, gx, name, n in db.execute(f"SELECT key, {cell}, name, count(*) FROM stage.cities GROUP BY 1, 2, 3, 4"):
+        if n > names.get((key, gy, gx), (0, ""))[0]:
+            names[(key, gy, gx)] = (n, name)
+    rows = []
+    for key, gy, gx, n, lat, lon, vlat, vlon in db.execute(
+            f"SELECT key, {cell}, count(*), avg(lat), avg(lon), avg(lat * lat) - avg(lat) * avg(lat), "
+            f"avg(lon * lon) - avg(lon) * avg(lon) FROM stage.cities GROUP BY 1, 2, 3"):
+        if n < 2:
+            continue  # one address with a stray town name says little
+        k = math.cos(math.radians(lat / E6))
+        spread = math.sqrt(max(vlat, 0.0) + max(vlon, 0.0) * k * k) * (111_195.0 / E6)  # meters
+        rows.append((key, names[(key, gy, gx)][1], round(lat), round(lon), int(min(25_000, max(1_000, 2.5 * spread))), n))
+    b.begin()
+    db.executemany("INSERT INTO localities VALUES (?,?,?,?,?,?)", rows)
+    b.commit()
+    log(f"  localities: {len(rows):,} towns named by the addresses ({time.monotonic() - t:.0f} s)")
 
 
 def finish(b: Build, counts: dict[str, int]) -> Path:
@@ -938,6 +1019,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     check_disk(args)
     saved_env = {v: os.environ.get(v) for v in TMP_VARS}
     b = Build(args.out.resolve())
+    b.intl = not (args.tiger or args.zips or args.nar)
     try:
         b.open()
         if args.tiger:

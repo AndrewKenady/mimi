@@ -1,5 +1,5 @@
 {
-  "$comment": "MIMI Standard edition (reference device: 16 GB RAM, Radeon 780M): Lite plus the bigger models, all of Wikipedia with pictures, Wiktionary, Stack Exchange, TED and Gutenberg, every street of the US and Canada, the world at regional detail, offline driving directions and street-address search. About 200 GB, plus a few hours of local builds (routing, addresses). Packs are defined in manifests/packs.json, engines in manifests/runtimes.json.",
+  "$comment": "MIMI Standard edition (reference device: 16 GB RAM, Radeon 780M): Lite plus the bigger models, all of Wikipedia with pictures, Wiktionary, Stack Exchange, TED and Gutenberg, every street of the US and Canada, the world at regional detail, street-address search and offline driving directions (with fuel stations and hospitals for 'near me'). Addresses come before routing so that, outside North America, both are built from one OpenStreetMap download. About 200 GB, plus a few hours of local builds (routing, addresses). Packs are defined in manifests/packs.json, engines in manifests/runtimes.json.",
   "edition": "standard",
   "title": "Standard",
   "extends": "lite",
@@ -7,6 +7,6 @@
   "packs": [
     "llm-standard", "voice-turbo",
     "wikipedia-full", "wiktionary", "stackexchange", "ted", "gutenberg",
-    "world-detail", "map-region-detail", "geowiki", "routing", "addresses"
+    "world-detail", "map-region-detail", "geowiki", "addresses", "routing"
   ]
 }

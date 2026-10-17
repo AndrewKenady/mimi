@@ -1036,14 +1036,22 @@ async def stop_live_location(request: Request, ctx: Ctx = Depends(get_ctx)):
 @router.get("/location/nearby")
 async def nearby(request: Request, lat: float | None = None, lon: float | None = None, radius: float = 15, kind: str = "all",
                  limit: int = 24, ctx: Ctx = Depends(get_ctx)):
+    """Places near a point (default: the device). ``kind``: 'all' (notable places), a category
+    (nature, history, culture, towns, water, mountains), a service, nearest first (fuel,
+    hospital, clinic, pharmacy, ambulance, or health for the medical ones), or several joined
+    by commas. ``services`` says whether OpenStreetMap services data covers the point."""
     svc = S(request)
     if lat is None or lon is None:
         cur = svc.location.current()
         if not cur:
             return {"places": [], "location": None}
         lat, lon = cur["lat"], cur["lon"]
-    places = await asyncio.to_thread(svc.location.nearby, lat, lon, min(radius, 100), None if kind == "all" else [kind], min(limit, 60))
-    return {"places": places, "location": {"lat": lat, "lon": lon}}
+    kinds = [k.strip() for k in kind.split(",") if k.strip()]
+    places = await asyncio.to_thread(svc.location.nearby, lat, lon, min(radius, 100),
+                                     None if not kinds or "all" in kinds else kinds, min(limit, 60))
+    geo = svc.location.geo
+    services = bool(geo and getattr(geo, "pois_available", False) and geo.pois_cover(lat, lon))
+    return {"places": places, "location": {"lat": lat, "lon": lon}, "services": services}
 
 
 @router.get("/location/search")
@@ -1060,6 +1068,11 @@ async def maps_info(request: Request, ctx: Ctx = Depends(get_ctx)):
     meta = json.loads(meta_file.read_text("utf-8")) if meta_file.exists() else {}
     addr = svc.location.addr
     addresses = addr.info() if addr else {"available": False}
+    sources = addr.source_names() if addr and hasattr(addr, "source_names") else set()
+    credit = [name for name, keys in (("US Census TIGER", {"tiger", "zips"}), ("Statistics Canada", {"nar"})) if sources & keys]
+    if addresses["available"] and not sources:  # an index that doesn't say what it was built from
+        credit = ["US Census TIGER", "Statistics Canada"]
+    geo = svc.location.geo
     world = svc.paths.maps / "world.pmtiles"
     return {
         "tiles": tiles.exists() or world.exists(),
@@ -1075,8 +1088,9 @@ async def maps_info(request: Request, ctx: Ctx = Depends(get_ctx)):
         "addresses": addresses["available"],
         "address_counts": addresses.get("counts", {}),
         "address_built": addresses.get("built_at"),
-        "attribution": "© OpenStreetMap contributors · Protomaps · GeoNames"
-                       + (" · US Census TIGER · Statistics Canada" if addresses["available"] else ""),
+        # fuel stations, hospitals, clinics, pharmacies and ambulance stations for "near me"
+        "services": bool(geo and getattr(geo, "pois_available", False)),
+        "attribution": "© OpenStreetMap contributors · Protomaps · GeoNames" + "".join(f" · {c}" for c in credit),
     }
 
 

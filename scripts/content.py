@@ -100,7 +100,8 @@ def cmd_regions(args) -> int:
     for name, r in R["regions"].items():
         mm = r.get("map_mb", {})
         say(f"  {name:<12} {fmt_size(mm['13'] * 1e6) if '13' in mm else '?':>9} {fmt_size(mm['14'] * 1e6) if '14' in mm else '?':>9} "
-            f"{'~' + fmt_size(r['routing_mb'] * 1e6) if r.get('routing_mb') else '-':>9}  {'yes' if r.get('addresses') else '-':<9}  {r['title']}")
+            f"{'~' + fmt_size(r['routing_mb'] * 1e6) if r.get('routing_mb') else '-':>9}  "
+            f"{'OSM' if r.get('addresses') == 'osm' else 'yes' if r.get('addresses') else '-':<9}  {r['title']}")
     say("\nOr any area: --bbox west,south,east,north (maps only; sizes are measured before downloading).")
     return 0
 
@@ -144,8 +145,7 @@ def cmd_add(args) -> int:
     if args.skip:
         pids = [p for p in pids if p not in args.skip]
     items = fetch.plan(pids, region)
-    built = {i.pack for i in items if i.kind == "build" and i.installed()}
-    todo = [i for i in items if not i.installed() and not (i.temporary and i.pack in built)]
+    todo = fetch.todo(items)
 
     say(f"Content folder: {content_root()}")
     say(f"Map region:     {region['title']}")
@@ -158,8 +158,11 @@ def cmd_add(args) -> int:
     need, unknown = 0, []
     say("\nTo download or build:")
     for it in todo:
-        if it.size is None and it.kind in ("world", "tiles"):
-            it.measure()  # a custom --bbox: ask pmtiles
+        if it.installed():  # an input already on disk, still needed by a build
+            say(f"  {it.pack:<20} {'on disk':>9}  {it.label}")
+            continue
+        if it.size is None and it.kind in ("world", "tiles", "osm"):
+            it.measure()  # a custom --bbox: ask pmtiles; an OpenStreetMap extract: ask Geofabrik
         remaining = None if it.size is None else max(0, it.size - it.partial_bytes())
         if remaining is None:
             unknown.append(it.label)

@@ -1,4 +1,4 @@
-"""Offline street-address search for the US and Canada.
+"""Offline street-address search.
 
 Reads ``maps/addresses.sqlite`` (built by ``scripts/build_addresses.py``), which merges
 three sources into one set of streets keyed by ``address_norm.street_key``:
@@ -8,6 +8,14 @@ three sources into one set of streets keyed by ``address_norm.street_key``:
 * Statistics Canada National Address Register (Open Licence) and OpenStreetMap
   ``addr:*`` points (ODbL): exact positions of individual civic numbers.
 * Street names alone (OSM roads, TIGER), for "Main St, Laramie" without a number.
+
+Outside the US and Canada the index is built from OpenStreetMap alone (``intl``): the
+parser then reads every input in the international forms ("Hauptstraße 5, 10115 Berlin",
+"10 Downing Street, London SW1A 2AA"), tries the other spellings people type
+(``address_norm.intl_variants``), finds towns the gazetteer names differently by the
+``addr:city`` of the addresses themselves (the ``localities`` table: "München" where
+GeoNames says "Munich"), and writes results the way the country does ("Hauptstraße 5,
+10115 Berlin").
 
 Streets are stored once per 0.1 degree grid cell, so a lookup is an index probe on
 ``(key, cell)`` for the few cells around the town the user named; no query ever scans
@@ -33,7 +41,9 @@ from typing import Callable
 
 from . import log
 from .address_norm import (
-    DIRECTIONS, DIRS, STATE_CODES, STATES, TYPE_WORDS, TYPES, VERSION, fold, house_number, street_base, street_key,
+    DIRECTIONS, DIRS, STATE_CODES, STATES, TYPE_WORDS, TYPES, VERSION, fold, format_intl_postcode, house_number,
+    house_number_intl, intl_postcode, intl_typed, intl_variants, number_first, postcode_first, postcode_style,
+    street_base, street_key, uk_outward,
 )
 from .geodata import KM_PER_DEG_LAT, haversine_km, name_key
 from .routing import decode_polyline6
@@ -187,6 +197,8 @@ def postcode_country(code: str | None) -> str | None:
 
 
 def format_postcode(code: str | None) -> str | None:
+    if code and postcode_style(code) in ("uk", "ie", "nl"):
+        return format_intl_postcode(code)
     return f"{code[:3]} {code[3:]}" if code and len(code) == 6 and not code.isdigit() else code
 
 
@@ -311,23 +323,259 @@ def _is_unit_seg(tokens: list[str]) -> str | None:
     return None
 
 
-def parse_address(text: str) -> dict:
-    """Split a free-form US/Canadian address into its parts.
+# --- addresses written the way most of the world writes them -----------------------------------
+
+_AU_STATES = frozenset(("nsw", "vic", "qld", "wa", "sa", "tas", "act", "nt"))
+# A country named as the last part of an address (folded, without spaces). Names that are also
+# US towns ("Holland", "Lebanon", "Peru") are left out.
+_INTL_COUNTRIES = {
+    "germany": "DE", "deutschland": "DE", "austria": "AT", "osterreich": "AT", "oesterreich": "AT", "switzerland": "CH",
+    "schweiz": "CH", "suisse": "CH", "svizzera": "CH", "liechtenstein": "LI", "france": "FR", "monaco": "MC",
+    "italy": "IT", "italia": "IT", "sanmarino": "SM", "vaticancity": "VA", "spain": "ES", "espana": "ES",
+    "andorra": "AD", "portugal": "PT", "unitedkingdom": "GB", "uk": "GB", "greatbritain": "GB", "gb": "GB",
+    "england": "GB", "scotland": "GB", "wales": "GB", "northernireland": "GB", "ireland": "IE", "eire": "IE",
+    "jersey": "JE", "guernsey": "GG", "isleofman": "IM", "netherlands": "NL", "nederland": "NL", "belgium": "BE",
+    "belgique": "BE", "belgie": "BE", "belgien": "BE", "luxembourg": "LU", "luxemburg": "LU", "denmark": "DK",
+    "danmark": "DK", "norway": "NO", "norge": "NO", "sweden": "SE", "sverige": "SE", "finland": "FI", "suomi": "FI",
+    "poland": "PL", "polska": "PL", "czechia": "CZ", "czechrepublic": "CZ", "cesko": "CZ", "slovakia": "SK",
+    "hungary": "HU", "slovenia": "SI", "croatia": "HR", "hrvatska": "HR", "greece": "GR", "australia": "AU",
+    "newzealand": "NZ", "aotearoa": "NZ", "japan": "JP", "southafrica": "ZA",
+}
+# Words after which a number belongs to the road or a unit, never a house or a postcode
+# ("County Road 5", "Hwy 59", "Suite 1234", "Line 7").
+_NUMBER_WORDS = frozenset((
+    "county", "co", "cnty", "cr", "road", "rd", "route", "rte", "rt", "highway", "hwy", "hiway", "hway", "us", "sr", "sh",
+    "fm", "rr", "ih", "interstate", "i", "state", "trunk", "spur", "loop", "line", "concession", "conc", "sideroad",
+    "range", "rang", "township", "twp", "exit", "box", "po", "lot", "pier", "gate", "terminal", "hangar", "dock",
+    "platform", "building", "bldg", "unit", "apt", "apartment", "suite", "ste", "floor", "fl", "room", "rm", "flat",
+    "studio", "area", "#",
+))
+_NO_WORDS = frozenset(("nr", "no", "n", "nº", "n°", "num"))  # "Via Roma n. 1", "Hauptstraße Nr. 5"
+
+
+def _has_letter(tok: str) -> bool:
+    return bool(re.search(r"[^\W\d_]", tok))
+
+
+def _localityish(tokens: list[str]) -> bool:
+    """Could these words be a town ("Berlin", "Andorra la Vella", "St Helier")?"""
+    toks = [t for t in tokens if t not in ("-", "–")]
+    if not toks or not all(_has_letter(t) for t in toks):
+        return False
+    f = [_f(t) for t in toks]
+    if all(x in DIRECTIONS for x in f) or f[0] in _UNIT_WORDS or f[0] in _NUMBER_WORDS:
+        return False
+    return not (TYPE_WORDS.get(f[0]) in _STRONG and f[0] not in ("st", "ste"))
+
+
+def _drop_province(tokens: list[str]) -> list[str]:
+    """'Milano MI' -> 'Milano', 'Madrid (Madrid)' -> 'Madrid': a province after a postcode-first town."""
+    if len(tokens) >= 2 and re.fullmatch(r"[A-Z]{2}|\(.*\)", tokens[-1]):
+        return tokens[:-1]
+    return tokens
+
+
+def _leading_postcode(tokens: list[str]) -> tuple[str | None, int]:
+    """A postcode at the start of a part: '10115 Berlin', 'D-10115 Berlin', '1012 AB Amsterdam',
+    '114 55 Stockholm', 'AD500 Andorra la Vella'. Returns (normalized code, tokens used)."""
+    if len(tokens) >= 3 and re.fullmatch(r"\d{4}", tokens[0]) and re.fullmatch(r"[A-Z]{2}", tokens[1]):
+        return intl_postcode(tokens[0] + tokens[1]), 2
+    if len(tokens) >= 3 and re.fullmatch(r"\d{3}", tokens[0]) and re.fullmatch(r"\d{2}", tokens[1]):
+        return intl_postcode(tokens[0] + " " + tokens[1]), 2
+    if tokens and re.fullmatch(r"(?:[A-Za-z]{1,3}-)?\d{4,5}|AD\d{3}|\d{2}-\d{3}|\d{4}-\d{3}", tokens[0], re.I):
+        return intl_postcode(tokens[0]), 1
+    return None, 0
+
+
+def _street_ok(street: list[str], loose: bool) -> bool:
+    """Is this a street a house number can follow ('Hauptstraße', 'Calle Mayor'), rather than a
+    numbered road ('County Road', 'Hwy') or a bare street type ('Avenue' in "Avenue 64")?"""
+    if not street or not any(_has_letter(t) for t in street):
+        return False
+    words = [_f(t) for t in street]
+    if words[-1] in _NUMBER_WORDS:
+        return False
+    key = street_key(" ".join(street))
+    if not key or key.startswith(_ROUTE_PREFIXES):
+        return False
+    if not [w for w in words if w not in TYPE_WORDS and w not in DIRECTIONS and w not in _PARTICLES]:
+        return False
+    return loose or intl_typed(" ".join(street))
+
+
+def _postfix_number(seg: list[str], single: bool, loose: bool) -> tuple | None:
+    """The house number after the street: 'Hauptstraße 5', 'Calle Mayor 12 bis', 'Via Roma n. 1',
+    or (``single``: no commas) before the town, 'Hauptstraße 5 Berlin'. Returns (street tokens,
+    number, numtext, tokens after it)."""
+    for j in range(1, len(seg)):
+        for n in (2, 1):
+            if j + n > len(seg):
+                continue
+            nums = house_number_intl(" ".join(seg[j:j + n]))
+            if not nums:
+                continue
+            rest = seg[j + n:]
+            if rest and not (single and _localityish(rest)):
+                continue
+            street = seg[:j]
+            if len(street) > 1 and _f(street[-1]) in _NO_WORDS:
+                street = street[:-1]
+            if _street_ok(street, loose):
+                return street, nums[0][0], nums[0][1], rest
+    return None
+
+
+def _intl_preparse(s: str, hint: bool) -> dict | None:
+    """Recognize an address in a European, British or Australian form and rewrite it as
+    "number street, town" for the parser, with the postcode, country, Australian state and
+    the number's position kept aside. Returns None when nothing about it is international
+    (and ``hint`` is off), so US and Canadian input is parsed exactly as before."""
+    segs = [seg.split() for seg in re.split(r"[,;]", s)]
+    segs = [x for x in segs if x]
+    if not segs:
+        return None
+    sig = False
+    country = postcode = admin = order = numtext = number = None
+    # just a postcode
+    if len(segs) == 1:
+        joined = " ".join(segs[0])
+        pc = intl_postcode(joined)
+        style = postcode_style(pc)
+        if pc and (style in ("uk", "ie", "nl", "ad") or (hint and style == "digits")) and \
+                not (style == "digits" and not re.fullmatch(r"[\d\s-]+", joined)):
+            return {"text": None, "postcode": pc, "country": None}
+        # "9490 Vaduz": a postcode and its town, no street
+        pc, n = _leading_postcode(segs[0]) if hint else (None, 0)
+        rest = segs[0][n:]
+        if pc and _localityish(rest) and not intl_typed(" ".join(rest)) and not any(TYPE_WORDS.get(_f(t)) for t in rest):
+            return {"text": None, "postcode": pc, "country": None}
+    # a country named last ("…, Deutschland"): taken off, but not on its own a sign
+    if len(segs) > 1 and (cc := _INTL_COUNTRIES.get(_f(" ".join(segs[-1])))):
+        country = cc
+        segs = segs[:-1]
+    last = segs[-1]
+    # a postcode after the town: UK/Irish, Australian (with the state), or four digits
+    tail = 0
+    if len(last) >= 2 and postcode_style(intl_postcode(" ".join(last[-2:]))) in ("uk", "ie") \
+            and _has_letter(last[-2]) and re.search(r"\d", last[-2]):
+        tail = 2
+    elif last and len(last[-1]) >= 5 and postcode_style(intl_postcode(last[-1])) in ("uk", "ie"):
+        tail = 1
+    if tail and (len(last) > tail or len(segs) > 1):
+        postcode = intl_postcode(" ".join(last[-tail:]))
+        del last[-tail:]
+        sig = True
+    elif len(last) >= 2 and _f(last[-2]) in _AU_STATES and last[-2].isupper() and re.fullmatch(r"\d{4}", last[-1]):
+        postcode, admin = last[-1], last[-2].upper()
+        del last[-2:]
+        sig = True
+    elif len(last) >= 2 and re.fullmatch(r"\d{4,5}", last[-1]) and _has_letter(last[-2]) and _f(last[-2]) not in _NUMBER_WORDS \
+            and (len(segs) > 1 or any(re.match(r"\d", t) for t in last[:-2])):
+        postcode = last[-1]  # "Auckland 1010"; five digits ("Madrid 28013") are only a sign along with others
+        del last[-1]
+        sig = sig or len(postcode) == 4 and len(segs) > 1
+    elif hint and len(last) >= 2 and _f(last[-1]) in _AU_STATES and last[-1].isupper():
+        admin = last[-1]
+        del last[-1]
+    segs = [x for x in segs if x]
+    if not segs:
+        return None
+    # the postcode before the town, in the last part: "…, 10115 Berlin"
+    if postcode is None and len(segs) > 1:
+        pc, n = _leading_postcode(segs[-1])
+        prev = [x for x in segs[:-1] if not _is_unit_seg(x)]
+        if pc and _localityish(segs[-1][n:]) and any(
+                any(_has_letter(t) for t in x) and (any(house_number(t) or house_number_intl(t) for t in x)
+                                                    or intl_typed(" ".join(x)) or hint) for x in prev):
+            postcode = pc
+            segs[-1] = _drop_province(segs[-1][n:])
+            sig = True
+    # … or inside a part without commas: "Hauptstraße 5 10115 Berlin", "10 rue de la Paix 75002 Paris"
+    if postcode is None and len(segs) == 1:
+        toks = segs[0]
+        for k in range(2, len(toks) - 1):
+            pc, n = _leading_postcode(toks[k:])
+            if not pc or not _localityish(toks[k + n:]) or _f(toks[k - 1]) in _NUMBER_WORDS:
+                continue
+            prev = toks[:k]
+            after_number = bool(house_number_intl(toks[k - 1])) and not house_number(prev[0])
+            lead = bool(house_number(prev[0])) and _has_letter(prev[1]) and (
+                len(pc) != 4 or hint or intl_typed(" ".join(prev[1:])))
+            if after_number or lead:
+                postcode = pc
+                segs = [prev, _drop_province(toks[k + n:])]
+                sig = True
+                break
+    # the house number after the street ("Hauptstraße 5"), or alone in the next part ("Calle Mayor, 12")
+    si = next((i for i, x in enumerate(segs) if not _is_unit_seg(x)), 0)
+    if si + 1 < len(segs) and not _lead_number(segs[si]) and house_number_intl(" ".join(segs[si + 1])) \
+            and len(segs[si + 1]) <= 2:
+        segs[si] = segs[si] + segs.pop(si + 1)
+    seg = segs[si]
+    if not _lead_number(seg) and len(seg) >= 2:
+        if found := _postfix_number(seg, len(segs) == 1, hint or sig):
+            street, number, numtext, rest = found
+            segs[si] = [str(number), *street]
+            if rest:
+                segs.insert(si + 1, rest)
+            order = "postfix"
+            sig = True
+    elif (hint or sig) and len(seg) >= 2 and len(nums := house_number_intl(seg[0])) == 2:
+        number, numtext = nums[0]  # "13-14 King Street": both numbers, not Canada's unit-civic
+        segs[si] = [str(number), *seg[1:]]
+    if not (sig or hint):
+        return None
+    return {"text": ", ".join(" ".join(x) for x in segs), "postcode": postcode, "country": country, "admin": admin,
+            "order": order, "number": number, "numtext": numtext}
+
+
+def parse_address(text: str, intl: bool = False) -> dict:
+    """Split a free-form address into its parts.
 
     Returns ``{number, numtext, unit, street, key, locality, region, postcode, country,
-    typed, confident, alts}``: ``region`` is a lowercase 2-letter state/province code,
-    ``postcode`` a 5-digit ZIP or an uppercase Canadian code without the space,
-    ``typed`` whether the street has a type or is a numbered route, ``confident``
-    whether the street/locality boundary is clear (a comma, or a split right after a
-    street type), and ``alts`` every plausible (street, key, locality) reading, the
-    primary one first, for input without commas.
+    typed, confident, alts, intl, order, admin}``: ``region`` is a lowercase 2-letter
+    US state or Canadian province code, ``postcode`` a 5-digit ZIP, an uppercase Canadian
+    code without the space or (international) a code from ``intl_postcode``, ``typed``
+    whether the street has a type or is a numbered route, ``confident`` whether the
+    street/locality boundary is clear (a comma, or a split right after a street type), and
+    ``alts`` every plausible (street, key, locality) reading, the primary one first, for
+    input without commas.
+
+    US and Canadian addresses ("123 Main St, Springfield, IL 62701") are read as before.
+    Addresses written the way most of Europe writes them are recognized by their shape
+    (``intl`` True in the result): the number after the street ("Hauptstraße 5", "Calle
+    Mayor, 12", "Via Roma 1"), the postcode before the town ("10115 Berlin", "9490
+    Vaduz", "1012 AB Amsterdam"), a UK, Irish or Australian postcode ("London SW1A 2AA",
+    "Sydney NSW 2000"). ``order`` is 'postfix' or 'prefix' (where the number was), and
+    ``admin`` an Australian state. With ``intl`` (an index built from OpenStreetMap
+    outside North America) every input is read that way, and US state names are not
+    looked for.
     """
     out: dict = {"number": None, "numtext": None, "unit": None, "street": "", "key": "", "locality": None,
-                 "region": None, "postcode": None, "country": None, "typed": False, "confident": False, "alts": []}
+                 "region": None, "postcode": None, "country": None, "typed": False, "confident": False, "alts": [],
+                 "intl": False, "order": None, "admin": None}
     s = _clean(text)
     if not s:
         return out
-    if pc := _norm_postcode(s):
+    pre = _intl_preparse(s, intl)
+    if pre is None:
+        return _parse(s, out, us=True)
+    if pre.get("text") is None:  # just a postcode ("SW1A 2AA", "9490")
+        out.update(postcode=pre["postcode"], country=pre["country"], confident=True, intl=True)
+        return out
+    res = _parse(pre["text"], out, us=False)
+    res.update(postcode=pre["postcode"], country=pre["country"], intl=True, admin=pre["admin"],
+               order=pre["order"] or ("prefix" if res["number"] is not None else None))
+    if pre["numtext"] and res["number"] == pre["number"]:
+        res["numtext"] = pre["numtext"]
+    res["typed"] = res["typed"] or intl_typed(res["street"])
+    return res
+
+
+def _parse(s: str, out: dict, us: bool) -> dict:
+    """The parser proper. ``us``: look for ZIPs, Canadian codes, states, provinces and the
+    US/Canada country names (the international reader has taken those parts off already)."""
+    if us and (pc := _norm_postcode(s)):
         out.update(postcode=pc, country=postcode_country(pc), confident=True)
         return out
     segs = [seg.split() for seg in re.split(r"[,;]", s)]
@@ -336,7 +584,7 @@ def parse_address(text: str) -> dict:
 
     # trailing country and postcode, in either order ("..., ON M5V 1A1, Canada")
     postcode = None
-    changed = True
+    changed = us
     while changed and segs:
         changed = False
         last = segs[-1]
@@ -365,7 +613,7 @@ def parse_address(text: str) -> dict:
     region, soft_locality = None, None
     last = segs[-1]
     guarded = len(segs) == 1 or _lead_number(last)
-    if got := _take_region(last, guarded):
+    if us and (got := _take_region(last, guarded)):
         region, name = got
         if name in ("washington", "new york") and (guarded or not last):
             # "1600 Pennsylvania Ave, Washington" is the city, not the state
@@ -464,10 +712,10 @@ def parse_address(text: str) -> dict:
     return out
 
 
-def looks_like_address(text: str) -> bool:
-    """True for "123 Main St", "Main St, Laramie", "US 20, Basin WY" or a bare postcode;
-    False for place names such as "Jackson", "Old Faithful" or "Yellowstone Lake"."""
-    p = parse_address(text)
+def looks_like_address(text: str, intl: bool = False) -> bool:
+    """True for "123 Main St", "Main St, Laramie", "US 20, Basin WY", "Hauptstraße 5, Berlin" or a
+    bare postcode; False for place names such as "Jackson", "Old Faithful" or "Yellowstone Lake"."""
+    p = parse_address(text, intl)
     if not p["key"]:
         return bool(p["postcode"]) and p["number"] is None
     if p["number"] is not None and re.search(r"[^\W\d_]", p["street"]):
@@ -566,13 +814,17 @@ _EN_TO_FR = {"st": "rue", "rd": "chemin", "ave": "avenue", "blvd": "boulevard", 
              "ter": "terrasse"}
 
 
-def _key_variants(street: str, key: str, country: str | None) -> list[str]:
+def _key_variants(street: str, key: str, country: str | None, intl: bool = False) -> list[str]:
     """Other exact keys the same street may be indexed under.
 
     The key of a French name keeps an unrecognized leading type word as written, so
     "av. 32e" and "Avenue 32e" key differently; and "des Acadiens Blvd" is how
-    Boulevard des Acadiens reads in English.
+    Boulevard des Acadiens reads in English. With ``intl``, also the spellings of
+    ``address_norm.intl_variants`` ("Hauptstr." for Hauptstraße, "C/ Mayor" for Calle Mayor).
     """
+    if intl:
+        extra = {street_key(v) for v in intl_variants(street)}
+        return sorted((set(_key_variants(street, key, country)) | extra) - {key, ""})
     words = fold(street).split()
     if key.startswith("co rd "):
         # Ontario files one road as "County Road 2" and as "County 2 Rd" (or "County 2 Road")
@@ -596,6 +848,20 @@ def _key_variants(street: str, key: str, country: str | None) -> list[str]:
     out.discard(key)
     out.discard("")
     return sorted(out)
+
+
+def _number_after(country: str | None, p: dict) -> bool:
+    """Is the house number written after the street here? By the country when it is known,
+    else as the user typed it ("Hauptstraße 5")."""
+    first = number_first(country)
+    return (not first) if first is not None else p.get("order") == "postfix"
+
+
+def _address_name(street: str, numtext: str | None, unit: str | None, number_after: bool) -> str:
+    """'123 Main St #4', 'Hauptstraße 5', or the street alone when no number was found."""
+    if numtext is None:
+        return street
+    return (f"{street} {numtext}" if number_after else f"{numtext} {street}") + (f" #{unit}" if unit else "")
 
 
 def _direction_penalty(want: str, got: str) -> float:
@@ -642,7 +908,40 @@ class AddressIndex:
                       self.path, self.meta.get("norm_version"), VERSION)
             conn.close()
             return
+        self._names = names = self.source_names()
+        # Built from OpenStreetMap alone (any region but the US and Canada): read input the international way.
+        self.intl = bool(names) and not names & {"tiger", "zips", "nar"}
+        self._has_us, self._has_ca = bool(names & {"tiger", "zips"}), "nar" in names
+        try:  # indexes from before 0.2 have no localities table
+            self._localities = bool(conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'localities'").fetchone())
+        except sqlite3.Error:
+            self._localities = False
         self._conn = conn
+
+    intl = False
+    _has_us = _has_ca = _localities = False
+    _names: set[str] = set()
+
+    def source_names(self) -> set[str]:
+        """'tiger', 'zips', 'nar', 'osm': the sources the index was built from (meta)."""
+        try:
+            sources = json.loads(self.meta.get("sources") or "[]")
+        except ValueError:
+            return set()
+        return {(s.get("name") if isinstance(s, dict) else str(s)) for s in sources if s} - {None}
+
+    def _code_country(self, code: str | None) -> str | None:
+        """The country of a postcode, where the index can tell: US ZIPs and Canadian codes come
+        from national data; any other code's country is left to the gazetteer."""
+        if not code:
+            return None
+        if not self._names:  # an index that doesn't say: as before 0.2
+            return postcode_country(code)
+        if code.isdigit() and len(code) == 5 and self._has_us:
+            return "US"
+        if self._has_ca and re.fullmatch(r"[A-Z]\d[A-Z](?:\d[A-Z]\d)?", code):
+            return "CA"
+        return None
 
     def available(self) -> bool:
         return self._conn is not None
@@ -686,7 +985,7 @@ class AddressIndex:
         """
         if not self.available():
             return []
-        p = parse_address(text)
+        p = parse_address(text, self.intl)
         if not p["key"] and not p["postcode"]:
             return []
         limit = max(1, int(limit))
@@ -741,23 +1040,39 @@ class AddressIndex:
         rows = self._all("SELECT code, lat, lon, region FROM postcodes WHERE code = ?", (code,))
         if not rows and len(code) == 6:  # an unknown Canadian code: its forward sortation area
             rows = self._all("SELECT code, lat, lon, region FROM postcodes WHERE code = ?", (code[:3],))
+        if not rows and (district := uk_outward(code)):  # an unknown UK postcode: its district ("SW1A")
+            rows = self._all("SELECT code, lat, lon, region FROM postcodes WHERE code = ?", (district,))
         return rows[0] if rows else None
 
     def _postcode_result(self, code: str, row: tuple, near, describe) -> dict:
         found, lat, lon, region = row[0], row[1] / 1e6, row[2] / 1e6, row[3]
         r = {"name": format_postcode(found), "label": format_postcode(found), "kind": "postcode", "lat": lat, "lon": lon,
              "precision": "postcode", "source": "postcodes", "admin1": REGION_NAMES.get(region or ""),
-             "country": postcode_country(found), "postcode": format_postcode(found),
-             "_score": _PREC["postcode"], "_key": "#" + found, "_locality": None}
+             "country": self._code_country(found), "postcode": format_postcode(found),
+             "_score": _PREC["postcode"], "_key": "#" + found, "_locality": None, "_intl": self.intl}
         if near is not None:
             r["distance_km"] = round(haversine_km(near[0], near[1], lat, lon), 2)
         return r
 
+    def _locality_places(self, name: str) -> list[dict]:
+        """Towns as the addresses themselves name them (OSM addr:city), biggest first: "München"
+        where the gazetteer says "Munich", or a village it doesn't list."""
+        if not self._localities:
+            return []
+        rows = self._all("SELECT name, lat, lon, radius FROM localities WHERE key = ? ORDER BY n DESC LIMIT 8",
+                         (name_key(name),))
+        return [{"name": nm, "fcode": "PPL", "lat": lat / 1e6, "lon": lon / 1e6, "admin1": None, "country": None,
+                 "population": 0, "radius_km": max(2.0, radius / 1000.0)} for nm, lat, lon, radius in rows]
+
     def _anchors(self, p: dict, alt: dict, pc_row, near, resolve_place) -> list[_Anchor]:
         anchors: list[_Anchor] = []
         if pc_row:
-            anchors.append(_Anchor(pc_row[1] / 1e6, pc_row[2] / 1e6, 25.0 if len(pc_row[0]) == 3 else 15.0, "postcode",
-                                   admin1=REGION_NAMES.get(pc_row[3] or ""), country=postcode_country(pc_row[0])))
+            district = len(pc_row[0]) == 3 or (p["postcode"] is not None and pc_row[0] != p["postcode"])
+            anchors.append(_Anchor(pc_row[1] / 1e6, pc_row[2] / 1e6, 25.0 if district else 15.0, "postcode",
+                                   admin1=REGION_NAMES.get(pc_row[3] or ""), country=self._code_country(pc_row[0])))
+        if alt["locality"] and resolve_place is None and self._localities:
+            for rank, pl in enumerate(self._locality_places(alt["locality"])):
+                anchors.append(_Anchor(pl["lat"], pl["lon"], pl["radius_km"], "place", rank, pl["name"]))
         if alt["locality"] and resolve_place is not None:
             q = alt["locality"] + (f", {p['region'].upper()}" if p["region"] else "")
             try:
@@ -793,6 +1108,8 @@ class AddressIndex:
                 exact = [pl for pl in _towns(more) if name_key(pl.get("name") or "") == name_key(bare)
                          and (pl.get("fcode") or "") not in _PLACE_SKIP
                          and (not p["country"] or pl.get("country") in (None, p["country"]))]
+            # the town as its own addresses name it ("München": the gazetteer says "Munich")
+            exact = exact or self._locality_places(alt["locality"])
             # without a state there may be many towns of that name (Sleepy Hollow NY, IL, CA, WY)
             chosen = (exact[:3 if p["region"] or pc_row else 8] or self._misspelt_towns(alt["locality"], p, resolve_place)
                       or towns[:1] or usable[:1])
@@ -801,7 +1118,8 @@ class AddressIndex:
                 # names nothing in the label and doesn't stop the look across the whole province
                 # ("Point Roberts, BC" offers only Roberts Point, a headland 40 km from the street)
                 is_town = (pl.get("fcode") or "").startswith(("PPL", "ADM"))
-                anchors.append(_Anchor(float(pl["lat"]), float(pl["lon"]), _place_radius(pl), "place" if is_town else "feature",
+                anchors.append(_Anchor(float(pl["lat"]), float(pl["lon"]), pl.get("radius_km") or _place_radius(pl),
+                                       "place" if is_town else "feature",
                                        rank, pl.get("name") if is_town else None, pl.get("admin1"), pl.get("country")))
         if not anchors and near is not None:
             anchors.append(_Anchor(near[0], near[1], 60.0, "near"))
@@ -886,7 +1204,7 @@ class AddressIndex:
         probes: list[tuple[str, str | list[str], float]] = [("key", key, 0.0), ("base", base, 20.0)]
         if (loose := _spelled_out(key)) and loose != base:
             probes.insert(1, ("base", loose, 15.0))
-        if variants := _key_variants(alt["street"], key, p["country"]):
+        if variants := _key_variants(alt["street"], key, p["country"], bool(p.get("intl"))):
             probes.insert(1, ("key", variants, 5.0))
         stages: list[tuple[str, float]] = [("anchor", 1.0), ("wide", 2.5)] if anchors else []
         results: list[dict] = []
@@ -900,6 +1218,8 @@ class AddressIndex:
                     fit = self._fit(r, anchors, mult)
                     if fit is not None:
                         r["_fit"], r["_anchor"] = fit
+                        if p.get("intl"):  # the town typed names the result even when its postcode placed it
+                            r["_towns"] = [a for a in anchors if a.kind == "place"]
                         if value is not key:
                             r["_fit"] += _direction_penalty(key, r["key"])
                         rows.append(r)
@@ -1028,12 +1348,11 @@ class AddressIndex:
         out = []
         for r in rows:
             hit = found.get(r["id"])
+            unit = None
             if hit:
                 prec, lat, lon, nt, unit, pc, src, extra = hit
-                name = f"{nt} {r['name']}" + (f" #{unit}" if unit else "")
             else:
                 prec, lat, lon, nt, pc, src, extra = "street", r["lat"], r["lon"], None, None, "streets", 0.0
-                name = r["name"]
             pc = pc or r["postcode"]
             score = _PREC[prec] - penalty - r["_fit"] - extra
             if p["postcode"] and pc == p["postcode"]:
@@ -1042,14 +1361,21 @@ class AddressIndex:
                 score -= min(8.0, haversine_km(near[0], near[1], lat, lon) / 50.0)
             a: _Anchor | None = r["_anchor"]
             region = r["region"] or self._postcode_region(pc)
+            country = region_country(region) or (a.country if a else None) or p["country"]
+            postfix = _number_after(country, p)
+            name = _address_name(r["name"], nt, unit, postfix)
             res = {"name": name, "label": name, "kind": "street" if prec == "street" else "address",
                    "lat": round(lat, 6), "lon": round(lon, 6), "precision": prec, "source": src,
                    "admin1": REGION_NAMES.get(region) if region else (a.admin1 if a else None),
-                   "country": region_country(region) or (a.country if a else None) or p["country"],
+                   "country": country,
                    "postcode": format_postcode(pc),
                    "_score": score, "_key": r["key"],
                    "_locality": a.name if a is not None and a.kind == "place" and
-                   haversine_km(a.lat, a.lon, lat, lon) <= a.radius * 1.25 else None}
+                   haversine_km(a.lat, a.lon, lat, lon) <= a.radius * 1.25 else None,
+                   "_parts": (r["name"], nt, unit, postfix), "_intl": p.get("intl")}
+            if res["_locality"] is None and r.get("_towns"):
+                res["_locality"] = next((t.name for t in r["_towns"] if haversine_km(t.lat, t.lon, lat, lon) <= t.radius * 1.25),
+                                        None)
             if near is not None:
                 res["distance_km"] = round(haversine_km(near[0], near[1], lat, lon), 2)
             out.append(res)
@@ -1118,21 +1444,40 @@ class AddressIndex:
                 kept.append(r)
         return kept
 
-    @staticmethod
-    def _label(results: list[dict], describe) -> None:
-        """'123 Main St, Springfield, Illinois 62701': the town comes from the anchor or the gazetteer."""
+    def _locality_at(self, lat: float, lon: float) -> str | None:
+        """The town the addresses around a point name (OSM addr:city), if the point is inside one."""
+        if not self._localities:
+            return None
+        rows = self._all("SELECT name, lat, lon, radius FROM localities WHERE lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?",
+                         (round((lat - 0.3) * 1e6), round((lat + 0.3) * 1e6), round((lon - 0.45) * 1e6), round((lon + 0.45) * 1e6)))
+        best = None
+        for name, plat, plon, radius in rows:
+            fit = haversine_km(lat, lon, plat / 1e6, plon / 1e6) / max(radius / 1000.0, 1.0)
+            if fit <= 1.25 and (best is None or fit < best[0]):
+                best = (fit, name)
+        return best[1] if best else None
+
+    def _label(self, results: list[dict], describe) -> None:
+        """'123 Main St, Springfield, Illinois 62701': the town comes from the anchor or the gazetteer.
+
+        Elsewhere the address is written the way its country writes it: 'Hauptstraße 5, 10115
+        Berlin', '10 Downing Street, London SW1A 2AA'."""
         cache: dict[tuple, dict] = {}
+
+        def described(r: dict) -> dict:
+            k = (round(r["lat"], 3), round(r["lon"], 3))
+            if k not in cache:
+                try:
+                    cache[k] = describe(r["lat"], r["lon"]) or {}
+                except Exception as e:
+                    L.debug("describe failed: %s", e)
+                    cache[k] = {}
+            return cache[k]
+
         for r in results:
             town = r.get("_locality")
             if town is None and describe is not None:
-                k = (round(r["lat"], 3), round(r["lon"], 3))
-                if k not in cache:
-                    try:
-                        cache[k] = describe(r["lat"], r["lon"]) or {}
-                    except Exception as e:
-                        L.debug("describe failed: %s", e)
-                        cache[k] = {}
-                w = cache[k]
+                w = described(r)
                 # the nearest town can be across a border (Orléans, Ontario for a street in Gatineau;
                 # Point Roberts, Washington for one in Delta, BC): then name the locality instead
                 same = lambda x: not r.get("admin1") or not x.get("admin1") or x["admin1"] == r["admin1"]  # noqa: B023 (called within this iteration)
@@ -1145,6 +1490,21 @@ class AddressIndex:
                     r["admin1"] = w["admin1"]
                 if not r.get("country") and w.get("country"):
                     r["country"] = w["country"]
+            elif r.get("_intl") and not r.get("country") and describe is not None:
+                r["country"] = described(r).get("country")  # the town came from the addresses themselves
+            if town is None and r.get("_intl"):
+                town = self._locality_at(r["lat"], r["lon"])  # the gazetteer has no town here (or a far one)
+            cc = r.get("country")
+            if r.get("_intl") or (cc and cc not in ("US", "CA")):
+                if r.get("_parts") and number_first(cc) is not None and r["_parts"][3] == number_first(cc):
+                    street, nt, unit, _ = r["_parts"]  # the number belongs on the other side here
+                    r["name"] = _address_name(street, nt, unit, not number_first(cc))
+                pc = r.get("postcode")
+                where = " ".join(x for x in ((pc, town) if postcode_first(cc) is not False else (town, pc)) if x)
+                if r["kind"] == "postcode":
+                    where = town if town != r["name"] else None
+                r["label"] = ", ".join(x for x in (r["name"], where) if x)
+                continue
             parts = [r["name"]]
             if town and town != r["name"]:
                 parts.append(town)
