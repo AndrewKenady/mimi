@@ -370,7 +370,7 @@ def _jsonable(x: Any) -> Any:
         return {}
 
 
-def _normalise(res: Any) -> dict:
+def _normalize(res: Any) -> dict:
     if isinstance(res, dict):
         data = _jsonable(res.get("data") or {})
         return {"text": str(res.get("text", ""))[:MAX_TEXT], "label": str(res.get("label") or "")[:80] or None,
@@ -408,7 +408,7 @@ def _worker_main(conn, file: str, module_name: str) -> None:  # pragma: no cover
             res = mod.run(args, ctx)
             if asyncio.iscoroutine(res):
                 res = asyncio.run(res)
-            conn.send(("result", _normalise(res)))
+            conn.send(("result", _normalize(res)))
         except BaseException as e:
             conn.send(("error", f"{type(e).__name__}: {e}"))
 
@@ -512,7 +512,7 @@ def _ctx_payload(p: Plugin, ctx: PluginContext) -> dict:
 
 
 async def call(p: Plugin, args: dict, ctx: PluginContext, timeout: float | None = None) -> dict:
-    """Run a plugin in its worker process and normalise the result to {text, label, data}.
+    """Run a plugin in its worker process and normalize the result to {text, label, data}.
     Raises TimeoutError (after killing the worker) or PluginError."""
     ctx.data_dir.mkdir(parents=True, exist_ok=True)
     limit = min(timeout or p.timeout, p.timeout, MAX_TIMEOUT)

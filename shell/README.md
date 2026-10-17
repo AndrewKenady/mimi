@@ -49,7 +49,7 @@ To regenerate the icon: `powershell -ExecutionPolicy Bypass -File shell\make_ico
 
 ```
 MIMI.exe              borderless full screen on the current monitor (taskbar covered)
-MIMI.exe --windowed   normal resizable window, 1280x800 (device-independent px), centred, dark title bar
+MIMI.exe --windowed   normal resizable window, 1280x800 (device-independent px), centered, dark title bar
 MIMI.exe --startup    for sign-in autostart: same, but never forces itself to the front
 MIMI.exe --dev        DevTools (F12), F5 reload, browser accelerator keys, full context menu
 ```
@@ -68,8 +68,8 @@ can live on any drive or a USB stick.
    the window opens, in parallel with WebView2 start-up. Core's output is not redirected (Core logs
    to its own files).
 3. **Boot screen.** The window appears at once on `#060A12`. The WebView2 control stays hidden
-   until its first page has loaded (its initial `about:blank` would paint Chromium's grey), so
-   there is never a white or grey flash. Then `splash.html` fades in: the glowing "Well" orb, the
+   until its first page has loaded (its initial `about:blank` would paint Chromium's gray), so
+   there is never a white or gray flash. Then `splash.html` fades in: the glowing "Well" orb, the
    Mimi wordmark and a status line the shell updates with `ExecuteScriptAsync`
    ("Waking up...", "Starting Mimi Core...", ...). If Core is already running, the UI usually
    answers before the splash has even loaded and Mimi opens straight into the UI; once the splash
@@ -93,7 +93,7 @@ can live on any drive or a USB stick.
 - **Ctrl+Alt+M** (global hotkey) shows Mimi, or hides it to the tray when it is in front.
 - **Tray icon**: *Show Mimi*, *Full screen* (checked when on), *Quit Mimi*; click or double-click
   shows the window. The menu is dark and has roomy, touch-friendly rows.
-- **Alt+F4** / the close button **quits** (it does not minimise).
+- **Alt+F4** / the close button **quits** (it does not minimize).
 - Hiding to the tray lowers WebView2's memory target; the page sees `document.hidden`, so timers
   may be throttled while hidden.
 
@@ -156,7 +156,7 @@ a bare string is accepted too):
 | --- | --- | --- |
 | `toggle-fullscreen` | | Toggle full screen. |
 | `set-fullscreen` | `value: boolean` | Enter/leave full screen (always answered with `host-info`). |
-| `minimize` | | Minimise the window. |
+| `minimize` | | Minimize the window. |
 | `exit-to-desktop` | | Hide to the tray (Core keeps running). |
 | `quit` | | Quit Mimi (see *Quitting*). |
 | `open-logs` | | Open `<root>\logs` in Explorer. |

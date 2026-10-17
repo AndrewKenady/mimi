@@ -173,7 +173,7 @@ def test_report_counts_faithfulness_and_flags():
     flags = r.flags()
     assert len(flags) == 1 and flags[0]["n"] == 2 and "1975" in flags[0]["reasons"][0]
     assert ans[flags[0]["start"]:flags[0]["end"]].startswith("Everest was first climbed in 1975")
-    json.dumps(r.to_dict())  # serialisable for message meta / results files
+    json.dumps(r.to_dict())  # serializable for message meta / results files
 
 
 def test_paragraph_level_citation_covers_uncited_sentence():
@@ -252,7 +252,7 @@ def test_fast_on_long_sources():
     assert time.perf_counter() - t0 < 2.0
 
 
-def test_a_capitalised_word_opening_a_second_sentence_is_not_a_name():
+def test_a_capitalized_word_opening_a_second_sentence_is_not_a_name():
     # A list item's bold lead-in makes one claim of two sentences: "Rough" is just a first word.
     assert "Rough" not in g.extract_entities("Don't rub the skin. Rough movement can trigger a dangerous heart rhythm.")
     assert "Tenzing Norgay" in g.extract_entities("It was climbed in 1953. Then Tenzing Norgay came down.") or \

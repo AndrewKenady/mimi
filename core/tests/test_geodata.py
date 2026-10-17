@@ -1,6 +1,6 @@
 """Tests for mimi.geodata.
 
-The geometry helpers and the missing-database behaviour are always tested. The
+The geometry helpers and the missing-database behavior are always tested. The
 tests that query real data run against ``<root>/maps/places.sqlite`` and
 ``geowiki.sqlite`` (built by ``scripts/build_geodata.py``) and are skipped when
 those files are absent.
@@ -189,7 +189,7 @@ def test_where_am_i_washington(geo):
 def test_where_am_i_toronto(geo):
     r = geo.where_am_i(*CN_TOWER)
     assert (r["place"], r["admin1"], r["country"]) == ("Toronto", "Ontario", "CA")
-    # the neighbourhood is reported separately, never as the primary answer
+    # the neighborhood is reported separately, never as the primary answer
     assert r["locality"] is None or r["locality"]["name"] != "Toronto"
 
 

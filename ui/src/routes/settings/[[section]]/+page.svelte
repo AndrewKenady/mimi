@@ -301,7 +301,7 @@
 						<Row label="Require PIN on this device" hint={app.me?.has_pin ? 'Ask for your PIN when Mimi opens.' : 'Set a PIN in Accounts & privacy first.'}>
 							<Toggle checked={D.general.require_pin} disabled={!app.me?.has_pin} onchange={(v) => dev('general', { require_pin: v })} />
 						</Row>
-						<Row label="Units"><Segmented value={D.general.units} options={[['imperial', 'Miles · °F'], ['metric', 'Kilometres · °C']]} onchange={(v) => dev('general', { units: v })} /></Row>
+						<Row label="Units"><Segmented value={D.general.units} options={[['imperial', 'Miles · °F'], ['metric', 'Kilometers · °C']]} onchange={(v) => dev('general', { units: v })} /></Row>
 						<Row label="Clock"><Segmented value={D.general.time_format} options={[['12h', '12-hour'], ['24h', '24-hour']]} onchange={(v) => dev('general', { time_format: v })} /></Row>
 					</div>
 				</section>
@@ -325,14 +325,14 @@
 						<Row label="Theme" hint={U.appearance.theme === 'auto' ? 'Follows this device: Daylight by day, Deep water at night.' : THEMES.find((t) => t.id === U.appearance.theme)?.hint}>
 							<Segmented value={U.appearance.theme} options={[...THEMES.map((t) => [t.id, t.label] as [string, string]), ['auto', 'Auto']]} onchange={(v) => usr('appearance', { theme: v })} />
 						</Row>
-						<Row label="Accent colour" hint="Tints the Well, buttons and highlights. Mimi adjusts its shade so text stays readable in every theme.">
+						<Row label="Accent color" hint="Tints the Well, buttons and highlights. Mimi adjusts its shade so text stays readable in every theme.">
 							<div class="accents" role="radiogroup" use:radioGroup>
 								{#each ACCENTS as c (c.hex)}
 									{@const on = U.appearance.accent.toLowerCase() === c.hex.toLowerCase()}
 									<button class="acc" role="radio" aria-checked={on} tabindex={on ? 0 : -1} class:on style="--c:{c.hex}" onclick={() => usr('appearance', { accent: c.hex })} aria-label={c.name} title={c.name}></button>
 								{/each}
-								<label class="custom" title="Custom colour">
-									<span class="sr-only">Custom accent colour</span>
+								<label class="custom" title="Custom color">
+									<span class="sr-only">Custom accent color</span>
 									<input type="color" value={U.appearance.accent} onchange={(e) => usr('appearance', { accent: e.currentTarget.value.toUpperCase() })} />
 								</label>
 							</div>
@@ -385,7 +385,7 @@
 					<div class="group card">
 						<Row label="Answer length"><Slider value={U.assistant.verbosity} onchange={(v) => usr('assistant', { verbosity: v })} left="Brief" right="Detailed" /></Row>
 						<Row label="Tone"><Slider value={U.assistant.formality} onchange={(v) => usr('assistant', { formality: v })} left="Casual" right="Formal" /></Row>
-						<Row label="Dry wit" hint="A touch of humour when it fits."><Toggle checked={U.assistant.wit} onchange={(v) => usr('assistant', { wit: v })} /></Row>
+						<Row label="Dry wit" hint="A touch of humor when it fits."><Toggle checked={U.assistant.wit} onchange={(v) => usr('assistant', { wit: v })} /></Row>
 						<Row label="Show what Mimi is doing" hint="The activity trail: searches, articles read, lookups."><Toggle checked={U.assistant.show_tool_activity} onchange={(v) => usr('assistant', { show_tool_activity: v })} /></Row>
 						<Row label="Default mode">
 							<select class="input sel" value={U.assistant.default_mode} onchange={(e) => usr('assistant', { default_mode: e.currentTarget.value })}>

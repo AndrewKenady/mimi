@@ -16,7 +16,7 @@ places.sqlite: GeoNames gazetteer (default countries: US, CA)
              admin1        (country, code) -> state/province name
              meta          key/value build information and attribution
     Notes    * places.elevation is GeoNames' surveyed ``elevation`` when present,
-               else the SRTM/GTOPO ``dem`` value (metres). NULL if neither exists.
+               else the SRTM/GTOPO ``dem`` value (meters). NULL if neither exists.
              * places.admin1 holds the human name ('Kentucky'), not the code.
              * Features that have no class or code are kept. fdesc is 'locale'
                when only the class is 'S', which is what GNIS calls them.
@@ -38,7 +38,7 @@ geowiki.sqlite: coordinates of English Wikipedia articles (global)
     Notes    * geo.path is the page title with underscores, exactly as in
                Wikipedia URLs. It is also the article path inside the Kiwix
                wikipedia_en ZIM files.
-             * geo.type is the {{coord}} ``type:`` parameter, normalised: lower
+             * geo.type is the {{coord}} ``type:`` parameter, normalized: lower
                case, with any "(population)" or ":region" suffix removed.
              * geo.page_len is the article length in bytes. It is not part of
                GeoData; it comes from the page table and is used as a rough
@@ -142,7 +142,7 @@ def utc_now_iso() -> str:
 def hilbert_key(lat: float, lon: float) -> int:
     """Position of a point on a 65536 x 65536 Hilbert curve.
 
-    Inserting R-tree entries in this order puts neighbouring points into the
+    Inserting R-tree entries in this order puts neighboring points into the
     same nodes. The build is fast, and the tree comes out about as compact as
     with random insertion (measured on GeoNames US+CA: 146 MB vs 138-155 MB for
     other orders)."""
@@ -187,7 +187,7 @@ def write_meta(conn: sqlite3.Connection, items: dict[str, object]) -> None:
 
 
 def finalize_db(conn: sqlite3.Connection, build_path: Path, final_path: Path) -> Path:
-    """Optimise, compact into ``<final>.tmp`` with VACUUM INTO, then swap it into place.
+    """Optimize, compact into ``<final>.tmp`` with VACUUM INTO, then swap it into place.
 
     On Windows a database that a running Mimi has open cannot be replaced. In
     that case the finished file is kept as ``<final>.new``, and
@@ -522,7 +522,7 @@ CREATE TABLE places (
     country     TEXT,                 -- ISO 3166-1 alpha-2
     admin1      TEXT,                 -- state / province name, e.g. 'Kentucky'
     population  INTEGER,
-    elevation   INTEGER               -- metres (surveyed elevation, else DEM)
+    elevation   INTEGER               -- meters (surveyed elevation, else DEM)
 );
 CREATE TABLE admin1 (
     country TEXT NOT NULL,
@@ -729,7 +729,7 @@ CREATE TABLE geo (
     lat       REAL NOT NULL,
     lon       REAL NOT NULL,
     type      TEXT,                  -- {{{{coord}}}} type: landmark, city, mountain, edu, ...
-    dim       INTEGER,               -- approximate object size in metres
+    dim       INTEGER,               -- approximate object size in meters
     country   TEXT,                  -- ISO 3166-1 alpha-2, when tagged
     region    TEXT,                  -- ISO 3166-2 subdivision suffix, when tagged
     page_len  INTEGER                -- article length in bytes (notability hint)

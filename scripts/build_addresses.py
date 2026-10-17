@@ -791,7 +791,7 @@ def merge(b: Build) -> dict[str, int]:
     b.begin()
     # the fullest name (and its point) wins; region/postcode come from any source that has one.
     # Two regions for one (key, cell) (State St on the TN/VA line, border towns) stay "" through
-    # the neighbour fill below and end as NULL, so neither side's addresses get filtered out.
+    # the neighbor fill below and end as NULL, so neither side's addresses get filtered out.
     db.execute("""
         INSERT INTO streets(key, base, name, cell, lat, lon, region, postcode)
         SELECT key, base, name, cell, lat, lon, region, postcode FROM (

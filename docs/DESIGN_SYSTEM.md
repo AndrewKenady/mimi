@@ -23,10 +23,10 @@ or in an emergency. Those conditions set the rules below.
 ## Tokens
 
 Three tiers. Components use tiers 1 and 2 (or tier 3 primitives) and never hard-code a
-colour, size, radius, layer or duration.
+color, size, radius, layer or duration.
 
 1. **Scales**: type, space, controls, radius, elevation, layers, motion. Theme-free.
-2. **Theme**: semantic colours, redefined per theme, contrast mode and Well style.
+2. **Theme**: semantic colors, redefined per theme, contrast mode and Well style.
 3. **Primitives**: `.btn`, `.icon-btn`, `.card`, `.input`, `.field`, `.chip`, `.tag`, `.sheet`, `.scrim`, `.orb`, `kbd`.
 
 ### Type
@@ -42,7 +42,7 @@ own line-height token; use them as a pair.
 | `--fs-3xl` | 30px | 1.2 | Step and page titles on the handheld |
 | `--fs-2xl` | 24px | 1.25 | Section titles |
 | `--fs-xl` | 20px | 1.35 | Dialog and card titles |
-| `--fs-lg` | 18px | 1.5 | Lede, emphasised body |
+| `--fs-lg` | 18px | 1.5 | Lede, emphasized body |
 | `--fs-base` | 16px | 1.55 | Body, inputs |
 | `--fs-md` | 14px | 1.5 | Dense UI text, menus, buttons |
 | `--fs-sm` | 13px | 1.45 | Hints, small buttons |
@@ -83,7 +83,7 @@ Concentric: something inside a padded container uses a smaller step than the con
 
 `--elev-1` (resting controls), `--elev-2` (raised cards), `--elev-3` (sheets, dialogs,
 toasts), `--elev-glow` (selected or "live" items: an accent hairline and halo). Each
-theme defines its own shadow colours; light shadows are softer.
+theme defines its own shadow colors; light shadows are softer.
 
 ### Layers
 
@@ -100,7 +100,7 @@ Toasts sit above dialogs on purpose: an Undo must stay reachable.
 | Duration | ms | Use | | Easing | Use |
 |---|---|---|---|---|---|
 | `--dur-instant` | 80 | press feedback | | `--ease-standard` | most movement |
-| `--dur-fast` | 140 | hover, colour | | `--ease-out` | entrances (arrive softly) |
+| `--dur-fast` | 140 | hover, color | | `--ease-out` | entrances (arrive softly) |
 | `--dur-base` | 200 | small enter/exit, toggles | | `--ease-in` | exits (leave quickly) |
 | `--dur-slow` | 300 | sheets, dialogs, toasts | | `--ease-breathe` | ambient loops |
 | `--dur-slower` | 480 | hero morphs | | | |
@@ -115,7 +115,7 @@ el.scrollIntoView({ behavior: scrollBehavior() })             <!-- 'auto' when r
 
 A global rule also stops keyframe loops, and the Well holds still.
 
-## Colour and theming
+## Color and theming
 
 Themes are attribute selectors on `<html>`: `data-theme` (`dark` Deep water, `oled`
 Midnight, `light` Daylight; `auto` follows the OS), `data-contrast`, `data-density`,
@@ -131,26 +131,26 @@ Midnight, `light` Daylight; `auto` follows the OS), `data-contrast`, `data-densi
 | `--accent`, `--accent-ink`, `--accent-soft`, `--accent-line` | Accent as text, ink on a filled accent, tint, border |
 | `--ok`, `--warn`, `--danger` (+ `-soft`, `-line`, `--danger-ink`) | Status, deep enough to be text |
 | `--scrim`, `--glass` | Modal backdrop, translucent bars |
-| `--media-*`, `--qr-bg`, `--map-route-casing` | Fixed colours for camera, QR, map (not themed) |
+| `--media-*`, `--qr-bg`, `--map-route-casing` | Fixed colors for camera, QR, map (not themed) |
 
-**The accent is solved, not picked.** People choose any colour. `applyTheme()` keeps its
+**The accent is solved, not picked.** People choose any color. `applyTheme()` keeps its
 hue and chroma and moves only its OKLab lightness, in 1% steps, until it reaches 4.5:1
 (7:1 in high contrast) against every surface of the active theme *and* against its own
 16% tint. `--accent-ink` is a deep shade of the same hue, or white if that can't reach
 AA. Lagoon `#6EE7D2` stays itself on Deep water and becomes `#006959` on Daylight.
 
 **First paint.** `app.html` reads a snapshot that `$lib/theme` saves on every change and
-applies the theme, accent and Well colours before any script or stylesheet loads, so a
+applies the theme, accent and Well colors before any script or stylesheet loads, so a
 Daylight user never sees a dark flash.
 
 ## Accessibility commitments
 
 - **Contrast, enforced.** `ui/scripts/contrast.mjs` parses `app.css`, resolves all six
   theme × contrast combinations, and checks every text token on every surface (and on
-  translucent glass), status colours on their own tints, ink on fills, every accent
-  preset plus hostile custom colours through the app's own solver, the focus ring at 3:1,
+  translucent glass), status colors on their own tints, ink on fills, every accent
+  preset plus hostile custom colors through the app's own solver, the focus ring at 3:1,
   and avatar initials: about 1,600 pairs. It exits non-zero on any failure. Before this
-  system, Daylight's warning colour was 1.6:1 and its tertiary text 3.1:1.
+  system, Daylight's warning color was 1.6:1 and its tertiary text 3.1:1.
 - **Focus.** One ring, an `outline` with offset, so it follows each element's radius (a
   round button keeps a round ring). It shows for keyboard, screen readers and programmatic
   focus, and always under the gamepad (3px).
@@ -195,14 +195,14 @@ anchors, per-group reset (confirmed), and redirects from every old URL.
 Mimi has no spinners. Its state is shown by one living object, after Mímir's well: a
 WebGL orb of flowing light that **breathes** when idle, **ripples** with the microphone
 when listening, **swirls** while thinking and **pulses** as Mimi speaks. The rail mark is
-the same water, small: it dims while a model wakes and greys out when Core can't be
+the same water, small: it dims while a model wakes and grays out when Core can't be
 reached, with the state also in its accessible name.
 
 It is drawn from three tokens: `--well-a` (the light: the user's raw accent), `--well-b`
 (the body) and `--well-c` (the depths), plus a derived `--orb` gradient for static uses
-(rail mark, WebGL fallback, boot screen, previews). Well styles recolour it without
+(rail mark, WebGL fallback, boot screen, previews). Well styles recolor it without
 touching the accent: **Tide** (default), **Aurora** (violet depths), **Ember** (warm
-firelight) and **Mono** (quiet greys, least distracting). It is decorative to assistive
+firelight) and **Mono** (quiet grays, least distracting). It is decorative to assistive
 technology (`aria-hidden`); every state it shows is also said in words. Under reduced
 motion the water holds still. It renders at about 30 fps when idle because the GPU is
 shared with the language model.
@@ -213,4 +213,4 @@ shared with the language model.
   `app.css`, document it here, and show it in `/dev/design`.
 - `ui/scripts/tokenize.py` rewrites literal radii, font sizes, weights, layers,
   durations and spacing in a component's `<style>` to the nearest token step.
-- New colour token used for text? Add it to `TEXT` in `scripts/contrast.mjs`.
+- New color token used for text? Add it to `TEXT` in `scripts/contrast.mjs`.

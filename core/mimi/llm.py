@@ -363,7 +363,7 @@ class ModelManager:
             return f"http://127.0.0.1:{EMBED_PORT}"
 
     async def embed(self, texts: list[str], batch: int = 16) -> np.ndarray:
-        """Return L2-normalised float32 embeddings, shape (len(texts), dims)."""
+        """Return L2-normalized float32 embeddings, shape (len(texts), dims)."""
         if not texts:
             return np.zeros((0, 1024), dtype=np.float32)
         base = await self._ensure_embed()

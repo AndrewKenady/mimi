@@ -1,4 +1,4 @@
-// Arrow-key behaviour for a custom radio group (role=radiogroup containing role=radio
+// Arrow-key behavior for a custom radio group (role=radiogroup containing role=radio
 // buttons): Left/Up and Right/Down move and select, Home/End jump, like native radios.
 // Give the checked radio tabindex=0 and the rest -1 so the group is one Tab stop.
 //

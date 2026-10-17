@@ -206,7 +206,7 @@ def _minmax(xs: list[float]) -> list[float]:
 
 
 def semantic_rerank(cands: list[Candidate], qvec: Sequence[float], vecs: Sequence[Sequence[float]], alpha: float = 0.5) -> list[Candidate]:
-    """Blend min-max-normalised fused scores with cosine similarity to the query.
+    """Blend min-max-normalized fused scores with cosine similarity to the query.
 
     `vecs[i]` belongs to `cands[i]`. alpha = 0 keeps the fused order; 1 is pure
     semantic order. Scores are rewritten so callers can keep sorting by them.
@@ -269,7 +269,7 @@ def bm25_scores(paragraphs: Sequence[str], terms: Sequence[str], k1: float = 1.2
 
 
 def blend_passage_scores(lexical: Sequence[float], sims: Sequence[float] | None, beta: float = 0.4) -> list[float]:
-    """Lexical scores, optionally blended with embedding similarity (both min-max normalised).
+    """Lexical scores, optionally blended with embedding similarity (both min-max normalized).
 
     A paragraph with no query word at all keeps a zero lexical part, so a
     semantically close but off-topic paragraph needs real similarity to win.

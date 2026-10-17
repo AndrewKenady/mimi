@@ -498,7 +498,7 @@ class _Anchor:
 
 
 def _place_radius(place: dict) -> float:
-    """How far from a town's centre its street addresses can be (8-40 km)."""
+    """How far from a town's center its street addresses can be (8-40 km)."""
     if (place.get("fcode") or "").startswith("ADM"):
         return 40.0
     pop = place.get("population") or 0
@@ -512,7 +512,7 @@ def _towns(places: list[dict]) -> list[dict]:
 
 
 def _typos(a: str, b: str) -> int:
-    """Edit distance counting a swap of two neighbouring letters as one typo."""
+    """Edit distance counting a swap of two neighboring letters as one typo."""
     if abs(len(a) - len(b)) > 2:
         return 3
     prev2, prev = [], list(range(len(b) + 1))
@@ -912,7 +912,7 @@ class AddressIndex:
         # there: "169 Bridger St" typed in Cheyenne may well be the one in Gillette.
         missing = not results or (p["number"] is not None and not any(r["precision"] in _GOOD for r in results))
         # Also when the named town has no such street at all: better the only "Rue des Frères-Vachon"
-        # in the province (the town was a namesake, or the neighbour across a border) than nothing.
+        # in the province (the town was a namesake, or the neighbor across a border) than nothing.
         if (missing and not any(a.kind in ("place", "postcode") for a in anchors)) or (not results and anchors):
             for col, value, pen in probes:
                 rows = [r for r in self._street_rows(col, value, None, p["region"])
@@ -1081,7 +1081,7 @@ class AddressIndex:
         ranges = self._all("SELECT lo, hi, rev, postcode, geom FROM ranges WHERE sid = ? AND lo <= ? ORDER BY lo DESC LIMIT 6", (sid, n))
         ranges += self._all("SELECT lo, hi, rev, postcode, geom FROM ranges WHERE sid = ? AND lo > ? ORDER BY lo LIMIT 1", (sid, n))
         for lo, hi, rev, pc, geom in ranges:
-            if lo <= n <= hi:  # covers n, but only the other side of the street: the neighbour number
+            if lo <= n <= hi:  # covers n, but only the other side of the street: the neighbor number
                 num = n + 1 if n + 1 <= hi else n - 1
             else:
                 num = hi if hi < n else lo
@@ -1091,9 +1091,9 @@ class AddressIndex:
         if not cands:
             return None
         diff, _, nt, lat, lon, pc, src = min(cands, key=lambda c: (c[0], c[1]))
-        # a neighbour a few doors down is nearly as good as the number itself: "771 Grand Ave E"
+        # a neighbor a few doors down is nearly as good as the number itself: "771 Grand Ave E"
         # should stay on Grand Ave E at 769 rather than take an exact 771 on Grand Ave W; one a
-        # thousand numbers off is kilometres away and barely better than the street alone
+        # thousand numbers off is kilometers away and barely better than the street alone
         return ("nearby", lat, lon, nt, None, pc, src, min(30.0, diff / 20.0) - 20.0 * max(0.0, 1.0 - diff / 10.0))
 
     @staticmethod

@@ -340,7 +340,7 @@ def test_street_precision_and_street_only(idx):
     assert (r["name"], r["kind"], r["precision"], r["source"]) == ("Elm Ave", "street", "street", "streets")
     st = search(idx, "Main St, Springfield IL")
     assert st[0]["name"] == "Main St" and st[0]["kind"] == "street"
-    assert st[0]["lon"] == pytest.approx(-89.65)  # the part nearest the town centre
+    assert st[0]["lon"] == pytest.approx(-89.65)  # the part nearest the town center
     assert len([x for x in st if x["name"] == "Main St"]) == 1
 
 
@@ -449,7 +449,7 @@ def test_pending_rebuild_is_swapped_in(tmp_path, index_path):
 
 
 def test_street_on_a_state_line_matches_either_state(tmp_path):
-    """State St in Bristol is the TN/VA line: one street row with no region, labelled by postcode."""
+    """State St in Bristol is the TN/VA line: one street row with no region, labeled by postcode."""
     path = tmp_path / "addresses.sqlite"
     b = Builder(path)
     st = b.street("State St", 36.5950, -82.1850)  # region NULL: TIGER saw it in both states
@@ -794,7 +794,7 @@ def test_big_city_prefers_its_own_street_over_an_exact_number_in_the_next_town(t
         ix.close()
 
 
-def test_close_neighbour_on_the_named_side_beats_exact_number_on_the_other(tmp_path):
+def test_close_neighbor_on_the_named_side_beats_exact_number_on_the_other(tmp_path):
     """"771 Grand Ave E": 769 Grand Ave E, not an exact 771 Grand Ave W across town."""
     chatham = {"name": "Chatham", "fcode": "PPL", "lat": 42.4122, "lon": -82.1849, "admin1": "Ontario", "country": "CA", "population": 43550}
 

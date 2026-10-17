@@ -87,7 +87,7 @@ always matches your schema:
 |---|---|
 | `text` | What the model reads (up to 20,000 characters). Keep it short and factual. |
 | `label` | Overrides `LABEL` for this call. |
-| `data` | JSON-serialisable extras for the UI. The model doesn't see them. |
+| `data` | JSON-serializable extras for the UI. The model doesn't see them. |
 | `untrusted` | Set `True` when `text` contains content you didn't write, such as file contents, documents or messages. Mimi then marks it as outside data, so instructions hidden in it aren't followed. |
 
 `ctx` gives you:
@@ -153,7 +153,7 @@ $ python -m mimi plugin test ../tools/sun_times.py --location 51.5074,-0.1278,Lo
 
 `test` loads the tool the way Mimi does: it checks the manifest, validates the arguments
 against `PARAMETERS`, runs the tool in a worker process with its timeout, and prints the
-normalised result. Arguments that don't match the schema fail here just as they would in a
+normalized result. Arguments that don't match the schema fail here just as they would in a
 chat.
 
 **With pytest**, use `mimi.plugins.run_file`:

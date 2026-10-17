@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { ask, mode, setTheme, signIn } from './helpers';
 
 // Pixel snapshots of the screens people judge Mimi by. They catch the class of bug that type
-// checks can't: a lost space before a middot, a clipped card, a theme that forgot a colour.
+// checks can't: a lost space before a middot, a clipped card, a theme that forgot a color.
 // Update deliberately with `npm run test:e2e:update` and review the diff in the PR.
 
 const clock = (page: Page) => [page.locator('.strip time, .strip .clock, .strip [data-clock]'), page.locator('.when, time')];

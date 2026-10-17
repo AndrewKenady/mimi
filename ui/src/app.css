@@ -9,9 +9,9 @@
 
    Three tiers:
      1. Scales      — type, space, radius, elevation, layers, motion. Theme-free.
-     2. Theme       — semantic colours, redefined per theme / contrast / Well style.
+     2. Theme       — semantic colors, redefined per theme / contrast / Well style.
      3. Primitives  — .btn, .card, .input, .chip … built only from tiers 1–2.
-   Components consume tiers 1–3 and never hard-code a colour, size or timing.
+   Components consume tiers 1–3 and never hard-code a color, size or timing.
    Contrast of every text token in every theme is enforced by `npm run contrast`.
    ========================================================================== */
 
@@ -102,7 +102,7 @@
 	/* Motion — durations collapse to 0 under reduced motion (OS or app setting),
 	   and $lib/motion reads these same tokens for Svelte transitions. */
 	--dur-instant: 80ms; /* press feedback */
-	--dur-fast: 140ms; /* hover, colour, small state changes */
+	--dur-fast: 140ms; /* hover, color, small state changes */
 	--dur-base: 200ms; /* enter/exit of small surfaces, toggles */
 	--dur-slow: 300ms; /* sheets, dialogs, toasts */
 	--dur-slower: 480ms; /* hero/morphing (onboarding orb) */
@@ -184,7 +184,7 @@
 	color-scheme: dark;
 }
 
-/* Daylight. Status colours are deep enough to be text, not just dots. */
+/* Daylight. Status colors are deep enough to be text, not just dots. */
 [data-theme='light'] {
 	--bg: #f4f6f9;
 	--bg-2: #eef1f6;
@@ -315,7 +315,7 @@
 	--orb: radial-gradient(circle at 36% 32%, var(--well-spec) 0, var(--well-a) 25%, var(--well-b) 54%, var(--well-c) 78%);
 }
 
-/* Fixed colours for media, not themes: camera viewfinder, QR codes (must be
+/* Fixed colors for media, not themes: camera viewfinder, QR codes (must be
    dark-on-white to scan), and the map's route casing. */
 :root {
 	--media-bg: #000000;

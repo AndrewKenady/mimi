@@ -378,7 +378,7 @@ on('DELETE', /^\/api\/location\/(manual|live)$/, ([, which]) => {
 on('GET', /^\/api\/location\/nearby$/, (_, r) => {
 	const exact = rec(r.url.pathname + r.url.search);
 	if (exact) return replayRecord(exact);
-	// The map asks around wherever it's centred; answer with what was recorded around the pin.
+	// The map asks around wherever it's centered; answer with what was recorded around the pin.
 	const kind = r.url.searchParams.get('kind') || 'all';
 	const lim = Number(r.url.searchParams.get('limit') || 24);
 	const near = Object.entries(R.get).find(([k]) => k.startsWith('/api/location/nearby?') && k.includes(`kind=${kind}`) && k.includes('lat='));

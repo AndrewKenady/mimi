@@ -119,11 +119,11 @@ serve signed-in sessions.
 
 - **Delimiting.** Library passages, the user's files, attachments and flagged plugin output go
   to the model wrapped in `<<<BEGIN UNTRUSTED source="…">>> … <<<END UNTRUSTED>>>`
-  (`tools.untrusted()`). Inside that content, Mimi neutralises anything that could forge or
+  (`tools.untrusted()`). Inside that content, Mimi neutralizes anything that could forge or
   close a marker: runs of `<`/`>` and their Unicode look-alikes, zero-width characters, and the
-  words "BEGIN/END UNTRUSTED". It also neutralises chat-template control tokens (`<|im_end|>`,
+  words "BEGIN/END UNTRUSTED". It also neutralizes chat-template control tokens (`<|im_end|>`,
   `<tool_call>`, `[INST]`…) that the model server might otherwise turn into real special tokens.
-  Map names and route steps are sanitised the same way.
+  Map names and route steps are sanitized the same way.
 - **Instruction.** The system prompt has one fixed rule: text inside those markers is
   reference data, never instructions. Because the rule is constant, the KV-cache-friendly
   prompt layout is unchanged (see ARCHITECTURE.md, "A chat turn").
@@ -181,7 +181,7 @@ UNTRUSTED markers. `--no-location` hides location for clients whose model runs i
 | Memory-safety bugs in engines (llama.cpp, libzim) | C/C++ parsers read untrusted GGUF and ZIM files | engines are loopback-only; install content from trusted sources |
 | The Windows firewall rule allows Private and Public profiles | the hotspot network is often classified as Public | turn sharing off on networks you don't trust |
 | Any local process can use the owner's loopback session | that's how the device screen works without a PIN; local processes already have the user's rights | turn on "Require PIN" on shared computers |
-| Reader HTML sanitisation is attribute-based | it was written for well-formed Kiwix content | hardening of URL schemes and embedded frames is tracked; prefer ZIMs from the Kiwix library |
+| Reader HTML sanitization is attribute-based | it was written for well-formed Kiwix content | hardening of URL schemes and embedded frames is tracked; prefer ZIMs from the Kiwix library |
 
 ## Reporting
 

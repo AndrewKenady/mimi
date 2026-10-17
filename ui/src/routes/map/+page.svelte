@@ -37,7 +37,7 @@
 	const loc = $derived(app.location?.current);
 	const desc = $derived(app.location?.description);
 	// Keep the "you are here" dot on the latest fix (GPS, a live phone, or a new pin). While
-	// moving, pan to keep it in view and refresh "nearby" every couple of kilometres.
+	// moving, pan to keep it in view and refresh "nearby" every couple of kilometers.
 	let nearbyAt: { lat: number; lon: number } | null = null;
 	$effect(() => {
 		if (!loc || !map) return;

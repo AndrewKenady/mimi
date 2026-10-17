@@ -56,7 +56,7 @@ void main(){
   gl_FragColor = vec4(col * edge + outer, a);
 }`;
 
-	// The three Well colours come from the design tokens (--well-a/b/c), so the orb follows
+	// The three Well colors come from the design tokens (--well-a/b/c), so the orb follows
 	// the theme, the accent and the Well style without knowing about any of them.
 	let seen = { a: '', b: '', c: '' };
 	let rgb = { a: [0, 0, 0], b: [0, 0, 0], c: [0, 0, 0] } as Record<'a' | 'b' | 'c', number[]>;

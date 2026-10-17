@@ -1,4 +1,4 @@
-// Modal dialog behaviour as one Svelte action, shared by every overlay:
+// Modal dialog behavior as one Svelte action, shared by every overlay:
 //
 //   <div class="sheet" use:dialog={{ label: 'Quick menu', onclose: () => (open = false) }}>
 //

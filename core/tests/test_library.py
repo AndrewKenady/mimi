@@ -495,7 +495,7 @@ def test_health_flags_js_only_and_unsearchable_books(tmp_path):
     "javascript:alert(1)", "JaVaScRiPt:alert(1)", " javascript:alert(1)", "java\tscript:alert(1)", "java\nscript:alert(1)",
     "vbscript:msgbox(1)", "data:text/html,<script>alert(1)</script>", "file:///etc/passwd", "blob:http://x/1", "jar:x",
 ])
-def test_reader_neutralises_dangerous_links(href):
+def test_reader_neutralizes_dangerous_links(href):
     from mimi.kiwix import render_reader
 
     html = f'<html><body><h1>T</h1><main><p><a href="{href}" onclick="x()">click</a></p></main></body></html>'

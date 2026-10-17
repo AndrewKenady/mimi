@@ -14,4 +14,4 @@ export const ACCENTS = [
 
 export const DEFAULT_ACCENT: string = ACCENTS[0].hex;
 
-export const accentName = (hex: string) => ACCENTS.find((a) => a.hex.toLowerCase() === hex?.toLowerCase())?.name ?? `Custom colour ${hex}`;
+export const accentName = (hex: string) => ACCENTS.find((a) => a.hex.toLowerCase() === hex?.toLowerCase())?.name ?? `Custom color ${hex}`;
