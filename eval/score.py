@@ -4,6 +4,10 @@
     python eval/score.py A.jsonl --compare B.jsonl        # A/B, e.g. Gemma 4 12B vs Qwen3.5 9B (DECISIONS D6)
     python eval/score.py retrieval.jsonl                  # a --retrieval-only run: Recall@k and MRR
 
+The question set is the one the rows were asked in (English, or eval/questions/es|fr for a
+run.py --lang es|fr), unless --questions says otherwise. A/B compares two runs in the same
+language only: scores in different languages are not comparable.
+
 What is measured (see docs/EVALUATION.md):
   * key-fact accuracy     every key-fact regex of the item matches the answer
   * forbidden claims      a forbidden regex matches outside a negated sentence
@@ -37,14 +41,18 @@ sys.path.insert(0, str(HERE))
 import goldset
 
 try:
-    from mimi import grounding
+    from mimi import grounding, i18n
 except ImportError:  # running from a checkout without `pip install -e core`
     sys.path.insert(0, str(HERE.parent / "core"))
-    from mimi import grounding
+    from mimi import grounding, i18n
 
 REPORTS = HERE / "reports"
 KS = (1, 3, 5, 10)
 Judge = Callable[[dict, dict], "dict | None"]
+
+
+class LanguageMismatch(ValueError):
+    """A/B of runs in different languages: their scores don't measure the same thing."""
 
 
 # --------------------------------------------------------------------------- loading
@@ -59,12 +67,34 @@ def load_rows(path: str | Path) -> list[dict]:
     return rows
 
 
+def load_questions(pattern: str | None, rows: list[dict]) -> list[dict]:
+    """The question set for these rows: `pattern` if given, else the set of every language the rows were asked in."""
+    if pattern:
+        return goldset.load(pattern)
+    items: list[dict] = []
+    for lang in sorted({goldset.row_lang(r) for r in rows} or {"en"}):
+        items += goldset.load(lang=lang)
+    return items
+
+
 # --------------------------------------------------------------------------- per-row scoring
+def numbers_grounding(answer: str, passages: list[dict]) -> dict:
+    """Citation check for an answer in another language than its English sources, as chat.py does it:
+    words can't be compared across languages, so only numbers are (grounding.number_flags). Faithfulness
+    and coverage aren't measured; precision is the share of citations whose numbers the source has."""
+    flags = grounding.number_flags(answer, passages)
+    cited = sum(len(c.citations) for c in grounding.split_claims(answer))
+    bad = sum(1 for f in flags if f["verdict"] in (grounding.UNSUPPORTED, grounding.INVALID))
+    return {"faithfulness": None, "coverage": None, "uncited_factual": None, "citations": cited, "unsupported": bad, "weak": 0,
+            "citation_precision": round((cited - bad) / cited, 4) if cited else None, "flags": flags[:5]}
+
+
 def score_chat(item: dict, row: dict, *, judge: Judge | None = None, embed=None) -> dict:
     answer = row.get("answer") or ""
+    lang = goldset.lang_of(item)
     facts = goldset.key_fact_hits(item, answer)
     violations = goldset.forbidden_hits(item, answer)
-    heuristic = goldset.classify_behavior(answer)
+    heuristic = goldset.classify_behavior(answer, lang)
     verdict = None
     if judge and answer and not row.get("error"):
         try:
@@ -77,20 +107,27 @@ def score_chat(item: dict, row: dict, *, judge: Judge | None = None, embed=None)
 
     sources = row.get("sources") or []
     passages = [{"n": s.get("n"), "title": s.get("title"), "text": s.get("text") or s.get("snippet") or ""} for s in sources if s.get("n")]
-    rep = grounding.check_answer(answer, passages, embed=embed) if answer else None
-    g = rep.summary() if rep else {}
+    # The library is English: a Spanish or French answer gets the numbers-only check, unless it came out in English.
+    numbers_only = bool(answer) and lang != "en" and i18n.detect(answer) != "en"
+    if numbers_only:
+        g = numbers_grounding(answer, passages)
+    else:
+        rep = grounding.check_answer(answer, passages, embed=embed) if answer else None
+        g = {**rep.summary(), "flags": rep.flags()[:5]} if rep else {}
+        g["unsupported"] = g.get("unsupported", 0) + g.get("invalid", 0)
     titles = [s.get("title") or "" for s in sources]
     tools = [t.get("name") for t in row.get("tools") or []]
     passed = not row.get("error") and b_ok and not violations and all(facts)
     out = {
-        "id": item["id"], "rep": row.get("rep", 0), "domain": item["domain"], "tags": item.get("tags", []),
+        "id": item["id"], "rep": row.get("rep", 0), "domain": item["domain"], "lang": lang, "tags": item.get("tags", []),
         "model": row.get("model") or "unknown", "error": row.get("error"),
         "pass": passed, "facts": facts, "fact_recall": (sum(facts) / len(facts)) if facts else None,
         "violations": violations, "expected": expected, "observed": observed, "heuristic_behavior": heuristic, "behavior_ok": b_ok,
+        "grounding": "numbers" if numbers_only else "lexical",
         "faithfulness": g.get("faithfulness"), "citation_precision": g.get("citation_precision"), "coverage": g.get("coverage"),
-        "citations": g.get("citations", 0), "unsupported": g.get("unsupported", 0) + g.get("invalid", 0), "weak": g.get("weak", 0),
+        "citations": g.get("citations", 0), "unsupported": g["unsupported"], "weak": g.get("weak", 0),
         "uncited_factual": g.get("uncited_factual", 0),
-        "flags": rep.flags()[:5] if rep else [],
+        "flags": g.get("flags", []),
         "source_title_hit": any(goldset.title_hit(item["titles"], t) for t in titles) if item.get("titles") else None,
         "source_collection_hit": any(s.get("collection") in item["collections"] for s in sources) if item.get("collections") else None,
         "searched": any(t in ("search_library", "read_article") for t in tools),
@@ -199,7 +236,8 @@ def summarize(items: list[dict], rows: list[dict], *, judge: Judge | None = None
     s: dict[str, Any] = {
         "source": str(source), "generated_at": datetime.now().isoformat(timespec="seconds"),
         "run_date": (started[0][:10] if started else datetime.now().strftime("%Y-%m-%d")),
-        "models": models, "run_ids": sorted({r.get("run_id") for r in rows if r.get("run_id")}),
+        "models": models, "languages": sorted({goldset.lang_of(by_id[r["id"]]) for r in rows if r.get("id") in by_id}),
+        "run_ids": sorted({r.get("run_id") for r in rows if r.get("run_id")}),
         "mimi_versions": sorted({r.get("mimi_version") for r in rows if r.get("mimi_version")}),
         "devices": sorted({r.get("device") for r in rows if r.get("device")}),
         "question_set": len(items), "unknown_ids": unknown, "judge": bool(judge), "embeddings": bool(embed),
@@ -234,13 +272,25 @@ def item_pass(s: dict) -> dict[str, float]:
     return {k: sum(v) / len(v) for k, v in per.items()}
 
 
+def same_language(la: list[str], lb: list[str]) -> None:
+    if (la or ["en"]) != (lb or ["en"]):
+        raise LanguageMismatch(f"A is in {languages_label(la)} and B in {languages_label(lb)}: scores in different languages "
+                               "are not comparable, and no question pairs up. Compare two runs in the same language.")
+
+
 def compare(a: dict, b: dict) -> dict:
+    la = a.get("languages") or ["en"]
+    same_language(la, b.get("languages") or ["en"])
     pa, pb = item_pass(a), item_pass(b)
     common = sorted(set(pa) & set(pb))
     only_a = [i for i in common if pa[i] >= 0.5 > pb[i]]
     only_b = [i for i in common if pb[i] >= 0.5 > pa[i]]
-    return {"a": a["models"], "b": b["models"], "paired_items": len(common), "only_a_passed": only_a, "only_b_passed": only_b,
-            "mcnemar_p": round(mcnemar_p(len(only_a), len(only_b)), 4)}
+    return {"a": a["models"], "b": b["models"], "languages": la, "paired_items": len(common), "only_a_passed": only_a,
+            "only_b_passed": only_b, "mcnemar_p": round(mcnemar_p(len(only_a), len(only_b)), 4)}
+
+
+def languages_label(langs: list[str]) -> str:
+    return ", ".join(goldset.LANG_NAMES.get(x, x) for x in langs) or "no language"
 
 
 # --------------------------------------------------------------------------- Markdown
@@ -276,14 +326,24 @@ def _cell(m: dict, key, kind: str) -> str:
     return _f(m.get(key), kind)
 
 
+def _in_language(s: dict) -> str:
+    """" — in Spanish" for a run that isn't (only) English; English titles stay as they were."""
+    langs = s.get("languages") or ["en"]
+    return "" if langs == ["en"] else f" — in {languages_label(langs)}"
+
+
 def render(s: dict) -> str:
     title = ", ".join(s["models"]) or "no rows"
-    out = [f"# Mimi eval — {title} — {s['run_date']}", "",
+    out = [f"# Mimi eval — {title} — {s['run_date']}{_in_language(s)}", "",
            f"Results: `{s['source']}` · {len(s['rows'])} rows · question set: {s['question_set']} items · "
            f"Mimi {', '.join(s['mimi_versions']) or '?'} · {', '.join(s.get('devices') or []) or 'device not recorded'} · scored {s['generated_at']}"
            + (" · LLM judge on" if s["judge"] else "") + (" · embedding-assisted grounding" if s["embeddings"] else ""), ""]
     if s["unknown_ids"]:
         out += [f"> Rows for ids not in the question set were ignored: {', '.join(s['unknown_ids'][:10])}", ""]
+    if any(r.get("grounding") == "numbers" for r in s["rows"]):
+        out += ["> Answers in Spanish or French get a numbers-only citation check (words can't be compared with the English "
+                "sources), so citation faithfulness and coverage are not measured for them. Scores in different languages "
+                "are not directly comparable.", ""]
     if "chat" in s:
         c = s["chat"]
         models = list(c["by_model"])
@@ -350,7 +410,7 @@ def _why(r: dict) -> str:
 def render_compare(a: dict, b: dict, cmp: dict) -> str:
     na, nb = ", ".join(a["models"]), ", ".join(b["models"])
     ca, cb = a.get("chat", {}).get("overall", {}), b.get("chat", {}).get("overall", {})
-    out = [f"# Mimi eval — {na} vs {nb}", "", f"A: `{a['source']}` ({a['run_date']}) · B: `{b['source']}` ({b['run_date']})", "",
+    out = [f"# Mimi eval — {na} vs {nb}{_in_language(a)}", "", f"A: `{a['source']}` ({a['run_date']}) · B: `{b['source']}` ({b['run_date']})", "",
            f"| Metric | {na} | {nb} | Δ (B − A) |", "|---|---|---|---|"]
     for label, key, kind in CHAT_ROWS:
         if isinstance(key, tuple):
@@ -437,7 +497,8 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Score Mimi eval results.", formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
     p.add_argument("results", help="results JSONL from eval/run.py")
     p.add_argument("--compare", metavar="RESULTS_B", help="a second results file to compare against (A/B)")
-    p.add_argument("--questions", default=None, help="question JSONL file or glob (default: eval/questions/*.jsonl)")
+    p.add_argument("--questions", default=None,
+                   help="question JSONL file or glob (default: the set of the rows' language, e.g. eval/questions/es/*.jsonl)")
     p.add_argument("--out-dir", default=str(REPORTS), help="where to write the scoreboard (default: eval/reports)")
     p.add_argument("--name", default=None, help="report file name without extension (default: <date>-<model>)")
     p.add_argument("--judge-url", default=None, help="OpenAI-compatible chat completions URL for an LLM judge")
@@ -446,19 +507,28 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--stdout", action="store_true", help="print the Markdown instead of writing files")
     args = p.parse_args(argv)
 
-    items = goldset.load(args.questions)
+    rows_a = load_rows(args.results)
+    rows_b = load_rows(args.compare) if args.compare else []
+    if args.compare:  # checked before scoring, so a judge isn't asked hundreds of questions for nothing
+        try:
+            same_language(sorted({goldset.row_lang(r) for r in rows_a}), sorted({goldset.row_lang(r) for r in rows_b}))
+        except LanguageMismatch as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+    items = load_questions(args.questions, rows_a + rows_b)
     judge = openai_judge(args.judge_url, args.judge_model) if args.judge_url else None
     embed = openai_embedder(args.embed_url) if args.embed_url else None
-    a = summarize(items, load_rows(args.results), judge=judge, embed=embed, source=args.results)
+    a = summarize(items, rows_a, judge=judge, embed=embed, source=args.results)
+    lang = "" if (a.get("languages") or ["en"]) == ["en"] else "-" + "-".join(a["languages"])
     if args.compare:
-        b = summarize(items, load_rows(args.compare), judge=judge, embed=embed, source=args.compare)
+        b = summarize(items, rows_b, judge=judge, embed=embed, source=args.compare)
         cmp = compare(a, b)
         md = render_compare(a, b, cmp)
         summary: dict = {"a": {k: v for k, v in a.items() if k != "rows"}, "b": {k: v for k, v in b.items() if k != "rows"}, "compare": cmp}
-        name = args.name or f"{max(a['run_date'], b['run_date'])}-{_slug('+'.join(a['models']))}-vs-{_slug('+'.join(b['models']))}"
+        name = args.name or f"{max(a['run_date'], b['run_date'])}-{_slug('+'.join(a['models']))}-vs-{_slug('+'.join(b['models']))}{lang}"
     else:
         md, summary = render(a), a
-        name = args.name or f"{a['run_date']}-{_slug('+'.join(a['models']) or 'run')}"
+        name = args.name or f"{a['run_date']}-{_slug('+'.join(a['models']) or 'run')}{lang}"
     if args.stdout:
         print(md)
         return 0
