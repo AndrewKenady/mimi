@@ -68,7 +68,7 @@ jobs:
       - name: Boot test (legacy BIOS)
         run: scripts/image/boot-test.sh "$IMG" --firmware bios --out "$RUNNER_TEMP/boot-test"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ env.IMG_NAME }}
           path: |
@@ -78,7 +78,7 @@ jobs:
           compression-level: 0   # already compressed
           retention-days: 30
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: boot-test-logs
