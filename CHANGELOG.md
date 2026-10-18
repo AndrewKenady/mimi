@@ -2,7 +2,7 @@
 
 All notable changes to Mimi. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/) once 1.0 ships. Tagged releases publish the top section as their notes.
 
-## [0.2.0] — Unreleased
+## [0.2.0] — 2026-10-18
 
 The release that makes Mimi checkable, installable anywhere and accessible.
 

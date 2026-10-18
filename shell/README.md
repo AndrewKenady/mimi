@@ -131,7 +131,7 @@ synchronously within 2.5 s.
   Pop-ups (`target="_blank"`, `window.open`) never open a WebView2 window: they also go to the
   default browser, local links included, so the app keeps its state. Use normal navigation for
   in-app pages. Other schemes (`file:`, custom protocols) are blocked.
-- The user agent gets a ` MIMIShell/0.1.0` suffix, handy in Core's logs.
+- The user agent gets a ` MIMIShell/0.2.0` suffix, handy in Core's logs.
 - If the browser process crashes, the WebView is rebuilt (up to 3 times in 2 minutes); if the
   page's renderer crashes, the boot sequence runs again.
 
@@ -143,7 +143,7 @@ A script injected before every top-level document defines:
 window.mimiHost = {
   available: true,
   shell: "winforms-webview2",
-  version: "0.1.0",
+  version: "0.2.0",
   info: null,              // the latest host-info message, cached for late listeners
   post(msg) { ... }        // = window.chrome.webview.postMessage(msg)
 };
@@ -167,7 +167,7 @@ a bare string is accepted too):
 Host -> page messages arrive on `window.chrome.webview.addEventListener('message', e => ...)`:
 
 ```js
-{ type: "host-info", fullscreen: true, version: "0.1.0", shell: "winforms-webview2", dev: false }
+{ type: "host-info", fullscreen: true, version: "0.2.0", shell: "winforms-webview2", dev: false }
 { type: "host-error", request: "open-folder", message: "Only folders inside the Mimi folder can be opened." }
 ```
 
