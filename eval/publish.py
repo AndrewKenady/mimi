@@ -3,7 +3,7 @@
     python eval/publish.py OUT_DIR        # e.g. _site/scoreboard, from .github/workflows/pages.yml
 
 Copies every report score.py wrote to eval/reports/*.json into OUT_DIR, writes
-OUT_DIR/index.json (newest first), and scores the synthetic fixtures into
+OUT_DIR/index.json (newest first, with each report's question language), and scores the synthetic fixtures into
 OUT_DIR/sample.json so the page can show its layout before a real run exists. The
 sample is marked synthetic in the file itself, and the page labels it everywhere.
 """
@@ -30,6 +30,8 @@ def describe(path: Path, report: dict) -> dict:
         "kind": "compare" if "compare" in report else "single",
         "run_date": max(r.get("run_date") or "" for r in runs),
         "models": [m for r in runs for m in r.get("models") or []],
+        # reports from before the Spanish and French sets have no languages: they are English
+        "languages": sorted({x for r in runs for x in r.get("languages") or ["en"]}),
         "devices": sorted({d for r in runs for d in r.get("devices") or []}),
         "mimi_versions": sorted({v for r in runs for v in r.get("mimi_versions") or []}),
         "items": max(((r.get("chat") or {}).get("overall") or (r.get("retrieval") or {}).get("overall") or {}).get("n", 0) for r in runs),

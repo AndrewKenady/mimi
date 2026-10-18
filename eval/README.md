@@ -5,6 +5,7 @@ A reproducible way to measure how well Mimi answers: whether it finds the right 
 ```
 eval/
   questions/*.jsonl   the golden set: 166 questions across 7 domains (schema in goldset.py)
+  questions/es, fr/   the same questions in Spanish and French (docs/EVALUATION.md, "In Spanish and French")
   goldset.py          loading, validation, and the answer checks (key facts, forbidden claims, behavior)
   run.py              asks a live Mimi every question and records answers, sources, tools and timings
   score.py            turns a results file into a Markdown scoreboard + JSON summary; A/B comparisons
@@ -34,6 +35,8 @@ python\python.exe eval\score.py eval\results\<date>-gemma-4-12b.jsonl --compare 
 ```
 
 Smaller runs: `--domain medicine,adversarial`, `--ids med-001,adv-012` or `--limit 10`. A run can be stopped and restarted at any time: it picks up where it left off (rows that errored are retried). Use `--fresh` to start over.
+
+In Spanish or French: `--lang es` or `--lang fr` (ids then end in `-es` or `-fr`, e.g. `--ids med-001-es`). Results go to `<date>-<model>-es.jsonl`, and `score.py` scores them against the same language's set. Scores in different languages aren't comparable, so `--compare` only pairs runs in the same language.
 
 ### What a run does
 
@@ -67,4 +70,4 @@ cd core && python ../eval/score.py ../eval/fixtures/results-a.jsonl --compare ..
 
 ## Adding questions
 
-Append a line to the right `questions/*.jsonl` file. Keep facts stable and well known, write key facts as forgiving regexes (accept "2 inches" as well as "5 cm"), and phrase forbidden claims affirmatively: a match inside a negated sentence ("do **not** put butter on it") is ignored. `cd core && python -m pytest tests/test_eval_pipeline.py` validates the whole set (unique ids, known domains and collections, valid regexes).
+Append a line to the right `questions/*.jsonl` file. Keep facts stable and well known, write key facts as forgiving regexes (accept "2 inches" as well as "5 cm"), and phrase forbidden claims affirmatively: a match inside a negated sentence ("do **not** put butter on it") is ignored. Add its Spanish and French versions at the same position in `questions/es/` and `questions/fr/`, with key facts and forbidden claims written for that language. `cd core && python -m pytest tests/test_eval_pipeline.py tests/test_eval_languages.py` validates the whole set (unique ids, known domains and collections, valid regexes) and checks that the translations still match the English items one to one.

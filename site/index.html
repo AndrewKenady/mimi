@@ -677,6 +677,7 @@ footer a { color: var(--ink-2); }
                 <tr><td>Linux arm64, Steam Deck</td><td>Untested</td></tr>
                 <tr><td>Plus and Max profiles (28 GB+ of memory or a 16 GB+ graphics card)</td><td>Untested</td></tr>
                 <tr><td>Addresses outside the US and Canada; fuel stations and hospitals</td><td><b>Tested</b> on small real OpenStreetMap areas (central Vaduz, Monaco, Andorra, San Marino, Jersey, part of Switzerland and of Heidelberg); not yet on a whole country</td></tr>
+                <tr><td>Spanish and French books</td><td><b>Tested</b>: searched with the real Spanish medical Wikipedia; the French books resolve in the Kiwix catalog but weren&rsquo;t searched here</td></tr>
                 <tr><td>Bootable USB image (x86-64 PCs)</td><td><b>Boots in QEMU</b> (UEFI with Secure Boot, and BIOS); not yet tried on a real PC</td></tr>
               </tbody>
             </table>
@@ -684,6 +685,7 @@ footer a { color: var(--ink-2); }
           <ul class="checklist">
             <li><b>Pick a region.</b> Add <span class="mono">--region uk</span> (or <span class="mono">-Region</span> on Windows) for one of nine named map regions, or <span class="mono">--bbox</span> for any area.</li>
             <li><b>Add more later.</b> <span class="mono">mimi content add standard</span>, or one pack at a time; it checks free space first.</li>
+            <li><b>Books in Spanish or French.</b> <span class="mono">mimi content add library-es</span> or <span class="mono">library-fr</span>; Mimi searches them in your language when you write in it.</li>
             <li><b>Tried it somewhere new?</b> <a href="https://github.com/AndrewKenady/mimi/issues">Open an issue</a> with what worked and what didn&rsquo;t.</li>
             <li><b>Full instructions</b>, including Steam Deck, portable drives and Docker&rsquo;s sign-in notes, are in <a href="https://github.com/AndrewKenady/mimi/blob/main/docs/INSTALL.md">INSTALL.md</a>.</li>
           </ul>
@@ -703,7 +705,7 @@ footer a { color: var(--ink-2); }
         <li><span class="sign plan">Waiting</span><span><b>The answer-quality <a href="scoreboard.html">scoreboard</a></b> is built and waits for its first numbers: the full 166-question eval on the reference handheld, comparing Gemma and Qwen head to head.</span></li>
         <li><span class="sign plan">Planned</span><span><b>Testing on more hardware:</b> Apple silicon, Linux and Docker with a GPU, arm64 boards and the Steam Deck, which all should work but haven&rsquo;t been tried yet.</span></li>
         <li><span class="sign plan">Waiting</span><span><b>A bootable Mimi USB</b> is built: write the image to a stick and a PC starts straight into Mimi, with no setup. It boots in a virtual machine, but no one has tried it on a real PC yet, and the first image will be published with the 0.2.0 release. It downloads its books and maps once online, or you can build a stick with them included.</span></li>
-        <li><span class="sign plan">Planned</span><span><b>More languages for the library and the eval set.</b> The interface, Mimi&rsquo;s own messages and its voice already speak English, Spanish and French; the books and the 166 questions are English.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>A native speaker&rsquo;s review of the Spanish and French eval sets,</b> and scored runs in both. The 166 questions were translated by an AI model, and Spanish and French books can be added to the library; neither has been scored on the handheld yet.</span></li>
         <li><span class="sign plan">Planned</span><span><b>Whole-country runs of the new map data:</b> address search for the UK, Germany, France, Australia and New Zealand, and fuel stations and hospitals in &ldquo;near me&rdquo;, so far tested on small real areas only.</span></li>
         <li><span class="sign plan">Planned</span><span><b>A long offline field test</b> with measured battery life, and the Plus and Max profiles run on real hardware.</span></li>
       </ul>

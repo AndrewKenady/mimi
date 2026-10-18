@@ -41,6 +41,18 @@ Each item has the expected behavior (`answer`, `hedge` or `refuse`), the collect
 
 Location questions record whether the device knew its location when the run started. With no location, the correct behavior is to ask for one. Runs also record whether the device had the fuel/hospital table (`services_known`); items marked `needs_services` expect an answer with it and an honest hedge without it. Result files from before the table existed count as without it.
 
+The same set exists in Spanish and French, see [below](#in-spanish-and-french).
+
+## In Spanish and French
+
+[`eval/questions/es/`](../eval/questions/es) and [`eval/questions/fr/`](../eval/questions/fr) hold the same 166 questions, one item per English item and in the same order, with ids such as `med-001-es` and a `source_id` that points back to the English item.
+
+- **How they were made.** An AI model translated the questions the way a person would type them, with the units people use in Spain, Latin America and France. Every trap stays the same: false premises, prompt injections and dosing questions. US-specific details stay where changing them would change the answer, such as the gallon of water in the bleach question and the questions that ask for Fahrenheit. Each key-fact and forbidden-claim regex was rewritten for the language, as strict as the English one, with accents optional where people drop them. Expected titles keep the English ones, because Mimi's default library is English, and add the titles of the same articles in Spanish or French, taken from Wikipedia's interlanguage links. In each language, 14 of the 188 titles have no counterpart and stay English only. Every item was checked against a hand-written correct answer, and the riskier ones against a wrong answer that must fail. The tests keep a sample of both for every domain.
+- **Not yet reviewed by a native speaker.** Expect some awkward phrasing, and regexes that miss a correct way of saying something. Read the failures before quoting a number, and report anything that's off with the answer-quality issue template.
+- **Running.** `python eval/run.py --lang es` (or `fr`) asks the translated questions and sends `x-mimi-locale` with each one, as the interface does, so Core's own messages come in that language too. Results go to `eval/results/<date>-<model>-es.jsonl`, and `score.py` picks the matching question set from the rows. `--retrieval-only` still searches with the English keyword query, because the library is English. `--query-field query_local` searches with the item's own language instead, for a device with Spanish or French books.
+- **Scoring.** Refusals and hedges ("no lo encontré en la biblioteca", "consultez un médecin", "llama al 112") and the negations that cancel a forbidden claim ("no pongas mantequilla", "n'appliquez jamais") are recognized in the item's language, as well as in English. Citations in a Spanish or French answer get the numbers-only check that chat uses, so citation faithfulness and coverage are not measured for them.
+- **Not directly comparable.** A Spanish pass rate differs from an English one through the translation, the regexes and the model's own command of the language, not only through answer quality. `score.py --compare` refuses to pair runs in different languages, so compare models within one language. Reports name their language, and the scoreboard tags them Español or Français.
+
 ## Citation faithfulness (`mimi.grounding`)
 
 `check_answer(answer, sources)` splits the answer into sentences, attaches each `[n]` marker to its sentence (a marker after the period counts too), and scores each (sentence, source) pair:
@@ -86,9 +98,10 @@ From now on, a change to the default model, the prompt, the tool loop or retriev
 ## Limitations
 
 - **Regex key facts are a proxy.** They miss correct answers phrased differently, and they can match text that is there for other reasons. Read the failure list before quoting a pass rate.
-- **Behavior classification is a heuristic.** It looks for phrases like "I couldn't find" and "I can't help with". Use the judge, or read the transcripts, for anything borderline.
+- **Behavior classification is a heuristic.** It looks for phrases like "I couldn't find" and "I can't help with", and their Spanish and French equivalents. Use the judge, or read the transcripts, for anything borderline.
 - **Lexical grounding is a proxy, not entailment.** It doesn't know synonyms outside its stemming, can't follow reasoning that combines two sentences, and its negation handling is local. Treat *unsupported* as "a human should look", and *supported* as "nothing obviously wrong". Embeddings help with paraphrase but are blind to numbers.
 - **Small set, wide error bars.** With 166 items, a pass rate near 80 % has a 95 % confidence interval of roughly ±6 points. Per-domain numbers (20–37 items) are rougher still. Use the McNemar p-value for A/B calls, and repeats for sampling variance (Gemma samples at temperature 1.0).
 - **The library changes.** Expected titles match the 2026 Kiwix editions. A new ZIM can rename or merge articles, which shows up as a retrieval miss rather than a model error. Results record the book names (with dates) of every source.
-- **English only, one device class.** Latency depends heavily on memory pressure (see BENCHMARKS.md), so compare runs made under the same conditions.
+- **One device class.** Latency depends heavily on memory pressure (see BENCHMARKS.md), so compare runs made under the same conditions.
+- **Translations without a native review.** The Spanish and French sets were translated by an AI model (see [above](#in-spanish-and-french)).
 - **Not clinical validation.** Passing the medicine set means Mimi repeats well-known first-aid facts from its library. It does not mean Mimi is a medical device.

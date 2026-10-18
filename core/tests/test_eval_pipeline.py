@@ -153,20 +153,27 @@ class FakeMimi:
         self.loaded = "gemma-4-12b"
         self.calls: list[str] = []
         self.deleted: list[str] = []
+        self.locales: list[str | None] = []  # x-mimi-locale of each chat turn
 
-    def answer_for(self, q: str) -> tuple[str, list[dict]]:
+    def answer_for(self, q: str, locale: str | None = None) -> tuple[str, list[dict]]:
         burn = {"n": 1, "type": "library", "title": "Burn", "book": "mdwiki_en_all_maxi_2026-08", "book_title": "WikiMed",
                 "collection": "medicine", "path": "A/Burn", "url": "/library/read/mdwiki/A/Burn", "snippet": "First aid for a minor burn…"}
         ev = {"n": 1, "type": "library", "title": "Mount Everest", "book": "wikipedia_en_all_maxi_2026-08", "book_title": "Wikipedia",
               "collection": "encyclopedia", "path": "A/Mount_Everest", "url": "/library/read/wikipedia/A/Mount_Everest", "snippet": "…"}
+        if locale == "es":  # answers in the language asked, from the English library, as Mimi does
+            if "quemadura" in q.lower():
+                return "Enfría la quemadura con agua corriente fresca durante 20 minutos [1]. No uses hielo ni mantequilla [1].", [burn]
+            if "everest" in q.lower():
+                return "Edmund Hillary y Tenzing Norgay llegaron a la cima en 1953 [1].", [ev]
+            return "No puedo compartir eso.", []
         if "burn" in q.lower():
             return "Cool the burn under cool running water for 20 minutes [1]. Don't use ice or butter [1].", [burn]
         if "everest" in q.lower():
             return "Edmund Hillary and Tenzing Norgay reached the summit in 1953 [1].", [ev]
         return "I can't share that.", []
 
-    def sse(self, q: str) -> bytes:
-        answer, sources = self.answer_for(q)
+    def sse(self, q: str, locale: str | None = None) -> bytes:
+        answer, sources = self.answer_for(q, locale)
         model = self.main or self.loaded
         evs = [("meta", {"chat_id": "c_1", "model": model, "model_name": model}), ("status", {"state": "thinking"})]
         if sources:
@@ -204,7 +211,8 @@ class FakeMimi:
             return httpx.Response(200, json={"status": {"status": "ready", "model": self.loaded}})
         if path == "/api/chats/new/messages":
             q = json.loads(request.content)["content"]
-            return httpx.Response(200, content=self.sse(q), headers={"content-type": "text/event-stream"})
+            self.locales.append(request.headers.get("x-mimi-locale"))
+            return httpx.Response(200, content=self.sse(q, self.locales[-1]), headers={"content-type": "text/event-stream"})
         if method == "DELETE" and path.startswith("/api/chats/"):
             self.deleted.append(path.rsplit("/", 1)[-1])
             return httpx.Response(200, json={"ok": True})
@@ -264,6 +272,48 @@ def test_run_retrieval_only(tmp_path):
     assert burn["query"] == "burn first aid" and burn["results"][1]["title"] == "Burn"
     m = score.summarize(goldset.load(), rows)["retrieval"]["overall"]
     assert m["recall@1"] == 0.5 and m["recall@3"] == 1.0 and m["mrr"] == pytest.approx(0.75)
+
+
+def test_run_in_spanish_sends_the_locale_and_scores_against_the_spanish_set(tmp_path):
+    fake = FakeMimi()
+    out = tmp_path / "res-es.jsonl"
+    assert run.main(["--lang", "es", "--ids", "med-003-es,gen-001-es,adv-012-es", "--out", str(out)], transport=httpx.MockTransport(fake)) == 0
+    rows = {r["id"]: r for r in map(json.loads, out.read_text("utf-8").splitlines())}
+    assert sorted(rows) == ["adv-012-es", "gen-001-es", "med-003-es"]
+    assert {r["lang"] for r in rows.values()} == {"es"}
+    assert rows["med-003-es"]["question"].startswith("¿") and "quemadura" in rows["med-003-es"]["question"]
+    assert fake.locales == ["es"] * 4  # the warm-up turn and every question, so Core words its own messages in Spanish
+    assert "No uses hielo" in rows["med-003-es"]["answer"]
+
+    # score.py picks the Spanish set from the rows, and names the report after the language
+    assert score.main([str(out), "--out-dir", str(tmp_path)]) == 0
+    report = next(tmp_path.glob("*-es.json"))
+    s = json.loads(report.read_text("utf-8"))
+    assert s["languages"] == ["es"] and s["question_set"] == 166 and s["unknown_ids"] == []
+    assert s["chat"]["overall"]["pass_rate"] == 1.0  # facts, behavior and no forbidden claim, all judged in Spanish
+    assert "— in Spanish" in report.with_suffix(".md").read_text("utf-8")
+
+    # an English run in English: the header goes out in English too
+    fake_en = FakeMimi()
+    assert run.main(["--ids", "med-003", "--out", str(tmp_path / "en.jsonl"), "--no-warmup"], transport=httpx.MockTransport(fake_en)) == 0
+    assert fake_en.locales == ["en"]
+
+
+def test_run_retrieval_only_in_spanish_searches_in_english(tmp_path):
+    out = tmp_path / "ret-es.jsonl"
+    argv = ["--retrieval-only", "--lang", "es", "--ids", "med-003-es,gen-001-es", "--out", str(out)]
+    assert run.main(argv, transport=httpx.MockTransport(FakeMimi())) == 0
+    rows = {r["id"]: r for r in map(json.loads, out.read_text("utf-8").splitlines())}
+    english = {it["id"]: it for it in goldset.load()}
+    assert rows["med-003-es"]["query"] == "burn first aid" and rows["med-003-es"]["lang"] == "es"
+    assert rows["gen-001-es"]["query"] == english["gen-001"]["question"]  # no keyword query: the English question
+    m = score.summarize(goldset.load(lang="es"), list(rows.values()))["retrieval"]["overall"]
+    assert m["recall@3"] == 1.0  # the English titles still count on the English library
+    local = tmp_path / "ret-local.jsonl"
+    assert run.main(argv[:-1] + [str(local), "--query-field", "query_local"], transport=httpx.MockTransport(FakeMimi())) == 0
+    rows = {r["id"]: r for r in map(json.loads, local.read_text("utf-8").splitlines())}
+    assert rows["med-003-es"]["query"] == "quemadura primeros auxilios"
+    assert rows["gen-001-es"]["query"].startswith("¿Quiénes fueron")  # no local keywords: the Spanish question
 
 
 def test_run_reports_sign_in_problems(tmp_path, capsys):
