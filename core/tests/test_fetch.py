@@ -518,3 +518,19 @@ def test_osm_item_in_the_plan():
     osm = next(i for i in fetch.plan(["addresses"], uk) if i.kind == "osm")
     assert osm.temporary and "united-kingdom" in osm.label and not osm.installed()
     assert [i.kind for i in fetch.plan(["routing"], fetch.resolve_region("japan"))] == ["osm", "build", "build"]
+
+
+def test_the_kiwix_catalog_resolves_re_releases_with_a_letter(monkeypatch):
+    """Kiwix re-publishes a month's file with a letter (wikivoyage_fr_all_maxi_2026-07c.zim); it is the newest
+    of its book, not a book of its own."""
+    def entry(fname):
+        return (f'<entry><link rel="http://opds-spec.org/acquisition/open-access" type="application/x-zim" '
+                f'href="https://download.kiwix.org/zim/wikivoyage/{fname}.meta4"/></entry>')
+
+    feed = ('<feed xmlns="http://www.w3.org/2005/Atom">' + entry("wikivoyage_fr_all_maxi_2026-05.zim")
+            + entry("wikivoyage_fr_all_maxi_2026-07c.zim") + entry("wikivoyage_es_all_maxi_2026-09.zim") + "</feed>")
+    monkeypatch.setattr(fetch, "_catalog", None)
+    monkeypatch.setattr(fetch, "fetch_bytes", lambda url, timeout=120: feed.encode())
+    latest = fetch.kiwix_latest()
+    assert sorted(latest) == ["wikivoyage_es_all_maxi", "wikivoyage_fr_all_maxi"]
+    assert latest["wikivoyage_fr_all_maxi"].endswith("wikivoyage_fr_all_maxi_2026-07c.zim.meta4")

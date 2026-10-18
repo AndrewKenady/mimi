@@ -69,3 +69,13 @@ export const fmtNumber = (n: number, opts?: Intl.NumberFormatOptions) => new Int
 export const fmtDate = (d: Date | number, opts?: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(i18n.locale, opts).format(d);
 /** A list of names joined the way the language does it ("A, B and C" / "A, B y C" / "A, B et C"). */
 export const fmtList = (items: string[], type: Intl.ListFormatType = 'conjunction') => new Intl.ListFormat(i18n.locale, { type }).format(items);
+// Kiwix names a book's language in ISO 639-3 ("spa"); Intl wants the two-letter code where there is one.
+const ISO639_3: Record<string, string> = { eng: 'en', spa: 'es', fra: 'fr', deu: 'de', ita: 'it', por: 'pt', nld: 'nl', rus: 'ru', ara: 'ar', zho: 'zh', hin: 'hi', jpn: 'ja' };
+/** A language named in the interface language: "Spanish", "español", "espagnol". Unknown codes come back as they are. */
+export function fmtLanguage(code: string): string {
+	try {
+		return new Intl.DisplayNames(i18n.locale, { type: 'language' }).of(ISO639_3[code] ?? code) ?? code;
+	} catch {
+		return code;
+	}
+}

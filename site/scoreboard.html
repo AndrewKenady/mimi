@@ -99,6 +99,8 @@ h2 { margin: 0; font-weight: 850; font-stretch: 70%; font-size: clamp(28px, 3.6v
 
 .sign { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; background: var(--blaze); color: var(--blaze-ink); padding: 2px 8px; border-radius: 3px; vertical-align: middle; }
 .sign.plan { background: transparent; color: var(--ink-2); border: 1.5px dashed var(--ink-3); }
+.sign.lang { background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent); letter-spacing: .1em; }
+.facts .sign.lang { margin-left: 4px; }
 
 .btn { display: inline-flex; align-items: center; gap: 8px; font: 600 15px var(--display); color: var(--paper); background: var(--ink); border: 1.5px solid var(--ink); border-radius: 999px; padding: 10px 18px; cursor: pointer; text-decoration: none; min-height: 44px; }
 .btn.ghost { background: transparent; color: var(--ink); }
@@ -247,6 +249,7 @@ footer a { color: var(--ink-2); }
         <p><b>Error bars.</b> With 166 questions, a pass rate near 80% carries about &plusmn;6 points of uncertainty. Pass rates show a 95% interval, and model comparisons use an exact McNemar test on the questions only one model passed.</p>
         <p><b>Speed</b> depends on the hardware and on what else is running, so every run records its device. Timings from one machine say nothing about another.</p>
         <p><b>Not clinical validation.</b> Passing the medicine set means Mimi repeats well-known first-aid facts from its library. It doesn&rsquo;t make Mimi a medical device.</p>
+        <p><b>Spanish and French.</b> The same questions exist in both languages, translated by an AI model and not yet reviewed by a native speaker. Their reports carry an <span class="sign lang" lang="es">Español</span> or <span class="sign lang" lang="fr">Français</span> tag. Scores in different languages aren&rsquo;t directly comparable, and their citations are checked on numbers only.</p>
         <p><b>Run it yourself:</b> <code>eval/run.py</code> asks a running Mimi every question, and <code>eval/score.py</code> turns the answers into this report. Reports committed to <code>eval/reports/</code> appear here on the next site build.</p>
       </div>
     </div>
@@ -286,6 +289,7 @@ footer a { color: var(--ink-2); }
   var DOMAINS = { medicine: 'Medicine', repair: 'Repair', travel: 'Travel', survival: 'Survival', general: 'General knowledge', local: 'Location', adversarial: 'Trick questions' };
   var TAGS = { medical: 'Medical', dosing: 'Dosing', self_harm: 'Self-harm', prompt_injection: 'Prompt injection', false_premise: 'False premise', unanswerable_offline: 'Needs the internet' };
   var BEHAVIOR = { answer: 'Answer', hedge: 'Hedge', refuse: 'Refuse', error: 'Error' };
+  var LANGS = { es: 'Español', fr: 'Français' };  // English reports carry no tag; reports from before the field are English
 
   function el(tag, attrs, html) {
     var e = document.createElement(tag);
@@ -305,6 +309,9 @@ footer a { color: var(--ink-2); }
   function get(path) { return fetch(BASE + path, { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
   function runs(report) { return report.compare ? [report.a, report.b] : [report]; }
   function model(run) { return (run.models || []).join(' + ') || 'retrieval'; }
+  function otherLangs(langs) { return (langs || []).filter(function (l) { return LANGS[l]; }); }
+  function langNames(langs) { return otherLangs(langs).map(function (l) { return LANGS[l]; }).join(', '); }
+  function langTags(langs) { return otherLangs(langs).map(function (l) { return ' <span class="sign lang" lang="' + l + '">' + LANGS[l] + '</span>'; }).join(''); }
 
   // ---------------------------------------------------------------- tooltip
   function tooltip(chart) {
@@ -444,8 +451,9 @@ footer a { color: var(--ink-2); }
   // ---------------------------------------------------------------- page
   function facts(entry, report) {
     var rs = runs(report), dev = entry.devices && entry.devices.length ? entry.devices.join('; ') : 'Not recorded';
-    var cells = [['Run', entry.run_date || '—'], ['Model' + (rs.length > 1 ? 's' : ''), rs.map(model).join(' vs ')], ['Device', dev], ['Mimi', (entry.mimi_versions || []).join(', ') || '—']];
-    return '<dl class="facts">' + cells.map(function (c) { return '<div><dt>' + c[0] + '</dt><dd>' + esc(c[1]) + '</dd></div>'; }).join('') + '</dl>';
+    var langs = entry.languages || rs[0].languages;
+    var cells = [['Run', esc(entry.run_date || '—') + langTags(langs)], ['Model' + (rs.length > 1 ? 's' : ''), esc(rs.map(model).join(' vs '))], ['Device', esc(dev)], ['Mimi', esc((entry.mimi_versions || []).join(', ') || '—')]];
+    return '<dl class="facts">' + cells.map(function (c) { return '<div><dt>' + c[0] + '</dt><dd>' + c[1] + '</dd></div>'; }).join('') + '</dl>';
   }
   function render(entry, report, synthetic) {
     var rs = runs(report), chat = rs.filter(function (r) { return r.chat; });
@@ -502,7 +510,7 @@ footer a { color: var(--ink-2); }
     get(entry.file).then(function (report) {
       var picker = '';
       if (index.reports.length > 1) {
-        picker = '<label class="picker">Report <select id="pick">' + index.reports.map(function (e, j) { return '<option value="' + j + '"' + (j === i ? ' selected' : '') + '>' + esc(e.run_date + ' · ' + e.models.join(' vs ')) + '</option>'; }).join('') + '</select></label>';
+        picker = '<label class="picker">Report <select id="pick">' + index.reports.map(function (e, j) { return '<option value="' + j + '"' + (j === i ? ' selected' : '') + '>' + esc(e.run_date + ' · ' + e.models.join(' vs ') + (langNames(e.languages) ? ' · ' + langNames(e.languages) : '')) + '</option>'; }).join('') + '</select></label>';
       }
       status.innerHTML = picker;
       render(entry, report, false);

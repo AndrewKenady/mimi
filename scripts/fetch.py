@@ -653,7 +653,7 @@ def kiwix_latest() -> dict[str, str]:
                 href = link.get("href") or ""
                 if "acquisition" in (link.get("rel") or "") and href.endswith(".zim.meta4"):
                     fname = href.rsplit("/", 1)[-1][: -len(".meta4")]
-                    base = re.sub(r"_\d{4}-\d{2}\.zim$", "", fname)
+                    base = re.sub(r"_\d{4}-\d{2}[a-z]?\.zim$", "", fname)  # a re-release adds a letter: _2026-07c
                     if base not in latest or fname > latest[base].rsplit("/", 1)[-1]:
                         latest[base] = href
         _catalog = latest
@@ -709,7 +709,7 @@ class Item:
         if k == "file":
             return [self.path(s["path"])]
         if k == "zim":
-            return sorted(p for p in (c / "zim").glob(f"{s['name']}_*.zim") if re.fullmatch(re.escape(s["name"]) + r"_\d{4}-\d{2}\.zim", p.name))
+            return sorted(p for p in (c / "zim").glob(f"{s['name']}_*.zim") if re.fullmatch(re.escape(s["name"]) + r"_\d{4}-\d{2}[a-z]?\.zim", p.name))
         if k == "archive":
             return [self.path(s["path"])]
         if k == "world":

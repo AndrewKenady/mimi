@@ -42,7 +42,7 @@ class FakeMemory:
 
 
 class FakeKiwix:
-    async def search(self, q, collections=None, limit=5, books=None):
+    async def search(self, q, collections=None, limit=5, books=None, local=None):
         return [Hit(title="Boiling water", path="q/1", book="se_outdoors", book_title="Stack Exchange · Outdoors", collection="qa", snippet="")]
 
     async def passage(self, hit, q, chars):

@@ -129,6 +129,36 @@
       "description": "All of English Wikipedia with images.",
       "items": [ { "type": "zim", "name": "wikipedia_en_all_maxi", "size_mb": 127418 } ]
     },
+    "library-es": {
+      "title": "Spanish library (Biblioteca en español)", "group": "zim",
+      "description": "Wikipedia Médica, Wikiviajes, iFixit en español and the most-read Spanish Wikipedia articles. When you write in Spanish, Mimi searches these in Spanish and the English books in English.",
+      "items": [
+        { "type": "zim", "name": "wikipedia_es_medicine_maxi", "size_mb": 469 },
+        { "type": "zim", "name": "wikivoyage_es_all_maxi", "size_mb": 139 },
+        { "type": "zim", "name": "ifixit_es_all", "size_mb": 3681 },
+        { "type": "zim", "name": "wikipedia_es_top_nopic", "size_mb": 1209 }
+      ]
+    },
+    "wikipedia-es-nopic": {
+      "title": "Spanish Wikipedia: every article, no pictures", "group": "zim",
+      "description": "All of Spanish Wikipedia as text. Hides the Spanish library's top articles once installed.",
+      "items": [ { "type": "zim", "name": "wikipedia_es_all_nopic", "size_mb": 13298 } ]
+    },
+    "library-fr": {
+      "title": "French library (Bibliothèque en français)", "group": "zim",
+      "description": "WikiMed in French, Wikivoyage, iFixit en français and the most-read French Wikipedia articles. When you write in French, Mimi searches these in French and the English books in English.",
+      "items": [
+        { "type": "zim", "name": "wikipedia_fr_medicine_maxi", "size_mb": 864 },
+        { "type": "zim", "name": "wikivoyage_fr_all_maxi", "size_mb": 249 },
+        { "type": "zim", "name": "ifixit_fr_all", "size_mb": 3652 },
+        { "type": "zim", "name": "wikipedia_fr_top_nopic", "size_mb": 1482 }
+      ]
+    },
+    "wikipedia-fr-nopic": {
+      "title": "French Wikipedia: every article, no pictures", "group": "zim",
+      "description": "All of French Wikipedia as text. Hides the French library's top articles once installed.",
+      "items": [ { "type": "zim", "name": "wikipedia_fr_all_nopic", "size_mb": 12913 } ]
+    },
     "wiktionary": {
       "title": "Wiktionary", "group": "zim",
       "description": "English dictionary and thesaurus.",

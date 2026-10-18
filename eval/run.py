@@ -4,8 +4,10 @@
     python eval/run.py --model qwen3.5-9b                # switch the main model for the run, restore it after
     python eval/run.py --retrieval-only                  # library search only: Recall@k / MRR, no model needed
     python eval/run.py --domain medicine --limit 5       # a quick smoke run
+    python eval/run.py --lang es                         # the same questions in Spanish (fr: French)
 
-Each question is one JSONL row in the results file (default eval/results/<date>-<model>.jsonl):
+Each question is one JSONL row in the results file (default eval/results/<date>-<model>.jsonl,
+or <date>-<model>-<lang>.jsonl for Spanish and French):
 the answer, its sources (with the cited article's text, so citations can be checked
 offline), the tool calls, and timings. Runs are resumable: rerunning skips questions
 already answered without an error; pass --fresh to start over.
@@ -14,6 +16,11 @@ Authentication: on the device itself, Mimi signs loopback requests in as the own
 (device settings general.local_auto_login, on by default, unless general.require_pin).
 Otherwise pass --user NAME --pin PIN, or --token with a session token.
 Chats are created as temporary and deleted afterwards, so the run leaves no history.
+
+Language: every question is sent with an x-mimi-locale header in its own language, as the
+interface does, so the text Core writes itself (status lines, errors) is in that language too.
+--retrieval-only searches with the English keyword query in every language, because the
+library is English; --query-field query_local searches with the item's own language instead.
 """
 
 from __future__ import annotations
@@ -35,6 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import goldset
 
 RESULTS = goldset.HERE / "results"
+WARM_UP = {"en": "Hello", "es": "Hola", "fr": "Bonjour"}
 
 
 class EvalError(RuntimeError):
@@ -119,9 +127,9 @@ class Mimi:
             time.sleep(2)
         raise EvalError(f"{model} did not finish loading within {wait:.0f} s")
 
-    def warm_up(self, mode: str | None, think: bool | None) -> str | None:
+    def warm_up(self, mode: str | None, think: bool | None, lang: str = "en") -> str | None:
         """One throwaway turn so model loading and prompt-cache filling don't land on the first question."""
-        got = self.ask("Hello", mode=mode, think=think)
+        got = self.ask(WARM_UP.get(lang, "Hello"), mode=mode, think=think, locale=lang)
         msg = got.get("message") or {}
         if msg.get("chat_id"):
             self.delete_chat(msg["chat_id"])
@@ -147,14 +155,18 @@ class Mimi:
         return self._articles[key][:max_chars]
 
     # ---- chat
-    def ask(self, question: str, *, mode: str | None, think: bool | None) -> dict:
-        """One turn over SSE. Returns the parsed events plus client-side timings."""
+    def ask(self, question: str, *, mode: str | None, think: bool | None, locale: str | None = None) -> dict:
+        """One turn over SSE. Returns the parsed events plus client-side timings.
+
+        `locale` goes out as x-mimi-locale, as the interface sends it, so Core words its own
+        messages (status lines, errors) in the question's language."""
         body = {"content": question, "temporary": True, "mode": mode, "think": think}
+        headers = {"x-mimi-locale": locale} if locale else None
         out: dict[str, Any] = {"deltas": 0, "tools": [], "error": None, "message": None, "meta": None, "statuses": []}
         t0 = time.perf_counter()
         ms = lambda: int((time.perf_counter() - t0) * 1000)
         starts: dict[str, dict] = {}
-        with self.http.stream("POST", "/api/chats/new/messages", json=body) as r:
+        with self.http.stream("POST", "/api/chats/new/messages", json=body, headers=headers) as r:
             if r.status_code == 401:
                 raise EvalError("Mimi says: not signed in (see --help).")
             if r.status_code >= 400:
@@ -270,12 +282,13 @@ def select(items: list[dict], args) -> list[dict]:
 
 def chat_row(mimi: Mimi, item: dict, rep: int, args, run_id: str, location_known: bool | None, version: str,
              services_known: bool | None = None) -> dict:
-    row: dict[str, Any] = {"run_id": run_id, "kind": "chat", "id": item["id"], "rep": rep, "domain": item["domain"],
+    lang = goldset.lang_of(item)
+    row: dict[str, Any] = {"run_id": run_id, "kind": "chat", "id": item["id"], "rep": rep, "domain": item["domain"], "lang": lang,
                            "question": item["question"], "started_at": _now(), "mimi_version": version, "device": args.device,
                            "location_known": location_known, "services_known": services_known, "mode": args.mode,
                            "think": args.think}
     try:
-        got = mimi.ask(item["question"], mode=args.mode, think=args.think)
+        got = mimi.ask(item["question"], mode=args.mode, think=args.think, locale=lang)
     except (httpx.HTTPError, EvalError) as e:
         row.update(error=f"{type(e).__name__}: {e}", answer="", sources=[], tools=[], timings={})
         return row
@@ -302,11 +315,21 @@ def chat_row(mimi: Mimi, item: dict, rep: int, args, run_id: str, location_known
     return row
 
 
+def search_query(item: dict, field: str) -> str:
+    """What --retrieval-only searches with: the item's keyword query (English in every language: the library is
+    English), the same keywords in the item's language, or the question itself."""
+    if field == "question":
+        return item["question"]
+    if field == "query_local":
+        return item.get("query_local") or item["question"]
+    return item.get("query") or item["question"]
+
+
 def retrieval_row(mimi: Mimi, item: dict, args, run_id: str, version: str) -> dict:
-    q = item["question"] if args.query_field == "question" else (item.get("query") or item["question"])
+    q = search_query(item, args.query_field)
     row: dict[str, Any] = {"run_id": run_id, "kind": "retrieval", "id": item["id"], "rep": 0, "domain": item["domain"],
-                           "question": item["question"], "query": q, "started_at": _now(), "mimi_version": version, "device": args.device,
-                           "model": "retrieval", "error": None}
+                           "lang": goldset.lang_of(item), "question": item["question"], "query": q, "started_at": _now(),
+                           "mimi_version": version, "device": args.device, "model": "retrieval", "error": None}
     t0 = time.perf_counter()
     try:
         hits = mimi.search(q, args.k)
@@ -320,7 +343,7 @@ def retrieval_row(mimi: Mimi, item: dict, args, run_id: str, version: str) -> di
 
 
 def run(args, transport: httpx.BaseTransport | None = None, log=print) -> Path:
-    items = goldset.load(args.questions)
+    items = goldset.load(args.questions, lang=args.lang)
     problems = goldset.validate(items)
     if problems:
         raise EvalError("question set is invalid:\n  " + "\n  ".join(problems[:20]))
@@ -339,10 +362,10 @@ def run(args, transport: httpx.BaseTransport | None = None, log=print) -> Path:
             log(f"switching the main model to {args.model} …")
             mimi.set_main_model(args.model)
         if not args.retrieval_only and args.warmup:
-            served = mimi.warm_up(args.mode, args.think)
+            served = mimi.warm_up(args.mode, args.think, args.lang)
             if args.model and served and served != args.model:
                 raise EvalError(f"Mimi answered with {served}, not {args.model} (battery saver maps the main model to the quick one)")
-        label = "retrieval" if args.retrieval_only else (args.model or "default")
+        label = ("retrieval" if args.retrieval_only else (args.model or "default")) + ("" if args.lang == "en" else f"-{args.lang}")
         out = Path(args.out) if args.out else RESULTS / f"{datetime.now():%Y-%m-%d}-{_slug(label)}.jsonl"
         out.parent.mkdir(parents=True, exist_ok=True)
         if args.fresh and out.exists():
@@ -378,14 +401,17 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Run Mimi's golden question set against a live Mimi.",
                                 formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
     p.add_argument("--base-url", default="http://127.0.0.1:7600", help="Mimi Core (default: %(default)s)")
-    p.add_argument("--questions", default=None, help="JSONL file or glob (default: eval/questions/*.jsonl)")
+    p.add_argument("--lang", choices=goldset.LANGS, default="en",
+                   help="question language: en (eval/questions/*.jsonl), es or fr (eval/questions/<lang>/*.jsonl)")
+    p.add_argument("--questions", default=None, help="JSONL file or glob instead of the --lang set")
     p.add_argument("--out", default=None, help="results JSONL (default: eval/results/<date>-<model>.jsonl)")
     p.add_argument("--model", default=None, help="model id to use as the main model for this run (e.g. gemma-4-12b, qwen3.5-9b)")
     p.add_argument("--mode", default=None, help="chat mode (everyday, field_medic, fix_it, …); default: the user's default mode")
     p.add_argument("--think", action=argparse.BooleanOptionalAction, default=None, help="force 'think harder' on/off")
     p.add_argument("--retrieval-only", action="store_true", help="only hit /api/library/search (Recall@k, MRR)")
-    p.add_argument("--query-field", choices=("query", "question"), default="query",
-                   help="retrieval: search with the item's keyword query (default) or the raw question")
+    p.add_argument("--query-field", choices=("query", "query_local", "question"), default="query",
+                   help="retrieval: search with the item's keyword query (default; English in every language), "
+                        "the same keywords in the item's language, or the raw question")
     p.add_argument("--k", type=int, default=10, help="retrieval: results to fetch (default: %(default)s)")
     p.add_argument("--ids", default=None, help="comma-separated item ids")
     p.add_argument("--domain", default=None, help="comma-separated domains")

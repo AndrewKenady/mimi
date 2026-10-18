@@ -42,7 +42,7 @@ NS = {"a": "http://www.w3.org/2005/Atom"}
 
 # Collection = a friendly grouping used by the UI and by the search tool.
 COLLECTIONS: list[tuple[str, str, tuple[str, ...]]] = [
-    ("medicine", "Medicine", ("mdwiki", "zimgit-medicine", "wikipedia_en_medicine", "wikem")),
+    ("medicine", "Medicine", ("mdwiki", "zimgit-medicine", "wikipedia_en_medicine", "wikipedia_es_medicine", "wikipedia_fr_medicine", "wikem")),
     ("encyclopedia", "Encyclopedia", ("wikipedia_",)),
     ("travel", "Travel", ("wikivoyage",)),
     ("repair", "Repair guides", ("ifixit",)),
@@ -96,7 +96,7 @@ def collection_of(name: str) -> str:
 
 
 def alias_of(name: str) -> str:
-    return re.sub(r"_\d{4}-\d{2}$", "", name)
+    return re.sub(r"_\d{4}-\d{2}[a-z]?$", "", name)  # a re-release adds a letter: _2026-07c
 
 
 def quote_path(path: str) -> str:
@@ -139,6 +139,7 @@ class Hit:
     score: float = 0.0
     page: int = 0       # PDF page (from 1) for document hits
     label: str = ""     # the page's printed label ("112", "xiv")
+    language: str = ""  # the book's language, as Kiwix gives it ("eng", "spa", "fra")
 
 
 @dataclass
@@ -207,11 +208,9 @@ class KiwixService:
                     continue
                 files.append(f)
         self.incomplete = incomplete
-        # If a full edition exists, hide small dev editions of the same family.
-        names = [f.name for f in files]
-        if any(n.startswith("wikipedia_en_all") for n in names):
-            files = [f for f in files if not re.match(r"wikipedia_en_(100|top)", f.name)]
-        return files
+        # If a full edition exists, hide the small editions of the same language (top articles, the 100).
+        full = {m.group(1) for f in files if (m := re.match(r"wikipedia_([a-z]{2,3})_all", f.name))}
+        return [f for f in files if not ((m := re.match(r"wikipedia_([a-z]{2,3})_(100|top)", f.name)) and m.group(1) in full)]
 
     async def start(self) -> None:
         exe = self.paths.exe("kiwix", "kiwix-serve")
@@ -692,10 +691,19 @@ class KiwixClient:
         return q, vecs
 
     # --- search ---------------------------------------------------------------
-    async def search(self, query: str, collections: list[str] | None = None, books: list[str] | None = None, limit: int = 5) -> list[Hit]:
+    async def search(self, query: str, collections: list[str] | None = None, books: list[str] | None = None, limit: int = 5,
+                     local: tuple[str, str] | None = None) -> list[Hit]:
         """Fused results from every chosen book: Xapian per language group, a title
         lookup and the document-page index, ranked by retrieval.rrf with intent
-        priors, then (when embeddings are up) reranked semantically."""
+        priors, then (when embeddings are up) reranked semantically.
+
+        ``local`` is (language, query): books in that language (Kiwix codes: "spa", "fra")
+        are searched with that query instead, so Spanish books are searched in Spanish."""
+        lang, local_q = local if local and local[1].strip() else ("", "")
+
+        def q_for(language: str) -> str:
+            return local_q if lang and language == lang else query
+
         all_books = await self.books()
         if books:
             chosen = [b for b in all_books if b.name in books or b.alias in books]
@@ -712,9 +720,12 @@ class KiwixClient:
         for b in text_books:
             by_lang.setdefault(b.language or "eng", []).append(b)
         per = max(limit, 8)
-        titled, docs, *groups = await asyncio.gather(
-            self._title_hits(query, text_books), self._doc_hits(query, doc_books, per),
-            *(self._search_group(query, grp, per) for grp in by_lang.values()), return_exceptions=True)
+        local_books = [b for b in text_books if lang and b.language == lang]
+        other_books = [b for b in text_books if b not in local_books]
+        titled, local_titled, docs, *groups = await asyncio.gather(
+            self._title_hits(query, other_books), self._title_hits(local_q, local_books, lang), self._doc_hits(query, doc_books, per),
+            *(self._search_group(q_for(language), grp, per) for language, grp in by_lang.items()), return_exceptions=True)
+        titled = (titled if isinstance(titled, list) else []) + (local_titled if isinstance(local_titled, list) else [])
         index: dict[tuple, Hit] = {}
 
         def ranked(name: str, hits, weight: float) -> R.RankedList:
@@ -759,18 +770,21 @@ class KiwixClient:
             page = int(r["page"] or 0)
             title = (r["title"] or r["path"]).strip()
             label = page_label(page, r["label"] or "") if page else ""
-            hits.append(Hit(title=f"{title}, p. {label}" if page else title, path=r["path"], book=b.name, book_title=b.title,
+            hits.append(Hit(title=f"{title}, p. {label}" if page else title, path=r["path"], book=b.name, book_title=b.title, language=b.language,
                             collection=b.collection, snippet=re.sub(r"\s+", " ", r["snippet"] or "").strip()[:400], page=page, label=label))
         return hits
 
-    async def _title_hits(self, query: str, books: list[Book]) -> list[Hit]:
+    async def _title_hits(self, query: str, books: list[Book], language: str = "") -> list[Hit]:
         """An article whose title *is* the topic ("Bee sting") beats full-text relevance.
 
         Try the query's leading words as a title prefix (4 → 2 words) in the
         largest few books; keep suggestions whose title is contained in the query.
+        ``language`` (a Kiwix code) is the books' language when it isn't English: its
+        own little words ("de", "la") are skipped on both sides ("Picadura de abeja").
         """
-        words = [w for w in re.findall(r"[A-Za-z0-9'’-]+", query) if w.lower() not in STOPWORDS]
-        if len(words) < 1:
+        stop = R.STOPWORDS_BY_LANGUAGE.get(language, STOPWORDS)
+        words = [w for w in re.findall(r"[^\W_][\w'’-]*", query) if w.lower() not in stop]
+        if len(words) < 1 or not books:
             return []
         qnorm = " " + " ".join(w.lower() for w in words) + " "
         top = sorted(books, key=lambda b: -b.articles)[:4]
@@ -785,9 +799,11 @@ class KiwixClient:
                     continue
                 for s in res:
                     t = (s.get("title") or "").strip()
-                    tn = " " + " ".join(re.findall(r"[a-z0-9'’-]+", t.lower())) + " "
+                    tw = re.findall(r"[^\W_][\w'’-]*", t.lower())
+                    tn = " " + " ".join(w for w in tw if not language or w not in stop) + " "
                     if t and s.get("path") and tn.strip() and tn in qnorm and len(tn.strip()) >= 4:
-                        out.append(Hit(title=t, path=s["path"], book=b.name, book_title=b.title, collection=b.collection, snippet="", score=2.0))
+                        out.append(Hit(title=t, path=s["path"], book=b.name, book_title=b.title, collection=b.collection, snippet="",
+                                       score=2.0, language=b.language))
             if out:
                 break
         return out[:2]
@@ -828,6 +844,7 @@ class KiwixClient:
                     snippet=snippet[:400],
                     words=int(re.sub(r"\D", "", item.findtext("wordCount") or "0") or 0),
                     score=1.0 / (1 + i),
+                    language=book.language if book else "",
                 )
             )
         return hits

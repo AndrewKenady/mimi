@@ -37,7 +37,7 @@ Small local models make things up, and in a field-medicine tool that matters mor
 - **Remembers you, transparently.** Suggested memories wait for your OK. Every one can be seen, edited, pinned, paused or erased.
 - **Shares.** Phones and laptops on the same network, or on Mimi's own Wi-Fi, open `https://mimi.local` and sign in.
 - **Extensible.** Slash commands (`/eli5`, `/translate spanish …`, `/steps`). Drop a Python file into `tools/` to give Mimi a new ability ([tools/README.md](tools/README.md)). It also works as an **MCP server**, so Claude Desktop and other MCP clients can use its offline library, places and directions ([docs/MCP.md](docs/MCP.md)).
-- **Speaks English, Spanish and French.** The whole interface, Mimi's own messages and its voice; answers come in the language you write in, still grounded in the (English) library.
+- **Speaks English, Spanish and French.** The whole interface, Mimi's own messages and its voice; answers come in the language you write in, still grounded in the library, which can add Spanish and French books (`content add library-es`, `library-fr`).
 - **Controller-first and accessible.** A native full-screen app with a living "Well" orb, gamepad navigation, a command palette, and dark, light and OLED themes. Every theme passes WCAG AA contrast, and every main screen passes an automated WCAG 2.2 audit, both checked in CI.
 
 ## Install

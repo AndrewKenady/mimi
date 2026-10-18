@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import { app } from '$lib/app.svelte';
 	import { fmtBytes, get } from '$lib/api';
-	import { t, type Key } from '$lib/i18n/index.svelte';
+	import { fmtLanguage, t, type Key } from '$lib/i18n/index.svelte';
 	import { Search, BookOpen, Sparkles, FolderOpen, X, Loader, FileText, TriangleAlert } from '@lucide/svelte';
 
 	let books = $state<any[]>([]);
@@ -41,6 +41,9 @@
 		checking: { label: 'library.statusChecking', tone: 'idle' },
 		unreadable: { label: 'library.statusUnreadable', tone: 'bad' }
 	};
+	/** A book's language when it isn't English (one code; "mul" is TED's many languages): Spanish Wikivoyage and the English one share a title. */
+	const otherLanguage = (b: any) => (b.language && !/^(eng|mul)$|,/.test(b.language) ? fmtLanguage(b.language) : '');
+
 	function status(b: any) {
 		const h = b.health || {};
 		if (h.status === 'limited') return { label: t(h.readable ? 'library.statusBrowseOnly' : 'library.statusSearchOnly'), tone: 'warn' };
@@ -203,7 +206,7 @@
 								<b>{b.title}</b>
 								<small>{b.summary}</small>
 								<!-- One string: Svelte trims whitespace at the edge of {#if} blocks, which once ate the space before "·". -->
-								<span class="bmeta">{[t('library.itemCount', { n: b.items ?? b.articles, noun: b.item_noun || 'articles' }), b.size ? fmtBytes(b.size) : ''].filter(Boolean).join(' · ')}</span>
+								<span class="bmeta">{[t('library.itemCount', { n: b.items ?? b.articles, noun: b.item_noun || 'articles' }), b.size ? fmtBytes(b.size) : '', otherLanguage(b)].filter(Boolean).join(' · ')}</span>
 								<span class="bstatus {st.tone}"><i></i>{st.label}</span>
 								{#if b.health?.note && st.tone !== 'ok' && st.tone !== 'idle'}<span class="bnote">{b.health.note}</span>{/if}
 							</span>
