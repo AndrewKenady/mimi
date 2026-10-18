@@ -24,7 +24,8 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - **Citation checks across languages.** A Spanish or French answer can't be compared word for word with an English passage, so it gets a numbers-only check: a dose, a temperature or a date must be in the cited source, read either way ("37,5" or "37.5").
 - **Core's own words follow you.** Status lines, tool activity, citation reasons, book notes, error messages and turn-by-turn directions arrive in the interface language.
 - **Voice:** Kokoro's Spanish and French voices are listed, and a reply is read by a voice of its own language. Checked end to end with the real models: Whisper transcribes the spoken Spanish and French back and detects both languages.
-- The library and the eval set are still English; [docs/I18N.md](docs/I18N.md) has the conventions, a glossary and how to add a language.
+- **The eval set in Spanish and French.** All 166 golden questions, translated by an AI model and not yet reviewed by a native speaker, with key facts and forbidden claims rewritten for each language and article titles taken from Wikipedia's language links. `eval/run.py --lang es` (or `fr`) asks them with the matching `x-mimi-locale`. Refusals, hedges and negations are recognized in each language, reports and the scoreboard say which language they're in, and A/B comparisons across languages are refused.
+- The library is still English; [docs/I18N.md](docs/I18N.md) has the conventions, a glossary and how to add a language.
 
 ### Speed you can feel
 - **Sources first.** Source cards and a verbatim "From the source" quote appear as soon as retrieval returns, while the model is still reading.
