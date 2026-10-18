@@ -81,7 +81,7 @@ Mimi picks the Plus or Max models by itself on hardware that can run them, and u
 
 Every push runs [CI](.github/workflows/ci.yml) (Core on Linux, Windows and macOS):
 
-- **Core:** 482 tests, from geocoding to the CA's name constraints and prompt-injection defenses, plus ruff.
+- **Core:** 609 tests, from geocoding to the CA's name constraints and prompt-injection defenses, plus ruff.
 - **UI:**
   - type checks;
   - a WCAG AA contrast audit of every theme × token pair;
