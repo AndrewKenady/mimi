@@ -31,6 +31,7 @@ from datetime import datetime
 from typing import Any, Awaitable, Callable
 
 from . import i18n, log, plugins
+from . import retrieval as R
 from .auth import Ctx
 from .i18n import tr
 from .persona import UNTRUSTED_BEGIN, UNTRUSTED_END
@@ -229,8 +230,25 @@ async def _find_article(svc, title: str, collection: str | None, st: TurnState):
 
 
 # --------------------------------------------------------------------------- library
+_KIWIX_LANGUAGE = {"es": "spa", "fr": "fra"}  # the languages Mimi speaks besides English, as Kiwix names them
+
+
+def _local_search(args: dict, st: TurnState) -> tuple[str, str] | None:
+    """(Kiwix language, query) for books in the user's language when they aren't writing in
+    English: the model's local_query, or else the content words of the user's own message."""
+    code = _KIWIX_LANGUAGE.get(i18n.detect(st.query) or i18n.current())
+    if not code:
+        return None
+    q = str(args.get("local_query") or "").strip()[:200]
+    if not q:
+        stop = R.STOPWORDS_BY_LANGUAGE[code]
+        q = " ".join([w for w in re.findall(r"[^\W_][\w'’-]*", st.query.lower()) if w not in stop][:8])
+    return (code, q) if q else None
+
+
 async def search_library(args: dict, st: TurnState, svc) -> ToolResult:
     q = str(args.get("query") or st.query).strip()[:200]
+    local = _local_search(args, st)
     coll = args.get("collection") or "auto"
     if coll not in COLLECTION_ENUM:
         coll = "auto"
@@ -239,11 +257,13 @@ async def search_library(args: dict, st: TurnState, svc) -> ToolResult:
     if st.voice:  # a spoken reply is one to three sentences; less to read means a faster first word
         n, chars = min(n, 2), min(chars, 600)
     collections = (st.mode.get("collections") or None) if coll == "auto" else [coll]
-    hits = await svc.kiwix.search(q, collections=collections, limit=n + 2)
+    hits = await svc.kiwix.search(q, collections=collections, limit=n + 2, local=local)
     if not hits and coll != "auto":
-        hits = await svc.kiwix.search(q, collections=None, limit=n + 2)
+        hits = await svc.kiwix.search(q, collections=None, limit=n + 2, local=local)
     top = _dedupe_hits(hits)[:n]
-    passages = await asyncio.gather(*(svc.kiwix.passage(h, q, chars) for h in top), return_exceptions=True)
+    # a Spanish article's best paragraph is found with the Spanish words
+    passages = await asyncio.gather(*(svc.kiwix.passage(h, local[1] if local and h.language == local[0] else q, chars) for h in top),
+                                    return_exceptions=True)
     blocks, sources = [], []
     pages = 0
     for p in passages:
@@ -540,7 +560,9 @@ def _has_library(st, svc) -> bool:
 TOOLS: list[Tool] = [
     Tool("search_library",
          "Search Mimi's offline reference library (Wikipedia, WikiMed, iFixit, Wikivoyage, survival guides, Stack Exchange, dictionary, books, TED talks). Returns numbered passages to cite as [n]. Use for any factual question.",
-         _obj({"query": {"type": "string", "description": "Short keyword query, e.g. 'second degree burn first aid'"},
+         _obj({"query": {"type": "string", "description": "Short keyword query in English, e.g. 'second degree burn first aid'"},
+               "local_query": {"type": "string", "description": "When the user isn't writing in English: the same keywords in their language, "
+                                                                "e.g. 'quemadura segundo grado primeros auxilios'. It searches the library's books in that language."},
                "collection": {"type": "string", "enum": COLLECTION_ENUM, "description": "Which shelf to search; 'auto' picks based on the current mode"}}, ["query"]),
          search_library, _has_library),
     Tool("read_article",

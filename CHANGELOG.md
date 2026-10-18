@@ -24,7 +24,7 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - **Citation checks across languages.** A Spanish or French answer can't be compared word for word with an English passage, so it gets a numbers-only check: a dose, a temperature or a date must be in the cited source, read either way ("37,5" or "37.5").
 - **Core's own words follow you.** Status lines, tool activity, citation reasons, book notes, error messages and turn-by-turn directions arrive in the interface language.
 - **Voice:** Kokoro's Spanish and French voices are listed, and a reply is read by a voice of its own language. Checked end to end with the real models: Whisper transcribes the spoken Spanish and French back and detects both languages.
-- The library and the eval set are still English; [docs/I18N.md](docs/I18N.md) has the conventions, a glossary and how to add a language.
+- **Spanish and French books.** `content add library-es` adds Wikipedia Médica, Wikiviajes, iFixit en español and the most-read Spanish Wikipedia articles (5.5 GB), and `library-fr` the French equivalents (6.2 GB); `wikipedia-es-nopic` and `wikipedia-fr-nopic` add all of Spanish or French Wikipedia as text (about 13 GB each). When you write in Spanish or French, those books are searched with words in your language and the English books with English words, so a Spanish question finds *Quemadura* as well as *Burn*. Tried on the real Spanish medical Wikipedia with five first-aid questions: the right Spanish article came first or second every time, where an English-only search had it in its top four for two of them. [docs/I18N.md](docs/I18N.md) has the conventions, a glossary and how to add a language.
 
 ### Speed you can feel
 - **Sources first.** Source cards and a verbatim "From the source" quote appear as soon as retrieval returns, while the model is still reading.
@@ -100,6 +100,7 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - **Contributor guide, code of conduct, issue forms** (including one for wrong answers, which feed the eval set), and Dependabot.
 
 ### Fixed
+- French Wikivoyage, and any book Kiwix re-publishes with a letter after its date (`…_2026-07c.zim`), couldn't be downloaded: the catalog lookup didn't recognize the name.
 - Setup could unpack Windows' kiwix-tools into an empty folder, and still call it installed. Archives are now only flattened when every file shares one top folder, and an engine counts as installed only when its program is present.
 - Removing content or upgrading an engine while Mimi is running says to close Mimi first, instead of crashing halfway.
 - A fresh install crashed or failed 25 tests: selectolax 1.0 removed a module Core imports.

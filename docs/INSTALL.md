@@ -53,6 +53,13 @@ Tried it somewhere new? Open an issue with what worked and what didn't. It helps
 Every tier is just a list of **packs** (`manifests/lite.json`, `manifests/standard.json`,
 packs in `manifests/packs.json`). See them all with `content list`.
 
+**Books in Spanish or French** come on top of any tier: `content add library-es` (Wikipedia
+Médica, Wikiviajes, iFixit en español and the most-read Spanish Wikipedia articles, 5.5 GB)
+or `library-fr` (the French equivalents, 6.2 GB), and `wikipedia-es-nopic` or
+`wikipedia-fr-nopic` for all of that language's Wikipedia as text (about 13 GB each). When
+you write in Spanish or French, Mimi searches those books in your language and the English
+ones in English.
+
 **Plus and Max** add one bigger model to Standard. Mimi detects the hardware and picks the
 Plus or Max profile by itself (Settings → Intelligence shows which), and it uses the Standard
 models until the bigger one is installed; Settings then names the pack to add, for example

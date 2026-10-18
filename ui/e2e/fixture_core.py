@@ -139,7 +139,7 @@ class FixtureKiwix:
         b = await self.book(name)
         return (b, list(DOCS)) if b and b.kind == "documents" else (b, []) if b else None
 
-    async def search(self, q, collections=None, books=None, limit=5):
+    async def search(self, q, collections=None, books=None, limit=5, local=None):
         await asyncio.sleep(0.9 / self.speed)
         bt = {b.name: b.title for b in BOOKS}
         return [Hit(title=t, path=f"A/{t.replace(' ', '_')}", book=bk, book_title=bt[bk], collection=c, snippet=text[:160])

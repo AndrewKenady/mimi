@@ -72,6 +72,7 @@ class FakeKiwix:
         self.mains: dict[str, str] = {}
         self.search_results: dict[str, list[tuple[str, str, str]]] = {}  # book → [(path, title, snippet)]
         self.requests: list[str] = []
+        self.searches: list[tuple[str, list[str]]] = []  # (pattern, books) of every full-text search
 
     def add(self, book: str, path: str, body, ctype: str = "text/html"):
         self.content[(book, path)] = (body.encode() if isinstance(body, str) else body, ctype)
@@ -81,6 +82,7 @@ class FakeKiwix:
         self.requests.append(path)
         if path == "/search":
             books = request.url.params.get_list("books.name")
+            self.searches.append((request.url.params.get("pattern"), books))
             items = "".join(
                 f"<item><title>{t}</title><link>/content/{b}/{p}</link><description>{s}</description><wordCount>100</wordCount></item>"
                 for b in books for p, t, s in self.search_results.get(b, []))
@@ -399,6 +401,53 @@ def test_fusion_mixes_documents_with_xapian_and_follows_intent(tmp_path):
     run(go())
 
 
+def test_books_in_the_users_language_are_searched_in_it(tmp_path):
+    """A Spanish book is searched with the Spanish words, English books with the English ones, and
+    Spanish medical Wikipedia sits on the Medicine shelf."""
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    medes = book("wikipedia_es_medicine_maxi_2026-10", "Wikipedia Médica", articles=40_000, tags="_ftindex:yes", language="spa")
+    for b in (wiki, medes):
+        fake.mains[b.name] = "Main_Page"
+        fake.add(b.name, "Main_Page", "<h1>Main</h1><p>" + "Welcome. " * 50 + "</p>")
+    fake.search_results[wiki.name] = [("Burn", "Burn", "A burn is an injury to skin")]
+    fake.search_results[medes.name] = [("Quemadura", "Quemadura", "Una quemadura es una lesión de la piel")]
+    c = make_client(tmp_path, fake, [wiki, medes])
+    assert medes.collection == "medicine" and wiki.collection == "encyclopedia"
+
+    async def go():
+        hits = await c.search("burn first aid", limit=3, local=("spa", "quemadura primeros auxilios"))
+        assert sorted(fake.searches) == [("burn first aid", [wiki.name]), ("quemadura primeros auxilios", [medes.name])]
+        assert {(h.title, h.language) for h in hits} == {("Burn", "eng"), ("Quemadura", "spa")}
+        fake.searches.clear()
+        await c.search("burn first aid", limit=3)  # no local query: everything gets the English words, as before
+        assert sorted(fake.searches) == [("burn first aid", [wiki.name]), ("burn first aid", [medes.name])]
+
+    run(go())
+
+
+def test_a_full_wikipedia_hides_only_its_own_languages_small_edition(tmp_path, monkeypatch):
+    from mimi.db import Database
+    from mimi.events import EventBus
+    from mimi.kiwix import KiwixService, alias_of
+    from mimi.paths import Paths
+    from mimi.settings import SettingsStore
+
+    monkeypatch.setenv("MIMI_CONTENT", str(tmp_path / "content"))
+    paths = Paths(data_override=tmp_path / "data")
+    paths.zim.mkdir(parents=True, exist_ok=True)
+    svc = KiwixService(paths, SettingsStore(Database(paths.db_file)), EventBus())
+    import mimi.kiwix as K
+
+    monkeypatch.setattr(K, "zim_expected_size", lambda p: p.stat().st_size)  # any file counts as complete here
+    for n in ("wikipedia_en_all_nopic_2026-06", "wikipedia_en_top_nopic_2026-09", "wikipedia_es_top_nopic_2026-10"):
+        (paths.zim / f"{n}.zim").write_bytes(b"z" * 2048)  # under 1 KB is ignored
+    assert [f.stem for f in svc.zim_files()] == ["wikipedia_en_all_nopic_2026-06", "wikipedia_es_top_nopic_2026-10"]
+    (paths.zim / "wikipedia_es_all_nopic_2026-10.zim").write_bytes(b"z" * 2048)
+    assert [f.stem for f in svc.zim_files()] == ["wikipedia_en_all_nopic_2026-06", "wikipedia_es_all_nopic_2026-10"]
+    assert alias_of("wikivoyage_fr_all_maxi_2026-07c") == alias_of("wikivoyage_fr_all_maxi_2026-07") == "wikivoyage_fr_all_maxi"
+
+
 def test_semantic_rerank_uses_embeddings_and_survives_their_absence(tmp_path):
     fake = FakeKiwix()
     wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
@@ -548,7 +597,7 @@ def test_library_api_without_kiwix(client):
     assert client.get("/api/library/collection/nothing").status_code == 404
 
 
-def test_a_zim_cut_short_is_held_back_and_reported(tmp_path):
+def test_a_zim_cut_short_is_held_back_and_reported(tmp_path, monkeypatch):
     """A download that stopped early is never handed to kiwix-serve (which would list it, then fail);
     the owner is told which file and how much of it arrived."""
     import struct
@@ -558,6 +607,8 @@ def test_a_zim_cut_short_is_held_back_and_reported(tmp_path):
     from mimi.kiwix import KiwixService, zim_expected_size
     from mimi.paths import Paths
     from mimi.settings import SettingsStore
+
+    monkeypatch.setenv("MIMI_CONTENT", str(tmp_path / "content"))  # not the repo's own zim/ folder
 
     def zim(n_body: int) -> bytes:
         head = bytearray(80)

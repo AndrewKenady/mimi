@@ -33,6 +33,21 @@ from typing import Hashable, Iterable, Sequence
 STOPWORDS = set(
     "a an and are as at be by can do does for from how i if in into is it its me my of on or should the this to was what when where which who why will with you your".split()
 )
+# The little words of the other languages Mimi speaks, by Kiwix language code, for searching
+# books in those languages (title lookups, and keywords taken from the user's own words).
+STOPWORDS_BY_LANGUAGE = {
+    "eng": STOPWORDS,
+    "spa": set(
+        "a al algo como con cual cuando cuanto de del donde el ella en entre es esta este esto hay la las le les lo los mas me mi "
+        "mis muy no o para pero por que qué quien se si sin sobre su sus te tengo tu un una uno y ya yo cómo cuál cuándo dónde "
+        "debo debería puedo puede hacer hago está están son ser cuáles cuales quién quiénes cuánta cuántos cuántas".split()
+    ),
+    "fra": set(
+        "a à au aux avec ce ces cette comment dans de des du elle en est et il je la le les leur ma mes mon ne ni nous on ou où "
+        "par pas pour qu que quel quelle qui sa se ses si son sont sur ta te tu un une vos votre vous y est-ce faut dois peux "
+        "peut faire fait être quels quelles combien pourquoi quand".split()
+    ),
+}
 
 # Smaller K makes rank differences count for more; our lists are short (≤ 20),
 # so the textbook K = 60 would flatten them until the priors decided everything.
@@ -74,7 +89,7 @@ def stem(word: str) -> str:
 
 
 def tokens(text: str) -> list[str]:
-    return re.findall(r"[a-z0-9]+", text.lower())
+    return re.findall(r"[^\W_]+", text.lower())  # letters and digits, accented ones too ("reanimación")
 
 
 def query_terms(query: str) -> list[str]:

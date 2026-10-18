@@ -64,11 +64,14 @@ class FakeModels:
 
 
 class FakeKiwix:
+    local = None  # what the last search was given for books in the user's language
+
     async def books(self, include_disabled=False):
         return [SimpleNamespace(collection="medicine", name="wikimed", title="WikiMed"),
                 SimpleNamespace(collection="encyclopedia", name="wikipedia", title="Wikipedia")]
 
-    async def search(self, q, collections=None, books=None, limit=5):
+    async def search(self, q, collections=None, books=None, limit=5, local=None):
+        self.local = local
         return [Hit(title="Hypothermia", path="A/Hypothermia", book="wikimed", book_title="WikiMed Medical Encyclopedia", collection="medicine", snippet=""),
                 Hit(title="Frostbite", path="A/Frostbite", book="wikipedia", book_title="Wikipedia", collection="encyclopedia", snippet="")]
 
@@ -288,6 +291,21 @@ def test_a_spanish_turn_searches_in_english_and_speaks_spanish(svc):
     assert meta["grounding"]["mode"] == "numbers" and meta["grounding"]["language"] == "es"
     assert [(f["sentence"], f["reasons"]) for f in meta["grounding"]["flags"]] == [
         ("Dale bebidas a 60 °C.", ["número que no está en la fuente: 60"])]
+
+
+@pytest.mark.parametrize("args, local", [
+    ('{"query": "hypothermia treatment", "local_query": "hipotermia tratamiento"}', ("spa", "hipotermia tratamiento")),
+    ('{"query": "hypothermia treatment"}', ("spa", "trato hipotermia")),  # the model left it out: the user's own words, less the little ones
+])
+def test_books_in_the_users_language_get_a_query_in_it(svc, args, local):
+    search = {"calls": [{"id": "t1", "name": "search_library", "arguments": args}]}
+    run_turn(svc, [search, {"text": "Abrígala poco a poco [1]."}], content="¿Cómo trato la hipotermia?", mode="everyday")
+    assert svc.kiwix.local == local
+
+
+def test_an_english_turn_has_no_local_query(svc):
+    run_turn(svc, [SEARCH, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    assert svc.kiwix.local is None
 
 
 def test_a_missing_chat_is_reported_with_a_stable_code(svc):
