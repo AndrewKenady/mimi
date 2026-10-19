@@ -94,7 +94,7 @@ The release that makes Mimi checkable, installable anywhere and accessible.
 - **CI:**
   - Core tests and lint on Linux, Windows and macOS;
   - UI type checks and the contrast audit;
-  - 32 end-to-end tests (one switches the whole app to Spanish and French and back), axe scans and visual snapshots;
+  - 35 end-to-end tests (one switches the whole app to Spanish and French and back), axe scans and visual snapshots;
   - the eval scoreboard on fixtures;
   - a Windows shell build.
 - **Releases** ship SHA-256 sums and signed build-provenance attestations.
