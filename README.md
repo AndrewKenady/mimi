@@ -47,7 +47,7 @@ Small local models make things up, and in a field-medicine tool that matters mor
 | **Linux, macOS** | `curl -fsSL https://raw.githubusercontent.com/AndrewKenady/mimi/main/scripts/install.sh \| sh` |
 | **Windows 10/11** | `git clone https://github.com/AndrewKenady/mimi` then `powershell -ExecutionPolicy Bypass -File mimi\scripts\setup.ps1 -Tier lite` |
 | **Docker** | `docker compose up -d`, then `docker compose run --rm mimi content add lite` |
-| **Any PC, from a USB stick** | Write the [bootable USB image](docs/INSTALL.md#bootable-usb) to a stick and start the PC from it. Nothing to install; it downloads the Lite tier once it's online. |
+| **Any PC, from a USB stick** | Write the [bootable USB image](https://github.com/AndrewKenady/mimi/releases/latest) to a stick ([how](docs/INSTALL.md#bootable-usb)) and start the PC from it. Nothing to install; it downloads the Lite tier once it's online. |
 
 Then open **http://localhost:7600** (on Windows, `MIMI.exe` opens it full screen; the USB stick opens it by itself). No administrator rights are needed.
 
