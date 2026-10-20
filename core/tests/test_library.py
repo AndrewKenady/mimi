@@ -544,6 +544,28 @@ def test_kiwix_serve_starts_with_a_small_search_cache_and_enough_threads(tmp_pat
     assert 4 <= int(started["args"][started["args"].index("--threads") + 1]) <= 8
 
 
+def test_kiwix_serve_is_restarted_only_when_it_holds_too_much_and_the_library_is_idle(tmp_path, monkeypatch):
+    """libkiwix held 4-5 GB within an hour of searches on the F1; a fresh process gives it back."""
+    import time
+
+    import mimi.kiwix as K
+
+    fake = FakeKiwix()
+    c = make_client(tmp_path, fake, [])
+    svc = c.service
+    svc.alive = lambda: True
+    assert K.KiwixService.memory_limit() >= 1.5 * 2**30  # 12 % of this machine's RAM, at least 1.5 GB
+    monkeypatch.setattr(K.KiwixService, "memory_limit", staticmethod(lambda: 2 * 2**30))
+    held = {"bytes": 3 * 2**30}
+    monkeypatch.setattr(svc, "memory", lambda: held["bytes"])
+    run(K.KiwixClient._used(c, None))  # a request just now
+    assert not svc.needs_fresh_start()  # never in the middle of a search
+    svc.last_used = time.monotonic() - K.IDLE_BEFORE_RESTART - 1
+    assert svc.needs_fresh_start()
+    held["bytes"] = 1 * 2**30
+    assert not svc.needs_fresh_start()  # under the limit: leave it alone
+
+
 def test_a_full_wikipedia_hides_only_its_own_languages_small_edition(tmp_path, monkeypatch):
     from mimi.db import Database
     from mimi.events import EventBus

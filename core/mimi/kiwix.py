@@ -25,6 +25,7 @@ from typing import Awaitable, Callable
 from urllib.parse import quote, unquote, urljoin
 
 import httpx
+import psutil
 from selectolax.parser import HTMLParser, Node
 
 from . import i18n, log
@@ -38,6 +39,7 @@ from .settings import SettingsStore
 
 L = log.get("kiwix")
 PORT = int(os.environ.get("MIMI_KIWIX_PORT", "7620"))
+IDLE_BEFORE_RESTART = 15  # seconds without a library request before kiwix-serve may be restarted to free memory
 NS = {"a": "http://www.w3.org/2005/Atom"}
 
 # Collection = a friendly grouping used by the UI and by the search tool.
@@ -186,6 +188,7 @@ class KiwixService:
         self._task: asyncio.Task | None = None
         self._client: KiwixClient | None = None
         self.started_at = 0.0
+        self.last_used = 0.0  # time.monotonic() of the client's latest request
 
     @property
     def base(self) -> str:
@@ -268,6 +271,34 @@ class KiwixService:
     def alive(self) -> bool:
         return bool(self.proc and self.proc.alive())
 
+    # libkiwix holds on to memory as it searches (on the F1: 28-70 MB per full-text search, 4-5 GB within
+    # an hour), and none of its cache settings bounds all of it. A fresh process gives it back.
+    def memory(self) -> int:
+        """kiwix-serve's committed memory in bytes (resident memory where the OS reports no commit), 0 if unknown."""
+        try:
+            info = psutil.Process(self.proc.pid).memory_info() if self.proc and self.proc.pid else None
+        except psutil.Error:
+            return 0
+        return int(getattr(info, "private", 0) or info.rss) if info else 0
+
+    @staticmethod
+    def memory_limit() -> int:
+        """The committed memory at which kiwix-serve is restarted: 12 % of RAM, at least 1.5 GB."""
+        return max(int(1.5 * 2**30), int(0.12 * psutil.virtual_memory().total))
+
+    def needs_fresh_start(self) -> bool:
+        """Over its memory limit, and the library idle long enough that no search is cut short."""
+        return self.alive() and time.monotonic() - self.last_used > IDLE_BEFORE_RESTART and self.memory() > self.memory_limit()
+
+    async def fresh_start(self) -> None:
+        """The same books in a new kiwix-serve; the client's survey and indexing carry on."""
+        held = self.memory()
+        if self.proc:
+            await asyncio.to_thread(self.proc.stop)
+            self.proc = None
+        await self.start()
+        L.info("restarted kiwix-serve to give back %.1f GB it was holding", held / 2**30)
+
     def watch(self, client: KiwixClient) -> None:
         self._client = client
         client.refresh()  # survey the books and index their documents in the background
@@ -282,6 +313,8 @@ class KiwixService:
                         await self.restart()
                         client.invalidate()
                         client.refresh()
+                    elif self.needs_fresh_start():
+                        await self.fresh_start()
                 except Exception as e:  # keep watching no matter what
                     L.warning("kiwix watcher: %s", e)
 
@@ -293,7 +326,7 @@ class KiwixClient:
     def __init__(self, service: KiwixService, settings: SettingsStore, index: DocIndex | None = None, embedder: Embedder | None = None):
         self.service = service
         self.settings = settings
-        self.http = httpx.AsyncClient(timeout=httpx.Timeout(connect=3, read=30, write=10, pool=5))
+        self.http = httpx.AsyncClient(timeout=httpx.Timeout(connect=3, read=30, write=10, pool=5), event_hooks={"request": [self._used]})
         self._books: list[Book] | None = None
         self._books_at = 0.0
         self.index = index or DocIndex(service.paths.data / "library-index.sqlite")
@@ -307,6 +340,9 @@ class KiwixClient:
         self.worker_process = True  # extract PDF text in a separate process (tests use a thread)
         self._pool: ProcessPoolExecutor | None = None
         self._looked_up: set[str] = set()
+
+    async def _used(self, request: httpx.Request) -> None:
+        self.service.last_used = time.monotonic()  # kiwix-serve is only restarted while nothing is asking it
 
     def invalidate(self) -> None:
         self._books = None
