@@ -34,7 +34,7 @@ python\python.exe eval\run.py --model qwen3.5-9b
 python\python.exe eval\score.py eval\results\<date>-gemma-4-12b.jsonl --compare eval\results\<date>-qwen3.5-9b.jsonl
 ```
 
-Smaller runs: `--domain medicine,adversarial`, `--ids med-001,adv-012` or `--limit 10`. A run can be stopped and restarted at any time: it picks up where it left off (rows that errored are retried). Use `--fresh` to start over.
+Smaller runs: `--domain medicine,adversarial`, `--ids med-001,adv-012` or `--limit 10`. A run can be stopped and restarted at any time: it picks up where it left off (rows that errored are retried, and `score.py` counts only the newest row for each question). Use `--fresh` to start over.
 
 In Spanish or French: `--lang es` or `--lang fr` (ids then end in `-es` or `-fr`, e.g. `--ids med-001-es`). Results go to `<date>-<model>-es.jsonl`, and `score.py` scores them against the same language's set. Scores in different languages aren't comparable, so `--compare` only pairs runs in the same language.
 
