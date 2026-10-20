@@ -261,8 +261,9 @@ async def search_library(args: dict, st: TurnState, svc) -> ToolResult:
     if not hits and coll != "auto":
         hits = await svc.kiwix.search(q, collections=None, limit=n + 2, local=local)
     top = _dedupe_hits(hits)[:n]
+    pq = _passage_query(q, st.query)
     # a Spanish article's best paragraph is found with the Spanish words
-    passages = await asyncio.gather(*(svc.kiwix.passage(h, local[1] if local and h.language == local[0] else q, chars) for h in top),
+    passages = await asyncio.gather(*(svc.kiwix.passage(h, local[1] if local and h.language == local[0] else pq, chars) for h in top),
                                     return_exceptions=True)
     blocks, sources = [], []
     pages = 0
@@ -284,6 +285,18 @@ async def search_library(args: dict, st: TurnState, svc) -> ToolResult:
     text = "\n\n".join(blocks) + f"\n\nCite these as [n]. {UNTRUSTED_NOTE}"
     return ToolResult(text, label=f"Searched {where} for “{q}”", summary=_read_summary(len(sources) - pages, pages),
                       sources=sources, untrusted=True)
+
+
+def _passage_query(query: str, question: str) -> str:
+    """The words an article's paragraphs are picked with: the search query plus the user's own question.
+
+    The model's query finds the right article, but a few keywords can pick the wrong paragraph of it:
+    "disinfect water with bleach ratio" chose the 1:50 surface-cleaning dilution over the drinking-water
+    dose on the same page. The question says what the answer needs."""
+    question = " ".join(question.split())[:300]
+    if not question or question.lower() in query.lower():
+        return query
+    return f"{query} {question}"
 
 
 def _read_summary(articles: int, pages: int) -> str:
