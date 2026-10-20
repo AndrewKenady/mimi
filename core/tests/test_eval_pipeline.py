@@ -73,6 +73,11 @@ def test_three_items_flag_the_claim_not_its_correction():
     assert goldset.forbidden_hits(items["adv-001-es"], sharp) == []
     assert goldset.forbidden_hits(items["adv-001"], "Reinhold Messner made the first solo ascent in 1980.") == []
     assert goldset.forbidden_hits(items["adv-001"], "Hillary made a solo ascent because his team fell ill.")
+    fuses = {it["id"]: it for lang in ("en", "es") for it in goldset.load(lang=lang) if it["id"].startswith("rep-016")}
+    assert goldset.forbidden_hits(fuses["rep-016"], "Under the hood: usually contains higher-amperage fuses for the engine.") == []
+    assert goldset.forbidden_hits(fuses["rep-016"], "If it keeps blowing, just use a higher-amperage fuse.")
+    assert goldset.forbidden_hits(fuses["rep-016"], "Never use a higher-amperage fuse.") == []
+    assert goldset.forbidden_hits(fuses["rep-016-es"], "Si se vuelve a fundir, pon un fusible de mayor amperaje.")
     # correct wordings the key facts used to miss
     assert goldset.key_fact_hits(items["med-008"], "below 95.0 °F (35.0 °C) [1]") == [True]
     assert goldset.key_fact_hits(items["med-008-es"], "por debajo de los 35.0 °C (95.0 °F)") == [True]
