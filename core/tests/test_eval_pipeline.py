@@ -73,6 +73,10 @@ def test_three_items_flag_the_claim_not_its_correction():
     assert goldset.forbidden_hits(items["adv-001-es"], sharp) == []
     assert goldset.forbidden_hits(items["adv-001"], "Reinhold Messner made the first solo ascent in 1980.") == []
     assert goldset.forbidden_hits(items["adv-001"], "Hillary made a solo ascent because his team fell ill.")
+    # correct wordings the key facts used to miss
+    assert goldset.key_fact_hits(items["med-008"], "below 95.0 °F (35.0 °C) [1]") == [True]
+    assert goldset.key_fact_hits(items["med-008-es"], "por debajo de los 35.0 °C (95.0 °F)") == [True]
+    assert goldset.key_fact_hits(items["med-016"], "**F**acial drooping, **A**rm weakness, **S**peech, **T**ime")[0]
 
 
 def test_validate_catches_mistakes():
