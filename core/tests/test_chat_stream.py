@@ -6,6 +6,7 @@ The model and the library are faked so the whole turn loop runs in milliseconds.
 import asyncio
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from mimi.kiwix import Hit, Passage
@@ -41,12 +42,19 @@ class FakeModels:
         self.chat_proc = SimpleNamespace(alive=lambda: True)
         self.chat_ctx = 8192
         self.prompts = []
+        self.restarts = 0
+        self.dead = False
 
     def model_for(self, role):
         return self.spec
 
     async def ensure(self, spec):
-        pass
+        if self.dead:
+            self.restarts += 1
+            self.dead = False
+
+    async def died_during(self, err):
+        return self.dead
 
     async def chat_stream(self, spec, messages, **kw):
         self.prompts.append(list(messages))
@@ -55,6 +63,9 @@ class FakeModels:
             raise ModelError(step["raise"])
         for piece in step.get("text_pieces") or ([step["text"]] if step.get("text") else []):
             yield {"type": "content", "text": piece}
+        if step.get("crash"):  # llama-server ran out of graphics memory and exited
+            self.dead = True
+            raise httpx.ReadError("connection closed")
         if step.get("calls"):
             yield {"type": "tool_calls", "calls": step["calls"]}
         yield {"type": "done", "timings": step.get("timings") or {}}
@@ -174,6 +185,39 @@ def test_failed_turn_can_be_retried_from_the_user_message(svc):
     assert final["versions"]["count"] == 2  # the failed attempt stays as version 1
     thread = svc.chats.get_full(svc.ctx, chat_id)["messages"]
     assert [m["role"] for m in thread] == ["user", "assistant"]
+
+
+CRASH = {"crash": True}
+
+
+def test_a_model_that_crashes_under_the_prompt_is_restarted_and_asked_again(svc):
+    """It loaded, then ran out of graphics memory reading the prompt: the turn still gets its answer."""
+    evs = run_turn(svc, [CRASH, SEARCH, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    assert "error" not in [e["event"] for e in evs]
+    statuses = [e["data"] for e in evs if e["event"] == "status"]
+    assert [s["state"] for s in statuses] == ["thinking", "loading", "thinking", "searching", "reading", "writing"]
+    assert statuses[1]["label"] == "Restarting Gemma with lighter settings…"
+    assert svc.models.restarts == 1 and svc.models.prompts[0] == svc.models.prompts[1]  # the same question again
+    done = evs[-1]["data"]["message"]
+    assert done["content"] == "Warm the person slowly [1]." and not done["meta"]["error"]
+
+
+def test_a_crash_while_reading_the_sources_is_retried_too(svc):
+    evs = run_turn(svc, [SEARCH, CRASH, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    assert svc.models.restarts == 1
+    assert [e["data"]["state"] for e in evs if e["event"] == "status"][-3:] == ["loading", "thinking", "writing"]
+    assert evs[-1]["data"]["message"]["content"] == "Warm the person slowly [1]."
+
+
+@pytest.mark.parametrize("steps", [
+    [CRASH, CRASH],                                    # it crashed on the lighter settings too: one retry per turn
+    [{"crash": True, "text_pieces": ["Warm the "]}],   # it had begun answering: asking again would repeat it
+])
+def test_a_crash_that_is_not_retried_says_the_model_stopped(svc, steps):
+    evs = run_turn(svc, steps, content="How do you treat hypothermia?", mode="everyday")
+    err = next(e["data"] for e in evs if e["event"] == "error")
+    assert err["message"] == "The model stopped unexpectedly. It will restart on your next message."
+    assert svc.models.restarts == (1 if len(steps) == 2 else 0)
 
 
 def test_stop_keeps_partial_content(svc):
