@@ -97,6 +97,7 @@ The reference device has 16 GB of RAM; about 3 GB of that is carved out for the 
 
 - **One chat model resident.** Switching roles (main → reader) swaps llama-server processes, and the UI shows "Waking up…".
 - **Auto-fit.** `--fit on` lets llama.cpp choose how many layers go to the GPU, so a model still loads when other apps hold memory.
+- **A fallback ladder.** If a model won't start, Core tries again with a smaller context and more graphics memory left free, and finally on the CPU alone. A model that starts but then crashes (out of graphics memory on its first prompt, say) restarts one rung further down, and the answer it was writing is asked again once. Once the lighter settings have answered, the next fresh start tries the full ones again.
 - **Voice, OCR and embeddings run on the CPU.** Whisper and Kokoro unload after 8 idle minutes, and the embedding server after 15.
 
 ## Data layout

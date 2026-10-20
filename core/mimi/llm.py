@@ -11,6 +11,9 @@ Design
   (guests on the shared network see a "queued" state).
 * We let llama.cpp's `--fit` decide how many layers fit on the GPU, so a model
   still loads (partially on CPU) when other apps are holding memory.
+* A model can load and then run out of graphics memory on its first prompt. When
+  its process dies like that, its next start resumes one step down the fallback
+  ladder instead of repeating the settings that just crashed.
 """
 
 from __future__ import annotations
@@ -42,6 +45,10 @@ class ModelError(RuntimeError):
     pass
 
 
+def _settings_text(ctx: int, fit: int, cpu_only: bool) -> str:
+    return f"ctx {ctx}, " + ("CPU only" if cpu_only else f"{fit} MB graphics memory kept free")
+
+
 class ModelManager:
     def __init__(self, paths: Paths, catalog: Catalog, settings: SettingsStore, events: EventBus, hw: dict):
         self.paths = paths
@@ -52,6 +59,11 @@ class ModelManager:
         self.chat_proc: ManagedProcess | None = None
         self.chat_model: ModelSpec | None = None
         self.chat_ctx: int = 0
+        # the resident chat model's fallback ladder (wanted context, settings) and the rung it started on
+        self._chat_ladder: tuple[int, list[tuple[int, int, bool]]] = (0, [])
+        self.chat_attempt = 0
+        # model id → (wanted context, first rung to try): set when a started model crashed
+        self._resume: dict[str, tuple[int, int]] = {}
         self.embed_proc: ManagedProcess | None = None
         self.embed_model: ModelSpec | None = None
         self._embed_last_use = 0.0
@@ -162,21 +174,30 @@ class ModelManager:
             args += ["-ngl", "0"]
         return args
 
+    def _ladder(self, spec: ModelSpec) -> tuple[int, list[tuple[int, int, bool]]]:
+        """The wanted context and the (ctx, MB of graphics memory kept free, CPU only) settings to try, in order."""
+        want_ctx = int(min(self.settings.device("models").context, spec.get("context", 8192)))
+        small = max(spec.get("min_context", 4096), want_ctx // 2)
+        # When graphics memory is tight (other apps hold shared memory), each retry leaves
+        # more of it free, so llama.cpp keeps more layers on the CPU: slower, but it answers.
+        # The last resort is the CPU build alone.
+        return want_ctx, [(want_ctx, 768, False), (small, 1536, False), (small, 3072, False), (small, 0, True)]
+
     async def ensure(self, spec: ModelSpec) -> str:
         """Make sure `spec` is the resident chat model; returns its base URL."""
         async with self._switch_lock:
+            self.crashed()
             if self.chat_model and self.chat_model.id == spec.id and self.chat_proc and self.chat_proc.alive():
                 return f"http://127.0.0.1:{CHAT_PORT}"
             await self._stop_chat()
-            want_ctx = int(min(self.settings.device("models").context, spec.get("context", 8192)))
+            want_ctx, attempts = self._ladder(spec)
             self._set_state("loading", spec)
             t0 = time.time()
-            small = max(spec.get("min_context", 4096), want_ctx // 2)
-            # When graphics memory is tight (other apps hold shared memory), each retry leaves
-            # more of it free, so llama.cpp keeps more layers on the CPU: slower, but it answers.
-            # The last resort is the CPU build alone.
-            attempts = [(want_ctx, 768, False), (small, 1536, False), (small, 3072, False), (small, 0, True)]
-            for attempt, (ctx, fit, cpu_only) in enumerate(attempts):
+            # After a crash, start where the crashed settings left off (same wanted context only).
+            resume_ctx, first = self._resume.get(spec.id, (want_ctx, 0))
+            first = min(first, len(attempts) - 1) if resume_ctx == want_ctx else 0
+            for attempt in range(first, len(attempts)):
+                ctx, fit, cpu_only = attempts[attempt]
                 self.chat_ctx = ctx
                 args = self._chat_args(spec, ctx, fit, cpu_only)
                 proc = ManagedProcess(f"llama[{spec.id}]", args, cwd=self.paths.root, log_path=self.paths.logs / "llama-chat.log")
@@ -184,6 +205,7 @@ class ModelManager:
                 ok = await self._wait_ready(proc, CHAT_PORT, timeout=240)
                 if ok:
                     self.chat_proc, self.chat_model = proc, spec
+                    self.chat_attempt, self._chat_ladder = attempt, (want_ctx, attempts)
                     try:
                         props = (await self.client.get(f"http://127.0.0.1:{CHAT_PORT}/props", timeout=10)).json()
                         self.chat_ctx = int(props.get("default_generation_settings", {}).get("n_ctx") or ctx)
@@ -194,8 +216,7 @@ class ModelManager:
                     return f"http://127.0.0.1:{CHAT_PORT}"
                 tail = proc.tail(12)
                 proc.stop()
-                L.warning("%s failed to start with ctx %s, %s (attempt %s):\n%s", spec.id, ctx,
-                          "CPU only" if cpu_only else f"{fit} MB graphics memory kept free", attempt + 1, tail)
+                L.warning("%s failed to start with %s (attempt %s):\n%s", spec.id, _settings_text(ctx, fit, cpu_only), attempt + 1, tail)
             self.chat_model = None
             self._set_state("error", spec, error=f"{spec.name} could not start. Close other apps to free memory, or pick a smaller model.")
             raise ModelError(f"{spec.name} failed to load")
@@ -214,6 +235,40 @@ class ModelManager:
             await asyncio.sleep(0.4)
         return False
 
+    def crashed(self) -> bool:
+        """True if the resident chat model's process has exited on its own (Core did not stop it).
+
+        The first time that is noticed, the model's next start moves one rung down the ladder in
+        ensure(): llama-server can load fine and then run out of graphics memory on its first
+        prompt, and starting it again with the same settings would only crash it again.
+        """
+        proc, spec = self.chat_proc, self.chat_model
+        if not proc or proc.alive():
+            return False
+        if spec:  # not noticed yet
+            self.chat_model = None  # ensure() clears away the dead process and starts it again
+            want_ctx, attempts = self._chat_ladder  # as it was started (Settings may have changed since)
+            nxt = min(self.chat_attempt + 1, len(attempts) - 1)
+            self._resume[spec.id] = (want_ctx, nxt)
+            L.warning("%s exited unexpectedly with %s (attempt %s); it restarts with %s:\n%s", spec.id,
+                      _settings_text(*attempts[self.chat_attempt]), self.chat_attempt + 1, _settings_text(*attempts[nxt]), proc.tail(12))
+            self._set_state("error", error="The model stopped unexpectedly. It will restart on your next message.")
+        return True
+
+    async def died_during(self, err: BaseException) -> bool:
+        """Whether `err`, raised by a request to the chat model, came from its process dying under it."""
+        if isinstance(err, httpx.TransportError):
+            # The connection drops as the process goes down; give it a moment to finish exiting.
+            for _ in range(25):
+                if not (self.chat_proc and self.chat_proc.alive()):
+                    break
+                await asyncio.sleep(0.2)
+        return self.crashed()
+
+    def _answered(self, spec: ModelSpec) -> None:
+        # Its current settings work, so a later fresh start (after a model swap) tries the full ones again.
+        self._resume.pop(spec.id, None)
+
     async def _stop_chat(self) -> None:
         if self.chat_proc:
             proc, self.chat_proc = self.chat_proc, None
@@ -223,6 +278,7 @@ class ModelManager:
     async def unload(self) -> None:
         async with self._switch_lock:
             await self._stop_chat()
+            self._resume.clear()  # a settings change or a restart gives every model its full settings again
             self._set_state("idle")
 
     async def preload(self) -> None:
@@ -241,10 +297,7 @@ class ModelManager:
                     L.info("stopping idle embedding server")
                     await asyncio.to_thread(self.embed_proc.stop)
                     self.embed_proc = None
-                if self.chat_proc and not self.chat_proc.alive() and self.state.get("status") == "ready":
-                    L.warning("chat model process exited unexpectedly")
-                    self.chat_model = None
-                    self._set_state("error", error="The model stopped unexpectedly. It will restart on your next message.")
+                self.crashed()
 
         self._janitor = asyncio.create_task(loop())
 
@@ -331,6 +384,7 @@ class ModelManager:
                             slot["arguments"] += fn["arguments"]
                     if ch.get("finish_reason"):
                         finish = ch["finish_reason"]
+        self._answered(spec)
         if calls:
             out = []
             for i in sorted(calls):
@@ -347,6 +401,7 @@ class ModelManager:
         r = await self.client.post(f"{base}/v1/chat/completions", json=body)
         if r.status_code != 200:
             raise ModelError(f"model error {r.status_code}: {r.text[:300]}")
+        self._answered(spec)
         msg = r.json()["choices"][0]["message"]
         return msg.get("content") or ""
 

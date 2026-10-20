@@ -206,6 +206,14 @@ def _status(state: str, label: str, t_start: float, **extra) -> dict:
     return {"event": "status", "data": data}
 
 
+def _fit_history(messages: list[dict], n_history: int, ctx: int, max_out: int) -> int:
+    """Drop the oldest history (right after the system prompt) until the prompt fits `ctx`; returns how much is left."""
+    while n_history and sum(est_tokens(m.get("content") or "") for m in messages) + max_out > ctx - 256:
+        messages.pop(1)
+        n_history -= 1
+    return n_history
+
+
 def _join_names(names: list[str]) -> str:
     names = list(dict.fromkeys(tr(n) for n in names if n))
     if not names or len(names) > 3:
@@ -578,39 +586,58 @@ class ChatService:
             async with svc.models.gen_lock:
                 if svc.models.waiting:
                     svc.models.waiting = max(0, svc.models.waiting - 1)
+                n_history = len(history)
                 if not (svc.models.chat_model and svc.models.chat_model.id == spec.id and svc.models.chat_proc and svc.models.chat_proc.alive()):
                     yield _status("loading", tr("Waking up {name}…", name=spec.name), t_start)
                     await svc.models.ensure(spec)
-                    budget_ctx = svc.models.chat_ctx
                     # re-trim history if the model came up with a smaller context
-                    while len(messages) > 2 and sum(est_tokens(m.get("content") or "") for m in messages) + max_out > budget_ctx - 256:
-                        messages.pop(1)
+                    n_history = _fit_history(messages, n_history, svc.models.chat_ctx, max_out)
                 yield _status("thinking", tr("Thinking…"), t_start)
                 want_think = think if think is not None else svc.settings.device("models").think_harder
                 must_ground = (svc.kiwix_service.alive() and looks_factual(content) and not image_parts
                                and mode_id != "storyteller")
+                restarted = False
                 for step in range(MAX_STEPS):
                     avail = tools.schemas(state, svc) if step < MAX_STEPS - 1 else None
                     choice = "required" if (step == 0 and must_ground and avail) else "auto"
                     if step == 0:
                         first_tools = avail
-                    step_text = ""
-                    calls = None
-                    async for ev in svc.models.chat_stream(spec, messages, tools=avail, max_tokens=max_out, think=bool(want_think),
-                                                           cancel=cancel, tool_choice=choice):
-                        if ev["type"] == "content":
-                            if not step_text:
-                                yield _status("writing", tr("Writing the answer…"), t_start)
-                            step_text += ev["text"]
-                            yield {"event": "delta", "data": {"text": ev["text"]}}
-                        elif ev["type"] == "reasoning":
-                            reasoning += ev["text"]
-                            yield {"event": "reasoning", "data": {"text": ev["text"]}}
-                        elif ev["type"] == "tool_calls":
-                            calls = ev["calls"]
-                        elif ev["type"] == "done":
-                            timings = ev.get("timings") or timings
-                            self.note_speed(spec.id, ev.get("timings") or {})
+                    while True:
+                        step_text = ""
+                        calls = None
+                        reasoned = len(reasoning)
+                        try:
+                            async for ev in svc.models.chat_stream(spec, messages, tools=avail, max_tokens=max_out, think=bool(want_think),
+                                                                   cancel=cancel, tool_choice=choice):
+                                if ev["type"] == "content":
+                                    if not step_text:
+                                        yield _status("writing", tr("Writing the answer…"), t_start)
+                                    step_text += ev["text"]
+                                    yield {"event": "delta", "data": {"text": ev["text"]}}
+                                elif ev["type"] == "reasoning":
+                                    reasoning += ev["text"]
+                                    yield {"event": "reasoning", "data": {"text": ev["text"]}}
+                                elif ev["type"] == "tool_calls":
+                                    calls = ev["calls"]
+                                elif ev["type"] == "done":
+                                    timings = ev.get("timings") or timings
+                                    self.note_speed(spec.id, ev.get("timings") or {})
+                        except Exception as e:
+                            # The model can load fine and then run out of graphics memory on a prompt. If its
+                            # process died before it said anything, restart it once with lighter settings and
+                            # ask again, rather than end the turn with an error.
+                            if cancel.is_set() or not await svc.models.died_during(e):
+                                raise
+                            if restarted or step_text or len(reasoning) > reasoned:
+                                raise ModelError("The model stopped unexpectedly. It will restart on your next message.") from e
+                            restarted = True
+                            L.warning("%s crashed while answering (%s); restarting it with lighter settings", spec.id, type(e).__name__)
+                            yield _status("loading", tr("Restarting {name} with lighter settings…", name=spec.name), t_start)
+                            await svc.models.ensure(spec)
+                            n_history = _fit_history(messages, n_history, svc.models.chat_ctx, max_out)
+                            yield _status("thinking", tr("Thinking…"), t_start)
+                            continue
+                        break
                     answer += step_text
                     if cancel.is_set() or not calls:
                         break

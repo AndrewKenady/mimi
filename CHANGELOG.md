@@ -2,6 +2,11 @@
 
 All notable changes to Mimi. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/) once 1.0 ships. Tagged releases publish the top section as their notes.
 
+## [Unreleased]
+
+### Fixed
+- **A model that runs out of graphics memory on its first prompt no longer crash-loops.** On a 16 GB handheld, Gemma 4 12B could load fine and then crash reading the prompt; Core restarted it with the same settings, and it crashed again on every message. Now it restarts with a smaller context and more graphics memory left free (CPU only as the last resort), and the question is asked again once instead of ending in "Something went wrong".
+
 ## [0.2.0] — 2026-10-18
 
 The release that makes Mimi checkable, installable anywhere and accessible.
