@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import json
 import re
 import time
 from pathlib import Path
@@ -212,6 +213,47 @@ def _fit_history(messages: list[dict], n_history: int, ctx: int, max_out: int) -
         messages.pop(1)
         n_history -= 1
     return n_history
+
+
+_UNTRUSTED_BLOCK = re.compile(f"({re.escape(persona.UNTRUSTED_BEGIN)}[^\\n]*>>>\\n)(.*?)(\\n{re.escape(persona.UNTRUSTED_END)})", re.S)
+
+
+def _cut(text: str, keep: float) -> str:
+    n = int(len(text) * keep)
+    return text if n >= len(text) else (text[:n].rsplit(" ", 1)[0] or text[:n]) + " …"
+
+
+def _shorten_result(text: str, keep: float) -> str:
+    """A tool result cut to about `keep` of its length; outside passages are cut inside their own markers."""
+    if _UNTRUSTED_BLOCK.search(text):
+        return _UNTRUSTED_BLOCK.sub(lambda m: m.group(1) + _cut(m.group(2), keep) + m.group(3), text)
+    return _cut(text, keep)
+
+
+def _fit_turn(messages: list[dict], tools_: list[dict] | None, ctx: int, max_out: int, room: float = 1.0) -> tuple[list[dict] | None, int]:
+    """Keep one step's prompt inside the model's context; returns the tools to offer and the answer length.
+
+    The history is fitted before the turn, but every tool call adds its results and the tool
+    definitions take room too: at the 4096-token context the F1 falls back to, a turn with a few
+    searches overflowed it and the answer failed. Shorten the longest results first, then stop
+    offering tools, then allow a shorter answer. `room` below 1 leaves more slack."""
+    limit = int(ctx * room) - 256
+
+    def size() -> int:
+        return sum(est_tokens(m.get("content") or "") for m in messages) + (est_tokens(json.dumps(tools_)) if tools_ else 0) + max_out
+
+    while size() > limit:
+        results = [m for m in messages if m.get("role") == "tool" and len(m.get("content") or "") > 600]
+        if results:
+            longest = max(results, key=lambda m: len(m["content"]))
+            longest["content"] = _shorten_result(longest["content"], 0.6)
+        elif tools_:
+            tools_ = None
+        elif max_out > 400:
+            max_out = max(400, max_out - (size() - limit))
+        else:
+            break
+    return tools_, max_out
 
 
 def _join_names(names: list[str]) -> str:
@@ -603,12 +645,15 @@ class ChatService:
                     choice = "required" if (step == 0 and must_ground and avail) else "auto"
                     if step == 0:
                         first_tools = avail
+                    squeezed = False  # the server said the prompt was still too long: fit it with more slack
                     while True:
                         step_text = ""
                         calls = None
                         reasoned = len(reasoning)
+                        step_tools, step_out = _fit_turn(messages, avail, svc.models.chat_ctx or spec.get("context", 8192), max_out,
+                                                         0.8 if squeezed else 1.0)
                         try:
-                            async for ev in svc.models.chat_stream(spec, messages, tools=avail, max_tokens=max_out, think=bool(want_think),
+                            async for ev in svc.models.chat_stream(spec, messages, tools=step_tools, max_tokens=step_out, think=bool(want_think),
                                                                    cancel=cancel, tool_choice=choice):
                                 if ev["type"] == "content":
                                     if not step_text:
@@ -624,6 +669,10 @@ class ChatService:
                                     timings = ev.get("timings") or timings
                                     self.note_speed(spec.id, ev.get("timings") or {})
                         except Exception as e:
+                            if "exceed_context_size" in str(e) and not squeezed and not step_text:
+                                squeezed = True  # our token estimate ran short: shorten the results more and ask again
+                                L.warning("%s: prompt longer than the context; shortening the tool results", spec.id)
+                                continue
                             # The model can load fine and then run out of graphics memory on a prompt. If its
                             # process died before it said anything, restart it once with lighter settings and
                             # ask again, rather than end the turn with an error.

@@ -4,6 +4,7 @@ The model and the library are faked so the whole turn loop runs in milliseconds.
 """
 
 import asyncio
+import json
 from types import SimpleNamespace
 
 import httpx
@@ -119,6 +120,32 @@ def run_turn(svc, steps, chat_id=None, **kw):
         return [ev async for ev in svc.chats.send(svc.ctx, chat_id, **kw)]
 
     return asyncio.run(go())
+
+
+def test_a_turn_with_several_searches_is_fitted_into_a_small_context():
+    """At the 4096-token context the F1 falls back to, three searches overflowed the prompt (4112 > 4096)."""
+    from mimi import chat, tools
+
+    passage = "Carbon-14 has a half-life of about 5,730 years. " * 40
+    result = "\n\n".join(f"[{n}] Carbon-14 — Wikipedia\n" + tools.untrusted(passage, "Wikipedia: Carbon-14") for n in (1, 2, 3))
+    messages = [{"role": "system", "content": "rules " * 900}, {"role": "user", "content": "What is the half-life of carbon-14?"}]
+    for i in range(3):
+        messages += [{"role": "assistant", "content": "", "tool_calls": []}, {"role": "tool", "tool_call_id": f"t{i}", "content": result}]
+    schema = [{"type": "function", "function": {"name": "search_library", "description": "Search the library " * 20}}]
+    offered, max_out = chat._fit_turn(messages, schema, 4096, 1400)
+    total = sum(chat.est_tokens(m["content"]) for m in messages) + (chat.est_tokens(json.dumps(offered)) if offered else 0) + max_out
+    assert total <= 4096 - 256
+    for m in messages[2:]:
+        if m["role"] == "tool":  # every passage still sits inside its own markers
+            assert m["content"].count("<<<BEGIN UNTRUSTED") == m["content"].count("<<<END UNTRUSTED>>>") == 3
+            assert "half-life of about 5,730 years" in m["content"]
+
+
+def test_a_prompt_the_server_finds_too_long_is_shortened_and_asked_again(svc):
+    too_long = {"raise": 'model error 400: {"error":{"code":400,"type":"exceed_context_size_error","n_ctx":4096}}'}
+    evs = run_turn(svc, [SEARCH, too_long, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    done = next(e for e in evs if e["event"] == "done")["data"]["message"]
+    assert done["content"] == "Warm the person slowly [1]." and not done["meta"].get("error")
 
 
 def test_a_turn_that_ends_without_a_word_is_asked_once_more_without_tools(svc):
