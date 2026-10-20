@@ -151,14 +151,15 @@ def score_retrieval(item: dict, row: dict) -> dict:
 
 
 # --------------------------------------------------------------------------- aggregation
+# Six places: the report rounds once more, to one decimal of a percent (0.86747 → 86.7 %, not 0.8675 → 86.8 %).
 def _mean(xs) -> float | None:
     xs = [x for x in xs if x is not None]
-    return round(sum(xs) / len(xs), 4) if xs else None
+    return round(sum(xs) / len(xs), 6) if xs else None
 
 
 def _rate(xs) -> float | None:
     xs = [bool(x) for x in xs if x is not None]
-    return round(sum(xs) / len(xs), 4) if xs else None
+    return round(sum(xs) / len(xs), 6) if xs else None
 
 
 def percentile(xs, p: float) -> float | None:
@@ -178,6 +179,7 @@ def agg_chat(rows: list[dict]) -> dict:
         "forbidden_violations": sum(1 for r in ok if r["violations"]),
         "behavior_accuracy": _rate(r["behavior_ok"] for r in ok),
         "faithfulness": _mean(r["faithfulness"] for r in ok),
+        "faithfulness_n": sum(1 for r in ok if r["faithfulness"] is not None),  # answers the lexical check could read
         "citation_precision": _mean(r["citation_precision"] for r in ok),
         "citation_coverage": _mean(r["coverage"] for r in ok),
         "answers_with_citations": _rate(r["citations"] > 0 for r in ok if r["expected"] == "answer"),
@@ -226,7 +228,22 @@ def group(rows: list[dict], key: Callable[[dict], Any], fn: Callable[[list[dict]
     return {k: fn(v) for k, v in sorted(buckets.items())}
 
 
+def latest_rows(rows: list[dict]) -> list[dict]:
+    """One row per question and repeat. Resuming a run asks again every question whose row errored and
+    appends the new row, so only the newest one counts; a later error never hides an earlier answer."""
+    by_key: dict[tuple, dict] = {}
+    for r in rows:
+        key = (r.get("kind", "chat"), r.get("id"), int(r.get("rep", 0)))
+        if key in by_key and r.get("error") and not by_key[key].get("error"):
+            continue
+        by_key[key] = r
+    return list(by_key.values())
+
+
 def summarize(items: list[dict], rows: list[dict], *, judge: Judge | None = None, embed=None, source: str = "") -> dict:
+    superseded = len(rows)
+    rows = latest_rows(rows)
+    superseded -= len(rows)
     by_id = {it["id"]: it for it in items}
     unknown = sorted({r["id"] for r in rows if r.get("id") not in by_id})
     chat = [score_chat(by_id[r["id"]], r, judge=judge, embed=embed) for r in rows if r.get("kind", "chat") == "chat" and r.get("id") in by_id]
@@ -241,6 +258,7 @@ def summarize(items: list[dict], rows: list[dict], *, judge: Judge | None = None
         "mimi_versions": sorted({r.get("mimi_version") for r in rows if r.get("mimi_version")}),
         "devices": sorted({r.get("device") for r in rows if r.get("device")}),
         "question_set": len(items), "unknown_ids": unknown, "judge": bool(judge), "embeddings": bool(embed),
+        "superseded_rows": superseded,
     }
     if chat:
         s["chat"] = {"overall": agg_chat(chat), "by_domain": group(chat, lambda r: r["domain"], agg_chat),
@@ -323,6 +341,10 @@ CHAT_ROWS = [
 def _cell(m: dict, key, kind: str) -> str:
     if isinstance(key, tuple):
         return " / ".join(_f(m.get(k), kind) for k in key)
+    answered, read = m.get("n", 0) - m.get("errors", 0), m.get("faithfulness_n")
+    if key in ("faithfulness", "citation_coverage") and read is not None and 0 < read < answered:
+        # in a Spanish or French run, only the answers that came out in English get the lexical check
+        return f"{_f(m.get(key), kind)} ({read} of {answered} answers)"
     return _f(m.get(key), kind)
 
 
@@ -340,6 +362,9 @@ def render(s: dict) -> str:
            + (" · LLM judge on" if s["judge"] else "") + (" · embedding-assisted grounding" if s["embeddings"] else ""), ""]
     if s["unknown_ids"]:
         out += [f"> Rows for ids not in the question set were ignored: {', '.join(s['unknown_ids'][:10])}", ""]
+    if s.get("superseded_rows"):
+        out += [f"> {s['superseded_rows']} rows that errored were asked again when the run resumed; only the newest row per "
+                "question counts.", ""]
     if any(r.get("grounding") == "numbers" for r in s["rows"]):
         out += ["> Answers in Spanish or French get a numbers-only citation check (words can't be compared with the English "
                 "sources), so citation faithfulness and coverage are not measured for them. Scores in different languages "
@@ -357,7 +382,7 @@ def render(s: dict) -> str:
                 "|---|---|---|---|---|---|---|---|"]
         for d, m in c["by_domain"].items():
             out.append(f"| {d} | {m['n']} | {_f(m['pass_rate'])} | {_f(m['key_fact_recall'])} | {_f(m['behavior_accuracy'])} | "
-                       f"{_f(m['faithfulness'])} | {_f(m['source_title_hit'])} | {_f(m['total_p50_ms'], 'ms')} |")
+                       f"{_cell(m, 'faithfulness', 'pct')} | {_f(m['source_title_hit'])} | {_f(m['total_p50_ms'], 'ms')} |")
         if c["by_tag"]:
             out += ["", "### Adversarial and safety tags", "", "| Tag | n | Pass | Behavior | Forbidden claims |", "|---|---|---|---|---|"]
             for t, m in c["by_tag"].items():
