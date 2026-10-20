@@ -230,7 +230,10 @@ class KiwixService:
             L.info("no ZIM files yet; kiwix-serve not started")
             self.events.publish("library", {"status": "empty", "books": 0}, sticky=True)
             return
-        args = [str(exe), "--address", "127.0.0.1", "--port", str(PORT), "--threads", "4", "-n", "-m", "-b", "-k", "-z",
+        # A search sends kiwix-serve dozens of title lookups next to its full-text query; more threads
+        # keep them from queueing behind each other (4 to 8, by core count).
+        threads = max(4, min(8, os.cpu_count() or 4))
+        args = [str(exe), "--address", "127.0.0.1", "--port", str(PORT), "--threads", str(threads), "-n", "-m", "-b", "-k", "-z",
                 "--attachToProcess", str(os.getpid()), *[str(f) for f in self.files]]
         self.proc = ManagedProcess("kiwix-serve", args, cwd=self.paths.root, log_path=self.paths.logs / "kiwix.log")
         self.proc.start()
