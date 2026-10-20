@@ -235,7 +235,11 @@ class KiwixService:
         threads = max(4, min(8, os.cpu_count() or 4))
         args = [str(exe), "--address", "127.0.0.1", "--port", str(PORT), "--threads", str(threads), "-n", "-m", "-b", "-k", "-z",
                 "--attachToProcess", str(os.getpid()), *[str(f) for f in self.files]]
-        self.proc = ManagedProcess("kiwix-serve", args, cwd=self.paths.root, log_path=self.paths.logs / "kiwix.log")
+        # libkiwix keeps every recent full-text search in memory, about 70 MB each over the English
+        # books; on the F1 that reached 5 GB of commit in an hour and starved the model. Two is plenty:
+        # Mimi doesn't page through results.
+        self.proc = ManagedProcess("kiwix-serve", args, cwd=self.paths.root, log_path=self.paths.logs / "kiwix.log",
+                                   env={"KIWIX_SEARCH_CACHE_SIZE": "2"})
         self.proc.start()
         async with httpx.AsyncClient() as c:
             for _ in range(100):

@@ -513,6 +513,37 @@ def test_a_title_redirect_becomes_its_article_and_a_small_part_of_the_question_n
     run(go())
 
 
+def test_kiwix_serve_starts_with_a_small_search_cache_and_enough_threads(tmp_path, monkeypatch):
+    """libkiwix kept ~70 MB per recent full-text search; on the F1 it reached 5 GB and starved the model."""
+    import mimi.kiwix as K
+    from mimi.db import Database
+    from mimi.events import EventBus
+    from mimi.paths import Paths
+    from mimi.settings import SettingsStore
+
+    paths = Paths(data_override=tmp_path / "data")
+    svc = K.KiwixService(paths, SettingsStore(Database(paths.db_file)), EventBus())
+    exe = tmp_path / "kiwix-serve.exe"
+    exe.write_bytes(b"")
+    monkeypatch.setattr(paths, "exe", lambda *a: exe)
+    monkeypatch.setattr(svc, "zim_files", lambda: [tmp_path / "wikipedia_en_all_maxi_2026-08.zim"])
+    started = {}
+
+    class Proc:
+        def __init__(self, name, args, cwd=None, log_path=None, env=None):
+            started.update(args=args, env=env)
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(K, "ManagedProcess", Proc)
+    ok, real = httpx.MockTransport(lambda r: httpx.Response(200, text="<feed/>")), httpx.AsyncClient
+    monkeypatch.setattr(K.httpx, "AsyncClient", lambda *a, **k: real(transport=ok))
+    run(svc.start())
+    assert started["env"] == {"KIWIX_SEARCH_CACHE_SIZE": "2"}
+    assert 4 <= int(started["args"][started["args"].index("--threads") + 1]) <= 8
+
+
 def test_a_full_wikipedia_hides_only_its_own_languages_small_edition(tmp_path, monkeypatch):
     from mimi.db import Database
     from mimi.events import EventBus
