@@ -452,8 +452,9 @@ def test_titles_are_found_as_the_question_words_them(tmp_path):
     async def go():
         assert await titles("What is the speed of light in a vacuum?") == ["Speed of light"]
         assert await titles("speed of light") == ["Speed of light"]
-        assert await titles("Since the Great Wall of China is visible from the Moon, how wide is it?") == ["Great Wall of China"]
-        assert await titles("What is the capital of Australia?") == ["Capital of Australia"]
+        wall = await titles("Since the Great Wall of China is visible from the Moon, how wide is it?")
+        assert wall[0] == "Great Wall of China" and "Great Wall (China)" not in wall  # longest first; search() vets "Since"
+        assert (await titles("What is the capital of Australia?"))[0] == "Capital of Australia"
         assert await titles("picadura abeja", (medes,), "spa") == ["Picadura de abeja"]
 
     run(go())
@@ -471,6 +472,22 @@ def test_a_one_word_title_needs_the_full_text_search_to_agree(tmp_path):
         assert [h.title for h in await c._title_hits("Since when is hypothermia dangerous?", [wiki])] == ["Since", "Hypothermia"]
         hits = await c.search("Since when is hypothermia dangerous?", limit=3)
         assert hits[0].title == "Hypothermia" and "Since" not in [h.title for h in hits]
+
+    run(go())
+
+
+def test_a_generic_title_does_not_hide_the_topics_own(tmp_path):
+    """Models add "first aid" to their queries: the "First aid" article must not crowd out "Nosebleed"."""
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    fake.titles[wiki.name] = [("First_aid", "First aid"), ("Nosebleed", "Nosebleed")]
+    fake.search_results[wiki.name] = [("Nosebleed", "Nosebleed", "A nosebleed is bleeding from the nose"),
+                                      ("Epistaxis_care", "Epistaxis care", "Lean forward and pinch the nose")]
+    c = make_client(tmp_path, fake, [wiki])
+
+    async def go():
+        hits = await c.search("how to stop a nosebleed first aid", limit=3)
+        assert hits[0].title == "Nosebleed"
 
     run(go())
 

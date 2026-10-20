@@ -743,6 +743,7 @@ class KiwixClient:
         found = {(h.book, h.path) for g in groups if isinstance(g, list) for h in g}
         titled = [h for matched, h in pairs
                   if _title_is_topic(matched, local_q if lang and h.language == lang else query) or (h.book, h.path) in found]
+        titled = sorted(titled, key=lambda h: (h.book, h.path) not in found)[:2]  # the ones full-text search agrees with first
         index: dict[tuple, Hit] = {}
 
         def ranked(name: str, hits, weight: float) -> R.RankedList:
@@ -812,33 +813,33 @@ class KiwixClient:
             return []
         qraw = " " + " ".join(raw) + " "
         qbare = " " + " ".join(w for w in raw if w not in stop) + " "
+        # Every run at once, longest first: a generic title ("First aid") must not hide the topic's
+        # own ("Nosebleed" in "how to stop a nosebleed first aid"); search() picks among them.
+        terms: list[str] = []
         for n in range(min(4, len(content)), 0, -1):
-            terms: list[str] = []
             for s in range(len(content) - n + 1):
                 term = " ".join(raw[content[s]:content[s + n - 1] + 1])
                 if (n > 1 or len(term) >= 5) and term not in terms:
                     terms.append(term)
-            pairs = [(t, b) for t in terms for b in top]
-            got = await asyncio.gather(*(self.suggest(t, b.name, 8) for t, b in pairs), return_exceptions=True)
-            out: list[Hit] = []
-            seen: set[tuple[str, str]] = set()
-            for (_, b), res in zip(pairs, got):
-                for s in res if isinstance(res, list) else []:
-                    t = (s.get("title") or "").strip()
-                    tw = re.findall(r"[^\W_][\w'’-]*", t.lower())
-                    bare = [w for w in tw if w not in stop]
-                    traw, tbare = " " + " ".join(tw) + " ", " " + " ".join(bare) + " "
-                    if not (t and s.get("path") and len(tbare.strip()) >= 4) or (b.name, tbare) in seen:
-                        continue
-                    # without its little words only when they sit inside it ("Picadura de abeja", not "Childhood ME")
-                    inside = len(bare) < len(tw) and tw[0] not in stop and tw[-1] not in stop
-                    if traw in qraw or (inside and tbare in qbare):
-                        seen.add((b.name, tbare))
-                        out.append(Hit(title=t, path=s["path"], book=b.name, book_title=b.title, collection=b.collection, snippet="",
-                                       score=2.0, language=b.language))
-            if out:
-                return out[:2]
-        return []
+        pairs = [(t, b) for t in terms for b in top]
+        got = await asyncio.gather(*(self.suggest(t, b.name, 8) for t, b in pairs), return_exceptions=True)
+        out: list[Hit] = []
+        seen: set[tuple[str, str]] = set()
+        for (_, b), res in zip(pairs, got):
+            for s in res if isinstance(res, list) else []:
+                t = (s.get("title") or "").strip()
+                tw = re.findall(r"[^\W_][\w'’-]*", t.lower())
+                bare = [w for w in tw if w not in stop]
+                traw, tbare = " " + " ".join(tw) + " ", " " + " ".join(bare) + " "
+                if not (t and s.get("path") and len(tbare.strip()) >= 4) or (b.name, tbare) in seen:
+                    continue
+                # without its little words only when they sit inside it ("Picadura de abeja", not "Childhood ME")
+                inside = len(bare) < len(tw) and tw[0] not in stop and tw[-1] not in stop
+                if traw in qraw or (inside and tbare in qbare):
+                    seen.add((b.name, tbare))
+                    out.append(Hit(title=t, path=s["path"], book=b.name, book_title=b.title, collection=b.collection, snippet="",
+                                   score=2.0, language=b.language))
+        return out[:6]
 
     async def _resolve_redirects(self, hits: list[Hit]) -> list[tuple[str, Hit]]:
         """(title as matched, hit) with each hit pointing at the article its title redirects to.
