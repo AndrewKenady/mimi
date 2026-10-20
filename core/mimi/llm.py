@@ -95,6 +95,20 @@ class ModelManager:
     def _threads(self) -> int:
         return max(2, int(self.hw.get("cores") or 4))
 
+    def _cache_ram_mib(self) -> int:
+        """Size of llama-server's prompt cache in system memory (--cache-ram).
+
+        llama.cpp keeps earlier prompts' KV state in RAM, up to 8 GiB by default. On a 16 GB
+        handheld that cache grows next to a ~9 GB model until a turn fails to allocate memory
+        and the server crashes (seen on the F1 after 20–80 minutes of questions). A few cached
+        prompts (~100–150 MB each) are plenty with one slot; bigger machines keep more."""
+        gb = float(self.hw.get("ram_installed_gb") or self.hw.get("ram_total_gb") or 16)
+        if gb <= 16:
+            return 512
+        if gb <= 32:
+            return 2048
+        return 8192
+
     # ------------------------------------------------------------------ status
     def _set_state(self, status: str, model: ModelSpec | None = None, error: str | None = None) -> None:
         self.state = {
@@ -137,6 +151,7 @@ class ModelManager:
             "--jinja",
             "--no-webui",
             "--cache-reuse", "256",
+            "--cache-ram", str(self._cache_ram_mib()),
             "--fit", "on",
             "--fit-target", str(fit_target),
             "--reasoning-format", "deepseek",
