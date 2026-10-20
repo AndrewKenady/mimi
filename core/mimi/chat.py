@@ -597,8 +597,9 @@ class ChatService:
                 must_ground = (svc.kiwix_service.alive() and looks_factual(content) and not image_parts
                                and mode_id != "storyteller")
                 restarted = False
+                asked_again = False  # the model ended a turn without a word and was asked once more
                 for step in range(MAX_STEPS):
-                    avail = tools.schemas(state, svc) if step < MAX_STEPS - 1 else None
+                    avail = tools.schemas(state, svc) if step < MAX_STEPS - 1 and not asked_again else None
                     choice = "required" if (step == 0 and must_ground and avail) else "auto"
                     if step == 0:
                         first_tools = avail
@@ -639,8 +640,17 @@ class ChatService:
                             continue
                         break
                     answer += step_text
-                    if cancel.is_set() or not calls:
+                    if cancel.is_set():
                         break
+                    if not calls:
+                        if answer.strip() or asked_again or step >= MAX_STEPS - 1:
+                            break
+                        # The model ended the turn without a word (seen on the F1 right after reading search
+                        # results): ask once more, without tools, so it writes the answer from what it read.
+                        asked_again = True
+                        L.warning("%s ended its turn without an answer; asking once more without tools", spec.id)
+                        yield _status("thinking", tr("Thinking…"), t_start)
+                        continue
                     messages.append({"role": "assistant", "content": step_text or "",
                                      "tool_calls": [{"id": c["id"], "type": "function", "function": {"name": c["name"], "arguments": c["arguments"] or "{}"}} for c in calls]})
                     images: list[str] = []

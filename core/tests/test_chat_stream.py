@@ -42,6 +42,7 @@ class FakeModels:
         self.chat_proc = SimpleNamespace(alive=lambda: True)
         self.chat_ctx = 8192
         self.prompts = []
+        self.tools = []  # the tools offered on each call
         self.restarts = 0
         self.dead = False
 
@@ -58,6 +59,7 @@ class FakeModels:
 
     async def chat_stream(self, spec, messages, **kw):
         self.prompts.append(list(messages))
+        self.tools.append(kw.get("tools"))
         step = self.steps.pop(0) if self.steps else {"text": "…"}
         if step.get("raise"):
             raise ModelError(step["raise"])
@@ -117,6 +119,17 @@ def run_turn(svc, steps, chat_id=None, **kw):
         return [ev async for ev in svc.chats.send(svc.ctx, chat_id, **kw)]
 
     return asyncio.run(go())
+
+
+def test_a_turn_that_ends_without_a_word_is_asked_once_more_without_tools(svc):
+    """On the F1 the model once read its search results and then wrote nothing: an empty answer, no error."""
+    silent = {"timings": {"predicted_n": 28}}
+    evs = run_turn(svc, [SEARCH, silent, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    done = next(e for e in evs if e["event"] == "done")["data"]["message"]
+    assert done["content"] == "Warm the person slowly [1]."
+    assert svc.models.tools[1] and svc.models.tools[2] is None  # the second try can only write
+    evs = run_turn(svc, [SEARCH, silent, silent], content="How do you treat hypothermia?", mode="everyday")
+    assert len(svc.models.prompts) == 3  # asked once more, not forever
 
 
 def test_sources_and_preview_arrive_before_the_answer(svc):
