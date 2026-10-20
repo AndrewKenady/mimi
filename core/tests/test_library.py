@@ -71,6 +71,8 @@ class FakeKiwix:
         self.content: dict[tuple[str, str], tuple[bytes, str]] = {}
         self.mains: dict[str, str] = {}
         self.search_results: dict[str, list[tuple[str, str, str]]] = {}  # book → [(path, title, snippet)]
+        self.titles: dict[str, list[tuple[str, str]]] = {}  # book → [(path, title)] for /suggest
+        self.redirects: dict[tuple[str, str], str] = {}  # (book, path) → the path it redirects to
         self.requests: list[str] = []
         self.searches: list[tuple[str, list[str]]] = []  # (pattern, books) of every full-text search
 
@@ -87,13 +89,18 @@ class FakeKiwix:
                 f"<item><title>{t}</title><link>/content/{b}/{p}</link><description>{s}</description><wordCount>100</wordCount></item>"
                 for b in books for p, t, s in self.search_results.get(b, []))
             return httpx.Response(200, text=f"<rss><channel>{items}</channel></rss>")
-        if path == "/suggest":
-            return httpx.Response(200, json=[])
+        if path == "/suggest":  # like kiwix-serve: titles holding every word of the term, in any order
+            want = set(re.findall(r"\w+", request.url.params.get("term", "").lower()))
+            got = [{"kind": "path", "value": t, "path": p} for p, t in self.titles.get(request.url.params.get("content"), [])
+                   if want <= set(re.findall(r"\w+", t.lower()))]
+            return httpx.Response(200, json=got[: int(request.url.params.get("count", "10"))])
         m = re.match(r"^/content/([^/]+)/?(.*)$", path)
         if m:
             book, p = m.group(1), m.group(2)
             if not p:
                 return httpx.Response(302, headers={"location": f"/content/{book}/{self.mains.get(book, 'index')}"})
+            if (book, p) in self.redirects:
+                return httpx.Response(302, headers={"location": f"/content/{book}/{self.redirects[(book, p)]}"})
             if (book, p) in self.content:
                 body, ctype = self.content[(book, p)]
                 return httpx.Response(200, content=body, headers={"content-type": ctype, "content-length": str(len(body))})
@@ -422,6 +429,69 @@ def test_books_in_the_users_language_are_searched_in_it(tmp_path):
         fake.searches.clear()
         await c.search("burn first aid", limit=3)  # no local query: everything gets the English words, as before
         assert sorted(fake.searches) == [("burn first aid", [wiki.name]), ("burn first aid", [medes.name])]
+
+    run(go())
+
+
+def test_titles_are_found_as_the_question_words_them(tmp_path):
+    """The title lookup matches titles the way the question writes them: little words count
+    ("Speed of light", not the "Speed light" flash), a title can sit anywhere in the question,
+    and a keyword query still finds a title that has little words ("Picadura de abeja")."""
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    medes = book("wikipedia_es_medicine_maxi_2026-10", "Wikipedia Médica", articles=40_000, tags="_ftindex:yes", language="spa")
+    fake.titles[wiki.name] = [("Speed_light", "Speed light"), ("Speed_of_light", "Speed of light"), ("Since", "Since"),
+                              ("Great_Wall_(China)", "Great Wall (China)"), ("Great_Wall_of_China", "Great Wall of China"),
+                              ("Capital_of_Australia", "Capital of Australia"), ("Capital", "Capital")]
+    fake.titles[medes.name] = [("Picadura_de_abeja", "Picadura de abeja")]
+    c = make_client(tmp_path, fake, [wiki, medes])
+
+    async def titles(q, books=(wiki,), language=""):
+        return [h.title for h in await c._title_hits(q, list(books), language)]
+
+    async def go():
+        assert await titles("What is the speed of light in a vacuum?") == ["Speed of light"]
+        assert await titles("speed of light") == ["Speed of light"]
+        assert await titles("Since the Great Wall of China is visible from the Moon, how wide is it?") == ["Great Wall of China"]
+        assert await titles("What is the capital of Australia?") == ["Capital of Australia"]
+        assert await titles("picadura abeja", (medes,), "spa") == ["Picadura de abeja"]
+
+    run(go())
+
+
+def test_a_one_word_title_needs_the_full_text_search_to_agree(tmp_path):
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    fake.titles[wiki.name] = [("Since", "Since"), ("Hypothermia", "Hypothermia")]
+    fake.search_results[wiki.name] = [("Hypothermia", "Hypothermia", "Hypothermia is a body temperature below 35 °C"),
+                                      ("Frostbite", "Frostbite", "Frostbite is damage to skin from freezing")]
+    c = make_client(tmp_path, fake, [wiki])
+
+    async def go():
+        assert [h.title for h in await c._title_hits("Since when is hypothermia dangerous?", [wiki])] == ["Since", "Hypothermia"]
+        hits = await c.search("Since when is hypothermia dangerous?", limit=3)
+        assert hits[0].title == "Hypothermia" and "Since" not in [h.title for h in hits]
+
+    run(go())
+
+
+def test_a_title_redirect_becomes_its_article_and_a_small_part_of_the_question_needs_the_full_text(tmp_path):
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    fake.titles[wiki.name] = [("Capital_of_Australia", "Capital of Australia"), ("Warm_It_Up", "Warm It Up")]
+    fake.redirects[(wiki.name, "Capital_of_Australia")] = "Canberra"
+    fake.add(wiki.name, "Canberra", "<h1>Canberra</h1><p>Canberra is the capital city of Australia.</p>")
+    fake.add(wiki.name, "Warm_It_Up", "<h1>Warm It Up</h1><p>A song.</p>")
+    fake.search_results[wiki.name] = [("Canberra", "Canberra", "Canberra is the capital city of Australia"),
+                                      ("Frostbite", "Frostbite", "Do not rub frostbitten skin")]
+    c = make_client(tmp_path, fake, [wiki])
+
+    async def go():
+        hits = await c.search("What is the capital of Australia?", limit=3)
+        assert [(h.title, h.path) for h in hits][:1] == [("Canberra", "Canberra")]
+        assert [h.path for h in hits].count("Canberra") == 1  # the redirect merged with the article's full-text hit
+        hits = await c.search("Should you rub snow on frostbite to warm it up?", limit=3)
+        assert "Warm It Up" not in [h.title for h in hits]
 
     run(go())
 

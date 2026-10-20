@@ -103,6 +103,14 @@ def quote_path(path: str) -> str:
     return quote(path, safe="/:()%,_-.~!*'")
 
 
+def _title_is_topic(title: str, query: str) -> bool:
+    """A looked-up title is the question's topic when it holds at least half of the question's
+    content words ("Capital of Australia" in "what is the capital of Australia"), or the question
+    is one word. Shorter ones ("Since", "Warm It Up") are often just words of the question."""
+    tn, qn = len(R.query_terms(title)), len(R.query_terms(query))
+    return qn <= 1 or (tn >= 2 and 2 * tn >= qn)
+
+
 @dataclass
 class Book:
     id: str
@@ -722,10 +730,19 @@ class KiwixClient:
         per = max(limit, 8)
         local_books = [b for b in text_books if lang and b.language == lang]
         other_books = [b for b in text_books if b not in local_books]
+        async def titles(q: str, books_: list[Book], language: str = "") -> list[tuple[str, Hit]]:
+            return await self._resolve_redirects(await self._title_hits(q, books_, language))
+
         titled, local_titled, docs, *groups = await asyncio.gather(
-            self._title_hits(query, other_books), self._title_hits(local_q, local_books, lang), self._doc_hits(query, doc_books, per),
+            titles(query, other_books), titles(local_q, local_books, lang), self._doc_hits(query, doc_books, per),
             *(self._search_group(q_for(language), grp, per) for language, grp in by_lang.items()), return_exceptions=True)
-        titled = (titled if isinstance(titled, list) else []) + (local_titled if isinstance(local_titled, list) else [])
+        pairs = (titled if isinstance(titled, list) else []) + (local_titled if isinstance(local_titled, list) else [])
+        # A title that is only a small part of the question ("Since", "Ratio", "Warm It Up" in a frostbite
+        # question) is often just its words: it counts as the topic only when the full-text search found
+        # that article too. Redirects were followed, so a hit is the article itself.
+        found = {(h.book, h.path) for g in groups if isinstance(g, list) for h in g}
+        titled = [h for matched, h in pairs
+                  if _title_is_topic(matched, local_q if lang and h.language == lang else query) or (h.book, h.path) in found]
         index: dict[tuple, Hit] = {}
 
         def ranked(name: str, hits, weight: float) -> R.RankedList:
@@ -777,36 +794,69 @@ class KiwixClient:
     async def _title_hits(self, query: str, books: list[Book], language: str = "") -> list[Hit]:
         """An article whose title *is* the topic ("Bee sting") beats full-text relevance.
 
-        Try the query's leading words as a title prefix (4 → 2 words) in the
-        largest few books; keep suggestions whose title is contained in the query.
-        ``language`` (a Kiwix code) is the books' language when it isn't English: its
-        own little words ("de", "la") are skipped on both sides ("Picadura de abeja").
+        Look up runs of the query's words as titles in the largest few books, longest first
+        (4 content words → 1, anywhere in the query, little words inside a run kept: "great wall
+        of china"), and keep the suggestions whose title appears in the query: word for word
+        ("Speed of light" in "what is the speed of light in a vacuum"), or without its little
+        words when it has some ("Picadura de abeja" in "picadura abeja"). A title without little
+        words must appear word for word, so "speed of light" doesn't find the "Speed light" flash.
+        ``language`` (a Kiwix code) picks the little words when the books aren't English.
+        One-word titles are checked against the full-text results in search().
         """
         stop = R.STOPWORDS_BY_LANGUAGE.get(language, STOPWORDS)
-        words = [w for w in re.findall(r"[^\W_][\w'’-]*", query) if w.lower() not in stop]
-        if len(words) < 1 or not books:
+        raw = [w.lower() for w in re.findall(r"[^\W_][\w'’-]*", query)]
+        content = [i for i, w in enumerate(raw) if w not in stop][:6]
+        # Q&A titles are whole questions, almost never a topic's name
+        top = sorted((b for b in books if b.collection != "qa"), key=lambda b: -b.articles)[:4]
+        if not content or not top:
             return []
-        qnorm = " " + " ".join(w.lower() for w in words) + " "
-        top = sorted(books, key=lambda b: -b.articles)[:4]
-        out: list[Hit] = []
-        for n in range(min(4, len(words)), 0, -1):
-            prefix = " ".join(words[:n])
-            if n == 1 and len(prefix) < 5:
-                break
-            sugg = await asyncio.gather(*(self.suggest(prefix, b.name, 5) for b in top), return_exceptions=True)
-            for b, res in zip(top, sugg):
-                if not isinstance(res, list):
-                    continue
-                for s in res:
+        qraw = " " + " ".join(raw) + " "
+        qbare = " " + " ".join(w for w in raw if w not in stop) + " "
+        for n in range(min(4, len(content)), 0, -1):
+            terms: list[str] = []
+            for s in range(len(content) - n + 1):
+                term = " ".join(raw[content[s]:content[s + n - 1] + 1])
+                if (n > 1 or len(term) >= 5) and term not in terms:
+                    terms.append(term)
+            pairs = [(t, b) for t in terms for b in top]
+            got = await asyncio.gather(*(self.suggest(t, b.name, 8) for t, b in pairs), return_exceptions=True)
+            out: list[Hit] = []
+            seen: set[tuple[str, str]] = set()
+            for (_, b), res in zip(pairs, got):
+                for s in res if isinstance(res, list) else []:
                     t = (s.get("title") or "").strip()
                     tw = re.findall(r"[^\W_][\w'’-]*", t.lower())
-                    tn = " " + " ".join(w for w in tw if not language or w not in stop) + " "
-                    if t and s.get("path") and tn.strip() and tn in qnorm and len(tn.strip()) >= 4:
+                    bare = [w for w in tw if w not in stop]
+                    traw, tbare = " " + " ".join(tw) + " ", " " + " ".join(bare) + " "
+                    if not (t and s.get("path") and len(tbare.strip()) >= 4) or (b.name, tbare) in seen:
+                        continue
+                    # without its little words only when they sit inside it ("Picadura de abeja", not "Childhood ME")
+                    inside = len(bare) < len(tw) and tw[0] not in stop and tw[-1] not in stop
+                    if traw in qraw or (inside and tbare in qbare):
+                        seen.add((b.name, tbare))
                         out.append(Hit(title=t, path=s["path"], book=b.name, book_title=b.title, collection=b.collection, snippet="",
                                        score=2.0, language=b.language))
             if out:
-                break
-        return out[:2]
+                return out[:2]
+        return []
+
+    async def _resolve_redirects(self, hits: list[Hit]) -> list[tuple[str, Hit]]:
+        """(title as matched, hit) with each hit pointing at the article its title redirects to.
+
+        Titles from the lookup are often redirects ("Capital of Australia" → Canberra). Pointing them at
+        the article lets them merge with its full-text hit, shows its real title and keeps one article
+        from taking two of the few places in an answer's sources."""
+        got = await asyncio.gather(*(self._fetch(h.book, h.path) for h in hits), return_exceptions=True)
+        out: list[tuple[str, Hit]] = []
+        seen: set[tuple[str, str]] = set()
+        for h, f in zip(hits, got):
+            matched = h.title
+            if isinstance(f, Fetched) and f.status == 200 and f.final and f.final != h.path:
+                h.path, h.title = f.final, f.final.rsplit("/", 1)[-1].replace("_", " ")
+            if (h.book, h.path) not in seen:
+                seen.add((h.book, h.path))
+                out.append((matched, h))
+        return out
 
     async def _search_group(self, query: str, group: list[Book], limit: int) -> list[Hit]:
         params = [("pattern", query), ("format", "xml"), ("pageLength", str(limit)), ("start", "0")] + [("books.name", b.name) for b in group]
