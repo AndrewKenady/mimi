@@ -230,21 +230,25 @@ def _shorten_result(text: str, keep: float) -> str:
     return _cut(text, keep)
 
 
+ANSWER_ROOM = 512  # tokens an answer needs at least; it gets more when the context has it
+
+
 def _fit_turn(messages: list[dict], tools_: list[dict] | None, ctx: int, max_out: int, room: float = 1.0) -> tuple[list[dict] | None, int]:
     """Keep one step's prompt inside the model's context; returns the tools to offer and the answer length.
 
     The history is fitted before the turn, but every tool call adds its results and the tool
     definitions take room too: at the 4096-token context the F1 falls back to, a turn with a few
-    searches overflowed it and the answer failed. Shorten the longest results first, then stop
-    offering tools, then allow a shorter answer. `room` below 1 leaves more slack."""
-    limit = int(ctx * room) - 256
+    searches overflowed it and the answer failed. Only when the prompt leaves less than
+    ANSWER_ROOM for the answer are the longest results shortened, and then no more tools offered;
+    the answer gets what is left, up to `max_out`. `room` below 1 leaves more slack."""
+    limit = int(ctx * room) - 64
 
-    def size() -> int:
-        return sum(est_tokens(m.get("content") or "") for m in messages) + (est_tokens(json.dumps(tools_)) if tools_ else 0) + max_out
+    def prompt() -> int:
+        return sum(est_tokens(m.get("content") or "") for m in messages) + (est_tokens(json.dumps(tools_)) if tools_ else 0)
 
     done: set[int] = set()  # results with nothing left to cut inside their markers
     for _ in range(100):  # every round shortens something or moves to the next measure
-        if size() <= limit:
+        if prompt() + ANSWER_ROOM <= limit:
             break
         results = [m for m in messages if m.get("role") == "tool" and id(m) not in done and len(m.get("content") or "") > 600]
         if results:
@@ -255,11 +259,9 @@ def _fit_turn(messages: list[dict], tools_: list[dict] | None, ctx: int, max_out
                 done.add(id(longest))
         elif tools_:
             tools_ = None
-        elif max_out > 400:
-            max_out = max(400, max_out - (size() - limit))
         else:
             break
-    return tools_, max_out
+    return tools_, max(256, min(max_out, limit - prompt()))
 
 
 def _join_names(names: list[str]) -> str:

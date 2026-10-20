@@ -133,8 +133,8 @@ def test_a_turn_with_several_searches_is_fitted_into_a_small_context():
         messages += [{"role": "assistant", "content": "", "tool_calls": []}, {"role": "tool", "tool_call_id": f"t{i}", "content": result}]
     schema = [{"type": "function", "function": {"name": "search_library", "description": "Search the library " * 20}}]
     offered, max_out = chat._fit_turn(messages, schema, 4096, 1400)
-    total = sum(chat.est_tokens(m["content"]) for m in messages) + (chat.est_tokens(json.dumps(offered)) if offered else 0) + max_out
-    assert total <= 4096 - 256
+    prompt = sum(chat.est_tokens(m["content"]) for m in messages) + (chat.est_tokens(json.dumps(offered)) if offered else 0)
+    assert prompt + chat.ANSWER_ROOM <= 4096 - 64 and chat.ANSWER_ROOM <= max_out <= 1400
     for m in messages[2:]:
         if m["role"] == "tool":  # every passage still sits inside its own markers
             assert m["content"].count("<<<BEGIN UNTRUSTED") == m["content"].count("<<<END UNTRUSTED>>>") == 3
@@ -150,8 +150,22 @@ def test_fitting_ends_when_a_result_cannot_be_shortened():
     messages = [{"role": "system", "content": "rules " * 3000}, {"role": "user", "content": "What is near me?"},
                 {"role": "tool", "tool_call_id": "t1", "content": tiny}, {"role": "tool", "tool_call_id": "t2", "content": "x" * 5000}]
     offered, max_out = chat._fit_turn(messages, [{"type": "function"}], 4096, 1400)  # returns at all: the point of the test
-    assert offered is None and max_out == 400
+    assert offered is None and max_out == 256
     assert messages[2]["content"].count("<<<END UNTRUSTED>>>") == 60
+
+
+def test_one_search_at_a_small_context_is_read_in_full():
+    """Fitting must not cut what fits: one search at 4096 tokens leaves room for an answer as it is
+    (reserving the whole answer budget cut every search and halved the answers with citations)."""
+    from mimi import chat, tools
+
+    result = "\n\n".join(f"[{n}] Hypothermia — WikiMed\n" + tools.untrusted("Body temperature below 35 °C. " * 30, "WikiMed") for n in (1, 2, 3))
+    messages = [{"role": "system", "content": "rules " * 430}, {"role": "user", "content": "What is hypothermia?"},
+                {"role": "tool", "tool_call_id": "t1", "content": result}]
+    schema = [{"type": "function", "function": {"name": "search_library", "description": "x" * 4600}}]  # ~1280 tokens, like Mimi's 9 tools
+    offered, max_out = chat._fit_turn(messages, schema, 4096, 1400)
+    assert messages[2]["content"] == result and offered == schema
+    assert chat.ANSWER_ROOM <= max_out < 1400  # the answer gets the rest of the context
 
 
 def test_a_prompt_the_server_finds_too_long_is_shortened_and_asked_again(svc):
