@@ -242,11 +242,17 @@ def _fit_turn(messages: list[dict], tools_: list[dict] | None, ctx: int, max_out
     def size() -> int:
         return sum(est_tokens(m.get("content") or "") for m in messages) + (est_tokens(json.dumps(tools_)) if tools_ else 0) + max_out
 
-    while size() > limit:
-        results = [m for m in messages if m.get("role") == "tool" and len(m.get("content") or "") > 600]
+    done: set[int] = set()  # results with nothing left to cut inside their markers
+    for _ in range(100):  # every round shortens something or moves to the next measure
+        if size() <= limit:
+            break
+        results = [m for m in messages if m.get("role") == "tool" and id(m) not in done and len(m.get("content") or "") > 600]
         if results:
             longest = max(results, key=lambda m: len(m["content"]))
+            before = len(longest["content"])
             longest["content"] = _shorten_result(longest["content"], 0.6)
+            if len(longest["content"]) > 0.9 * before:
+                done.add(id(longest))
         elif tools_:
             tools_ = None
         elif max_out > 400:

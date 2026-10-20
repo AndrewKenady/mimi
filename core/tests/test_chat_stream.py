@@ -141,6 +141,19 @@ def test_a_turn_with_several_searches_is_fitted_into_a_small_context():
             assert "half-life of about 5,730 years" in m["content"]
 
 
+def test_fitting_ends_when_a_result_cannot_be_shortened():
+    """A result made of many tiny passages can't shrink inside its markers: fitting must move on, not spin
+    (it once looped forever on the F1 and froze Core)."""
+    from mimi import chat, tools
+
+    tiny = "\n\n".join(f"[{n}] Place {n} — Map\n" + tools.untrusted("2 km", f"Map: place {n}") for n in range(60))
+    messages = [{"role": "system", "content": "rules " * 3000}, {"role": "user", "content": "What is near me?"},
+                {"role": "tool", "tool_call_id": "t1", "content": tiny}, {"role": "tool", "tool_call_id": "t2", "content": "x" * 5000}]
+    offered, max_out = chat._fit_turn(messages, [{"type": "function"}], 4096, 1400)  # returns at all: the point of the test
+    assert offered is None and max_out == 400
+    assert messages[2]["content"].count("<<<END UNTRUSTED>>>") == 60
+
+
 def test_a_prompt_the_server_finds_too_long_is_shortened_and_asked_again(svc):
     too_long = {"raise": 'model error 400: {"error":{"code":400,"type":"exceed_context_size_error","n_ctx":4096}}'}
     evs = run_turn(svc, [SEARCH, too_long, ANSWER], content="How do you treat hypothermia?", mode="everyday")
