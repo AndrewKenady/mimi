@@ -124,6 +124,31 @@ def test_a_model_that_crashes_after_loading_restarts_one_rung_down(monkeypatch, 
     assert "it restarts with ctx 4096, 1536 MB graphics memory kept free" in first and OOM in first
 
 
+def test_a_model_up_but_out_of_graphics_memory_restarts_one_rung_down(monkeypatch, caplog):
+    """On the F1, other programs took graphics memory after gemma loaded: llama-server stayed up, failed every
+    request with an error inside the stream, and turns ended with nothing written."""
+    m = _manager(None, monkeypatch)
+    oom = {"error": {"code": 500, "message": "decode() failed: vk::Device::allocateMemory: ErrorOutOfDeviceMemory",
+                     "type": "server_error"}}
+    m.client = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200, text=f"data: {json.dumps(oom)}\n\n")))
+    spec = Spec(context=8192)
+
+    async def go():
+        await m.ensure(spec)
+        with pytest.raises(llm.ModelOutOfMemory) as e:
+            async for _ in m.chat_stream(spec, [{"role": "user", "content": "hi"}]):
+                pass
+        assert await m.died_during(e.value)
+        assert m._resume == {"m": (8192, 1)} and m.procs[0].dead  # stopped, to start one rung down
+        await m.ensure(spec)
+
+    with caplog.at_level(logging.WARNING, logger="mimi.llm"):
+        asyncio.run(go())
+    assert m.calls == [(8192, 768, False), (4096, 1536, False)]
+    assert "m ran out of graphics memory with ctx 8192, 768 MB graphics memory kept free" in _warnings(caplog)[0]
+    assert not isinstance(llm._model_error("500: something else"), llm.ModelOutOfMemory)
+
+
 def test_a_crash_between_turns_is_noticed_once(monkeypatch, caplog):
     m = _manager(None, monkeypatch)
     asyncio.run(m.ensure(Spec(context=8192)))

@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import time
 from typing import Any, AsyncIterator
 
@@ -43,6 +44,18 @@ EMBED_IDLE_SECONDS = 15 * 60
 
 class ModelError(RuntimeError):
     pass
+
+
+class ModelOutOfMemory(ModelError):
+    """llama-server is still up but can't get graphics memory for a request: other programs took it after the
+    model loaded. On the F1 every request then failed at once, and turns ended with nothing written."""
+
+
+_OUT_OF_MEMORY = re.compile(r"OutOfDeviceMemory|out of (device )?memory|failed to allocate", re.I)
+
+
+def _model_error(text: str) -> ModelError:
+    return (ModelOutOfMemory if _OUT_OF_MEMORY.search(text) else ModelError)(f"model error: {text[:400]}")
 
 
 def _settings_text(ctx: int, fit: int, cpu_only: bool) -> str:
@@ -157,8 +170,11 @@ class ModelManager:
             "-c", str(ctx),
             "-np", "1",
             "-fa", "on",
+            # Both halves of the KV cache in q8_0. With an f16 V cache, gemma-4-12b at an 8192 context ran
+            # out of graphics memory on a 3,500-token prompt on the F1 (3 GB carved out for its GPU). q8_0
+            # reads prompts and generates as fast (llama-bench: the same within run-to-run noise).
             "-ctk", "q8_0",
-            "-ctv", "f16",
+            "-ctv", "q8_0",
             "-t", str(self._threads()),
             "--jinja",
             "--no-webui",
@@ -256,7 +272,10 @@ class ModelManager:
         return True
 
     async def died_during(self, err: BaseException) -> bool:
-        """Whether `err`, raised by a request to the chat model, came from its process dying under it."""
+        """Whether `err`, raised by a request to the chat model, came from its process dying under it, or from
+        a model that is up but out of graphics memory (handled the same way: stopped, and one rung down)."""
+        if isinstance(err, ModelOutOfMemory):
+            return await self._out_of_memory()
         if isinstance(err, httpx.TransportError):
             # The connection drops as the process goes down; give it a moment to finish exiting.
             for _ in range(25):
@@ -264,6 +283,20 @@ class ModelManager:
                     break
                 await asyncio.sleep(0.2)
         return self.crashed()
+
+    async def _out_of_memory(self) -> bool:
+        """The resident model can't get graphics memory any more: stop it, so its next start is one rung down."""
+        proc, spec = self.chat_proc, self.chat_model
+        if not (proc and spec and proc.alive()):
+            return self.crashed()
+        want_ctx, attempts = self._chat_ladder
+        nxt = min(self.chat_attempt + 1, len(attempts) - 1)
+        self._resume[spec.id] = (want_ctx, nxt)
+        L.warning("%s ran out of graphics memory with %s (attempt %s); it restarts with %s", spec.id,
+                  _settings_text(*attempts[self.chat_attempt]), self.chat_attempt + 1, _settings_text(*attempts[nxt]))
+        await self._stop_chat()
+        self._set_state("error", error="The model stopped unexpectedly. It will restart on your next message.")
+        return True
 
     def _answered(self, spec: ModelSpec) -> None:
         # Its current settings work, so a later fresh start (after a model swap) tries the full ones again.
@@ -349,7 +382,7 @@ class ModelManager:
         async with self.client.stream("POST", f"{base}/v1/chat/completions", json=body) as resp:
             if resp.status_code != 200:
                 text = (await resp.aread()).decode("utf-8", "replace")
-                raise ModelError(f"model error {resp.status_code}: {text[:400]}")
+                raise _model_error(f"{resp.status_code}: {text}")
             async for line in resp.aiter_lines():
                 if cancel is not None and cancel.is_set():
                     break
@@ -362,6 +395,9 @@ class ModelManager:
                     chunk = json.loads(payload)
                 except ValueError:
                     continue
+                if chunk.get("error"):  # llama-server reports a failed request inside the stream
+                    err = chunk["error"]
+                    raise _model_error(str(err.get("message") or err) if isinstance(err, dict) else str(err))
                 if chunk.get("timings"):
                     timings = chunk["timings"]
                 if chunk.get("usage"):
@@ -400,7 +436,7 @@ class ModelManager:
                           json_schema=json_schema, tool_choice=tool_choice)
         r = await self.client.post(f"{base}/v1/chat/completions", json=body)
         if r.status_code != 200:
-            raise ModelError(f"model error {r.status_code}: {r.text[:300]}")
+            raise _model_error(f"{r.status_code}: {r.text}")
         self._answered(spec)
         msg = r.json()["choices"][0]["message"]
         return msg.get("content") or ""

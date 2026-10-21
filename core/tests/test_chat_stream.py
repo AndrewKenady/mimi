@@ -56,6 +56,10 @@ class FakeModels:
             self.dead = False
 
     async def died_during(self, err):
+        from mimi.llm import ModelOutOfMemory
+
+        if isinstance(err, ModelOutOfMemory):  # the real manager stops it and starts it one rung down
+            self.dead = True
         return self.dead
 
     async def chat_stream(self, spec, messages, **kw):
@@ -64,6 +68,10 @@ class FakeModels:
         step = self.steps.pop(0) if self.steps else {"text": "…"}
         if step.get("raise"):
             raise ModelError(step["raise"])
+        if step.get("oom"):  # llama-server up, but out of graphics memory for this request
+            from mimi.llm import ModelOutOfMemory
+
+            raise ModelOutOfMemory("model error: decode() failed: vk::Device::allocateMemory: ErrorOutOfDeviceMemory")
         for piece in step.get("text_pieces") or ([step["text"]] if step.get("text") else []):
             yield {"type": "content", "text": piece}
         if step.get("crash"):  # llama-server ran out of graphics memory and exited
@@ -173,6 +181,15 @@ def test_a_prompt_the_server_finds_too_long_is_shortened_and_asked_again(svc):
     evs = run_turn(svc, [SEARCH, too_long, ANSWER], content="How do you treat hypothermia?", mode="everyday")
     done = next(e for e in evs if e["event"] == "done")["data"]["message"]
     assert done["content"] == "Warm the person slowly [1]." and not done["meta"].get("error")
+
+
+def test_a_model_out_of_graphics_memory_mid_turn_still_answers(svc):
+    """The F1 sample that came back empty: the search went through, then every request failed for memory."""
+    evs = run_turn(svc, [SEARCH, {"oom": True}, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    done = next(e for e in evs if e["event"] == "done")["data"]["message"]
+    assert done["content"] == "Warm the person slowly [1]." and svc.models.restarts == 1
+    statuses = [e["data"]["state"] for e in evs if e["event"] == "status"]
+    assert "loading" in statuses  # "Restarting Gemma with lighter settings…"
 
 
 def test_a_turn_that_ends_without_a_word_is_asked_once_more_without_tools(svc):
