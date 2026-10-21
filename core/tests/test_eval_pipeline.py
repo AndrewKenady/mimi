@@ -74,6 +74,8 @@ def test_three_items_flag_the_claim_not_its_correction():
     labeled = ("For Drinking Water: Add 16 drops (about 1/8 teaspoon) per gallon [1]. For Kitchen Use: 1 tablespoon of "
                "bleach per gallon is considered adequate for kitchen use [1].")  # the right dose, and the surface one labeled
     assert goldset.forbidden_hits(items["srv-002"], labeled) == []
+    label_first = "For drinking water: 8 drops per gallon [2]. * For kitchen use: 1 tablespoon of bleach per gallon is adequate [1]."
+    assert goldset.forbidden_hits(items["srv-002"], label_first) == []  # the label before the dose counts too
     sharp = "David Sharp: un montañista que intentó una ascensión en solitario al Everest en 2006."
     assert goldset.forbidden_hits(items["adv-001-es"], sharp) == []
     assert goldset.forbidden_hits(items["adv-001"], "Reinhold Messner made the first solo ascent in 1980.") == []
@@ -176,6 +178,18 @@ def test_a_resumed_run_counts_each_question_once():
 def test_rates_are_rounded_once():
     assert score._rate([True] * 144 + [False] * 22) == pytest.approx(144 / 166, abs=1e-6)
     assert score._f(score._rate([True] * 144 + [False] * 22)) == "86.7 %"  # not 0.8675 → "86.8 %"
+
+
+def test_two_runs_of_one_model_are_told_apart_by_their_labels(tmp_path):
+    publish = _load("publish")
+    a, b = str(FIX / "results-a.jsonl"), str(FIX / "results-a.jsonl")
+    assert score.main([a, "--compare", b, "--label", "F1 fixes", "--label-b", "0.2.0", "--out-dir", str(tmp_path), "--name", "ab"]) == 0
+    report = json.loads((tmp_path / "ab.json").read_text("utf-8"))
+    assert report["a"]["label"] == "F1 fixes" and report["b"]["label"] == "0.2.0"
+    assert "F1 fixes" in (tmp_path / "ab.md").read_text("utf-8")
+    assert publish.describe(tmp_path / "ab.json", report)["labels"] == ["F1 fixes", "0.2.0"]
+    single = json.loads((FIX / "results-a.jsonl").read_text("utf-8").splitlines()[0])
+    assert publish.describe(tmp_path / "x.json", {"models": [single.get("model") or "m"]})["labels"] == [single.get("model") or "m"]
 
 
 def test_score_retrieval_fixture():

@@ -11,6 +11,8 @@ Each line of eval/questions/*.jsonl is one item:
     key_facts          facts a correct answer contains. Each entry is a regex or a list of
                        alternative regexes (case-insensitive); every entry must match.
     forbidden          regexes a correct answer must NOT assert (negation-aware, see below)
+    forbidden_unless   optional regex: a forbidden match is fine when its own sentence also matches it
+                       ("For kitchen use: 1 tablespoon of bleach per gallon" in the drinking-water item)
     query              optional short keyword query for --retrieval-only (else the question)
     needs_location     optional: the answer depends on the device's location
     behavior_without_location  optional: expected behavior when no location is set
@@ -109,7 +111,7 @@ def validate(items: list[dict]) -> list[str]:
         for c in it.get("collections", []):
             if c not in COLLECTIONS:
                 errs.append(f"{iid}: unknown collection {c!r}")
-        for pat in _patterns(it.get("key_facts", [])) + list(it.get("forbidden", [])):
+        for pat in _patterns(it.get("key_facts", [])) + list(it.get("forbidden", [])) + ([it["forbidden_unless"]] if it.get("forbidden_unless") else []):
             try:
                 re.compile(pat, re.I)
             except re.error as e:
@@ -289,6 +291,8 @@ def forbidden_hits(item: dict, answer: str) -> list[str]:
     text = plain(answer)
     negations = _cues(_NEG_BEFORE, lang_of(item))
     debunks = _cues(_DEBUNKED_AFTER, lang_of(item))
+    # words that make a match fine when its sentence has them ("For kitchen use: 1 tablespoon of bleach per gallon")
+    unless = re.compile(item["forbidden_unless"], re.I) if item.get("forbidden_unless") else None
     out = []
     for pat in item.get("forbidden", []):
         for m in re.finditer(pat, text, re.I):
@@ -296,9 +300,12 @@ def forbidden_hits(item: dict, answer: str) -> list[str]:
             before = text[start + 1:m.start()][-80:]
             ends = [i for i in (text.find(". ", m.end()), text.find("! ", m.end()), text.find("? ", m.end())) if i >= 0]
             after = text[m.end():min(ends) if ends else len(text)][:160]
-            if not any(n.search(before) for n in negations) and not any(d.search(after) for d in debunks):
-                out.append(m.group(0))
-                break
+            if any(n.search(before) for n in negations) or any(d.search(after) for d in debunks):
+                continue
+            if unless and unless.search(text[start + 1:m.start()] + after):
+                continue
+            out.append(m.group(0))
+            break
     return out
 
 

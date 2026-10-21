@@ -355,7 +355,7 @@ def _in_language(s: dict) -> str:
 
 
 def render(s: dict) -> str:
-    title = ", ".join(s["models"]) or "no rows"
+    title = run_name(s) or "no rows"
     out = [f"# Mimi eval — {title} — {s['run_date']}{_in_language(s)}", "",
            f"Results: `{s['source']}` · {len(s['rows'])} rows · question set: {s['question_set']} items · "
            f"Mimi {', '.join(s['mimi_versions']) or '?'} · {', '.join(s.get('devices') or []) or 'device not recorded'} · scored {s['generated_at']}"
@@ -432,8 +432,13 @@ def _why(r: dict) -> str:
     return "; ".join(bits) or "—"
 
 
+def run_name(s: dict) -> str:
+    """A run's label when it has one (two runs of the same model), else its model(s)."""
+    return s.get("label") or ", ".join(s["models"])
+
+
 def render_compare(a: dict, b: dict, cmp: dict) -> str:
-    na, nb = ", ".join(a["models"]), ", ".join(b["models"])
+    na, nb = run_name(a), run_name(b)
     ca, cb = a.get("chat", {}).get("overall", {}), b.get("chat", {}).get("overall", {})
     out = [f"# Mimi eval — {na} vs {nb}{_in_language(a)}", "", f"A: `{a['source']}` ({a['run_date']}) · B: `{b['source']}` ({b['run_date']})", "",
            f"| Metric | {na} | {nb} | Δ (B − A) |", "|---|---|---|---|"]
@@ -526,6 +531,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="question JSONL file or glob (default: the set of the rows' language, e.g. eval/questions/es/*.jsonl)")
     p.add_argument("--out-dir", default=str(REPORTS), help="where to write the scoreboard (default: eval/reports)")
     p.add_argument("--name", default=None, help="report file name without extension (default: <date>-<model>)")
+    p.add_argument("--label", default=None, help="what to call the run in the report and on the scoreboard (default: its model); "
+                                                 "use it when both sides of an A/B run the same model, e.g. --label 'F1 fixes'")
+    p.add_argument("--label-b", default=None, help="the same for the --compare run")
     p.add_argument("--judge-url", default=None, help="OpenAI-compatible chat completions URL for an LLM judge")
     p.add_argument("--judge-model", default=None)
     p.add_argument("--embed-url", default=None, help="OpenAI-compatible embeddings URL (e.g. http://127.0.0.1:7611/v1/embeddings)")
@@ -544,9 +552,13 @@ def main(argv: list[str] | None = None) -> int:
     judge = openai_judge(args.judge_url, args.judge_model) if args.judge_url else None
     embed = openai_embedder(args.embed_url) if args.embed_url else None
     a = summarize(items, rows_a, judge=judge, embed=embed, source=args.results)
+    if args.label:
+        a["label"] = args.label
     lang = "" if (a.get("languages") or ["en"]) == ["en"] else "-" + "-".join(a["languages"])
     if args.compare:
         b = summarize(items, rows_b, judge=judge, embed=embed, source=args.compare)
+        if args.label_b:
+            b["label"] = args.label_b
         cmp = compare(a, b)
         md = render_compare(a, b, cmp)
         summary: dict = {"a": {k: v for k, v in a.items() if k != "rows"}, "b": {k: v for k, v in b.items() if k != "rows"}, "compare": cmp}

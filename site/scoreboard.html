@@ -308,7 +308,7 @@ footer a { color: var(--ink-2); }
   }
   function get(path) { return fetch(BASE + path, { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
   function runs(report) { return report.compare ? [report.a, report.b] : [report]; }
-  function model(run) { return (run.models || []).join(' + ') || 'retrieval'; }
+  function model(run) { return run.label || (run.models || []).join(' + ') || 'retrieval'; }
   function otherLangs(langs) { return (langs || []).filter(function (l) { return LANGS[l]; }); }
   function langNames(langs) { return otherLangs(langs).map(function (l) { return LANGS[l]; }).join(', '); }
   function langTags(langs) { return otherLangs(langs).map(function (l) { return ' <span class="sign lang" lang="' + l + '">' + LANGS[l] + '</span>'; }).join(''); }
@@ -510,7 +510,7 @@ footer a { color: var(--ink-2); }
     get(entry.file).then(function (report) {
       var picker = '';
       if (index.reports.length > 1) {
-        picker = '<label class="picker">Report <select id="pick">' + index.reports.map(function (e, j) { return '<option value="' + j + '"' + (j === i ? ' selected' : '') + '>' + esc(e.run_date + ' · ' + e.models.join(' vs ') + (langNames(e.languages) ? ' · ' + langNames(e.languages) : '')) + '</option>'; }).join('') + '</select></label>';
+        picker = '<label class="picker">Report <select id="pick">' + index.reports.map(function (e, j) { return '<option value="' + j + '"' + (j === i ? ' selected' : '') + '>' + esc(e.run_date + ' · ' + (e.labels || e.models).join(' vs ') + (langNames(e.languages) ? ' · ' + langNames(e.languages) : '')) + '</option>'; }).join('') + '</select></label>';
       }
       status.innerHTML = picker;
       render(entry, report, false);
