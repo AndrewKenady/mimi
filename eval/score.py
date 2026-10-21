@@ -447,7 +447,8 @@ def render_compare(a: dict, b: dict, cmp: dict) -> str:
             out.append(f"| {label} | {_cell(ca, key, kind)} | {_cell(cb, key, kind)} | |")
             continue
         va, vb = ca.get(key), cb.get(key)
-        delta = "—" if va is None or vb is None else (f"{(vb - va) * 100:+.1f} pts" if kind == "pct" else f"{vb - va:+g}")
+        d = None if va is None or vb is None else vb - va
+        delta = "—" if d is None else f"{d * 100:+.1f} pts" if kind == "pct" else f"{d:+.2f}" if isinstance(d, float) else f"{d:+d}"
         out.append(f"| {label} | {_f(va, kind)} | {_f(vb, kind)} | {delta} |")
     domains = sorted(set(a.get("chat", {}).get("by_domain", {})) | set(b.get("chat", {}).get("by_domain", {})))
     if domains:

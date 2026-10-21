@@ -157,6 +157,7 @@ def test_intent_detection_and_priors():
     from mimi.retrieval import detect_intent, prior
 
     assert detect_intent("how do I stop heavy bleeding from a wound").name == "medical"
+    assert detect_intent("How do you stop a nosebleed?").name == "medical"  # "bleed" inside a word
     assert detect_intent("replace the battery in my laptop").name == "repair"
     assert detect_intent("how to purify drinking water").name == "survival"
     assert detect_intent("tallest mountain in canada") is None
@@ -512,6 +513,65 @@ def test_a_one_word_title_from_a_book_on_the_subject_is_kept(tmp_path):
     async def go():
         top = [h.title for h in await c.search("hypothermia core body temperature threshold", limit=3)][:3]
         assert "Hypothermia" in top  # among the three articles the model reads
+
+    run(go())
+
+
+def test_one_title_from_three_books_leaves_room_for_a_four_letter_topic(tmp_path):
+    """med-003 on the F1: for "burn first aid" three books' "First aid" took every title slot, and "burn" (four
+    letters) was never looked up, so no burn article reached the model."""
+    fake = FakeKiwix()
+    med = book("mdwiki_en_all_maxi_2025-11", "MDWiki Medical Encyclopedia", articles=363_000, tags="_ftindex:yes")
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    top = book("wikipedia_en_100_2026-08", "Wikipedia 100", articles=3_000, tags="_ftindex:yes")
+    for b in (med, wiki, top):
+        fake.titles[b.name] = [("First_aid", "First aid")]
+        fake.add(b.name, "First_aid", "<h1>First aid</h1><p>Help given to a sick or injured person.</p>")
+        fake.search_results[b.name] = [("First_aid", "First aid", "Help given to an injured person")]
+    fake.titles[med.name].append(("Burn", "Burn"))
+    fake.add(med.name, "Burn", "<h1>Burn</h1><p>Cool a burn under running water for 20 minutes.</p>")
+    c = make_client(tmp_path, fake, [med, wiki, top])
+
+    async def go():
+        assert "Burn" in [h.title for h in await c.search("burn first aid", limit=5)]
+
+    run(go())
+
+
+def test_one_word_titles_from_big_books_leave_room_for_the_topic(tmp_path):
+    """med-019: "Rice", "Stand" and "Treating" from the two biggest books filled the title lookup's places
+    before MDWiki's "Sprained" (a redirect to Sprain) was reached."""
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    top = book("wikipedia_en_top_maxi_2026-08", "Wikipedia's top articles", articles=1_000_000, tags="_ftindex:yes")
+    med = book("mdwiki_en_all_maxi_2025-11", "MDWiki Medical Encyclopedia", articles=363_000, tags="_ftindex:yes")
+    for b in (wiki, top):
+        fake.titles[b.name] = [("Rice", "Rice"), ("Stand", "Stand"), ("Treating", "Treating")]
+    fake.titles[med.name] = [("Sprained", "Sprained")]
+    fake.redirects[(med.name, "Sprained")] = "Sprain"
+    fake.add(med.name, "Sprain", "<h1>Sprain</h1><p>Rest, ice, compression and elevation (RICE).</p>")
+    c = make_client(tmp_path, fake, [wiki, top, med])
+
+    async def go():
+        hits = await c.search("What does RICE stand for in treating a sprained ankle?", limit=5)
+        assert "Sprain" in [h.title for h in hits]
+
+    run(go())
+
+
+def test_every_books_copy_of_a_title_is_kept(tmp_path):
+    """med-017: keeping one copy per title kept Wikipedia's "Myocardial infarction" and dropped MDWiki's."""
+    fake = FakeKiwix()
+    med = book("mdwiki_en_all_maxi_2025-11", "MDWiki Medical Encyclopedia", articles=363_000, tags="_ftindex:yes")
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    for b in (med, wiki):
+        fake.titles[b.name] = [("Myocardial_infarction", "Myocardial infarction")]
+        fake.add(b.name, "Myocardial_infarction", "<h1>Myocardial infarction</h1><p>Chest pain is the most common symptom.</p>")
+    c = make_client(tmp_path, fake, [med, wiki])
+
+    async def go():
+        hits = await c.search("myocardial infarction symptoms", limit=5)
+        assert {h.book for h in hits if h.title == "Myocardial infarction"} == {med.name, wiki.name}
 
     run(go())
 

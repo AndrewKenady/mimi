@@ -6,6 +6,7 @@ HTTP API (SSE chat, library search and articles), and score.py scores synthetic 
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -209,6 +210,8 @@ def test_score_cli_writes_reports(tmp_path, capsys):
     assert score.main([str(FIX / "results-a.jsonl"), "--compare", str(FIX / "results-b.jsonl"), "--out-dir", str(tmp_path)]) == 0
     ab = (tmp_path / "2026-10-16-fixture-model-a-vs-fixture-model-b.md").read_text("utf-8")
     assert "McNemar" in ab and "-75.0 pts" in ab
+    speed = next(line for line in ab.splitlines() if line.startswith("| Generation speed"))
+    assert re.search(r"\| (—|[+-]\d+\.\d\d) \|$", speed), speed  # not -0.0785207
 
 
 def test_judge_hook_is_recorded_alongside_heuristics():

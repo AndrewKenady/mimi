@@ -797,8 +797,12 @@ class KiwixClient:
 
         tiers = [(t, h) for matched, h in pairs if (t := tier(matched, h)) is not None]
         # three, not two: a generic word can redirect to an article the full text also finds ("Temperature" →
-        # Thermoregulation) and would otherwise crowd out the topic's own title
-        titled = [h for _, h in sorted(tiers, key=lambda x: x[0])][:3]
+        # Thermoregulation) and would otherwise crowd out the topic's own title. Three different titles, each
+        # from every book that has it: the same "First aid" from three books would crowd out "Burn" in "burn
+        # first aid", and keeping one copy would drop MDWiki's "Myocardial infarction" for Wikipedia's.
+        ordered = [h for _, h in sorted(tiers, key=lambda x: x[0])]
+        names = list(dict.fromkeys(h.title.lower() for h in ordered))[:3]
+        titled = [h for h in ordered if h.title.lower() in names]
         index: dict[tuple, Hit] = {}
 
         def ranked(name: str, hits, weight: float) -> R.RankedList:
@@ -874,7 +878,7 @@ class KiwixClient:
         for n in range(min(4, len(content)), 0, -1):
             for s in range(len(content) - n + 1):
                 term = " ".join(raw[content[s]:content[s + n - 1] + 1])
-                if (n > 1 or len(term) >= 5) and term not in terms:
+                if (n > 1 or len(term) >= 4) and term not in terms:  # "burn", not "cut"
                     terms.append(term)
         pairs = [(t, b) for t in terms for b in top]
         got = await asyncio.gather(*(self.suggest(t, b.name, 8) for t, b in pairs), return_exceptions=True)
@@ -894,7 +898,9 @@ class KiwixClient:
                     seen.add((b.name, tbare))
                     out.append(Hit(title=t, path=s["path"], book=b.name, book_title=b.title, collection=b.collection, snippet="",
                                    score=2.0, language=b.language))
-        return out[:6]
+        # ten, not six: the big books' "Rice" and "Stand" for "what does RICE stand for in treating a sprained
+        # ankle" filled six places before MDWiki's "Sprained" (→ Sprain); search() then drops most of them
+        return out[:10]
 
     async def _resolve_redirects(self, hits: list[Hit]) -> list[tuple[str, Hit]]:
         """(title as matched, hit) with each hit pointing at the article its title redirects to.
