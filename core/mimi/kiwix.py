@@ -782,11 +782,23 @@ class KiwixClient:
         pairs = (titled if isinstance(titled, list) else []) + (local_titled if isinstance(local_titled, list) else [])
         # A title that is only a small part of the question ("Since", "Ratio", "Warm It Up" in a frostbite
         # question) is often just its words: it counts as the topic only when the full-text search found
-        # that article too. Redirects were followed, so a hit is the article itself.
+        # that article too, or when it comes from a book on the question's subject ("Hypothermia" in
+        # MDWiki for a medical question, which MDWiki's own full-text search didn't rank in its top 8).
+        # Redirects were followed, so a hit is the article itself.
         found = {(h.book, h.path) for g in groups if isinstance(g, list) for h in g}
-        titled = [h for matched, h in pairs
-                  if _title_is_topic(matched, local_q if lang and h.language == lang else query) or (h.book, h.path) in found]
-        titled = sorted(titled, key=lambda h: (h.book, h.path) not in found)[:2]  # the ones full-text search agrees with first
+        intent = R.detect_intent(query)
+
+        def tier(matched: str, h: Hit) -> int | None:
+            if (h.book, h.path) in found:
+                return 0  # full-text search agrees: first
+            if _title_is_topic(matched, local_q if lang and h.language == lang else query) or R.prior(h.collection, intent) > 1.0:
+                return 1
+            return None
+
+        tiers = [(t, h) for matched, h in pairs if (t := tier(matched, h)) is not None]
+        # three, not two: a generic word can redirect to an article the full text also finds ("Temperature" →
+        # Thermoregulation) and would otherwise crowd out the topic's own title
+        titled = [h for _, h in sorted(tiers, key=lambda x: x[0])][:3]
         index: dict[tuple, Hit] = {}
 
         def ranked(name: str, hits, weight: float) -> R.RankedList:

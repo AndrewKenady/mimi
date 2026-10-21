@@ -492,6 +492,30 @@ def test_a_generic_title_does_not_hide_the_topics_own(tmp_path):
     run(go())
 
 
+def test_a_one_word_title_from_a_book_on_the_subject_is_kept(tmp_path):
+    """med-008 on the F1: for "hypothermia core body temperature threshold" MDWiki's full-text search didn't rank
+    "Hypothermia" in its top 8, and the longer "Core body temperature" (→ Human body temperature) took its place."""
+    fake = FakeKiwix()
+    med = book("mdwiki_en_all_maxi_2025-11", "MDWiki Medical Encyclopedia", articles=363_000, tags="_ftindex:yes")
+    fake.titles[med.name] = [("Core_body_temperature", "Core body temperature"), ("Hypothermia", "Hypothermia"),
+                             ("Temperature", "Temperature")]
+    fake.redirects[(med.name, "Core_body_temperature")] = "Human_body_temperature"
+    fake.redirects[(med.name, "Temperature")] = "Thermoregulation"  # a generic word the full text agrees with
+    fake.add(med.name, "Thermoregulation", "<h1>Thermoregulation</h1><p>Keeping the body temperature steady.</p>")
+    fake.add(med.name, "Human_body_temperature", "<h1>Human body temperature</h1><p>Normal is about 37 °C.</p>")
+    fake.add(med.name, "Hypothermia", "<h1>Hypothermia</h1><p>A core temperature below 35.0 °C.</p>")
+    fake.search_results[med.name] = [("Human_body_temperature", "Human body temperature", "Normal human body temperature"),
+                                      ("Thermoregulation", "Thermoregulation", "Keeping the body temperature steady")]
+    c = make_client(tmp_path, fake, [med])
+    assert med.collection == "medicine"
+
+    async def go():
+        top = [h.title for h in await c.search("hypothermia core body temperature threshold", limit=3)][:3]
+        assert "Hypothermia" in top  # among the three articles the model reads
+
+    run(go())
+
+
 def test_a_title_redirect_becomes_its_article_and_a_small_part_of_the_question_needs_the_full_text(tmp_path):
     fake = FakeKiwix()
     wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
