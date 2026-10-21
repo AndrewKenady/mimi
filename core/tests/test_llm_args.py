@@ -44,10 +44,12 @@ def test_prompt_cache_in_ram_fits_the_device(hw, mib):
     assert _cache_ram(hw) == mib
 
 
-def test_the_kv_cache_is_quantized_on_both_halves():
-    """An f16 V cache ran gemma-4-12b out of graphics memory on long prompts at an 8192 context on the F1."""
+def test_the_v_cache_is_f16_unless_the_ladder_asks_for_q8():
+    """A q8_0 V cache needs less graphics memory, but on the F1 each request took about 3 s longer to start."""
     m = llm.ModelManager.__new__(llm.ModelManager)
     m.hw = {"backend": "vulkan", "cores": 8, "ram_installed_gb": 16}
     m.paths = SimpleNamespace(exe=lambda build, name: Exe(build))
     args = m._chat_args(Spec(), 8192)
-    assert args[args.index("-ctk") + 1] == "q8_0" and args[args.index("-ctv") + 1] == "q8_0"
+    assert args[args.index("-ctk") + 1] == "q8_0" and args[args.index("-ctv") + 1] == "f16"
+    args = m._chat_args(Spec(), 4096, 1536, False, "q8_0")
+    assert args[args.index("-ctv") + 1] == "q8_0"

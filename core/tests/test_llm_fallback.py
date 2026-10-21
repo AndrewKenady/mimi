@@ -34,8 +34,8 @@ def _manager(ready_on: int | None, monkeypatch):
     m.calls = []
     m.procs = []
 
-    def args(spec, ctx, fit=768, cpu_only=False):
-        m.calls.append((ctx, fit, cpu_only))
+    def args(spec, ctx, fit=768, cpu_only=False, v_cache="f16"):
+        m.calls.append((ctx, fit, cpu_only) if v_cache == "f16" else (ctx, fit, cpu_only, v_cache))
         return ["llama-server"]
     m._chat_args = args
 
@@ -61,9 +61,11 @@ def _manager(ready_on: int | None, monkeypatch):
 
 
 def test_tight_graphics_memory_keeps_more_free_then_falls_back_to_cpu(monkeypatch):
-    m = _manager(ready_on=4, monkeypatch=monkeypatch)
+    m = _manager(ready_on=5, monkeypatch=monkeypatch)
     asyncio.run(m.ensure(Spec(context=8192)))
-    assert m.calls == [(8192, 768, False), (4096, 1536, False), (4096, 3072, False), (4096, 0, True)]
+    # a q8_0 V cache before more memory left free: on the F1 that kept the generation speed (7.8 instead of 4.6
+    # tokens/s), while each request took about 3 s longer to start
+    assert m.calls == [(8192, 768, False), (4096, 1536, False), (4096, 1536, False, "q8_0"), (4096, 3072, False), (4096, 0, True)]
     assert m.states[-1] == "ready"
 
 
@@ -71,7 +73,7 @@ def test_gives_up_after_the_cpu_attempt(monkeypatch):
     m = _manager(ready_on=99, monkeypatch=monkeypatch)
     with pytest.raises(llm.ModelError):
         asyncio.run(m.ensure(Spec(context=8192)))
-    assert len(m.calls) == 4 and m.states[-1] == "error"
+    assert len(m.calls) == 5 and m.states[-1] == "error"
 
 
 def _crash(m):
@@ -110,15 +112,16 @@ def test_a_model_that_crashes_after_loading_restarts_one_rung_down(monkeypatch, 
 
     async def go():
         await m.ensure(spec)
-        for _ in range(4):
+        for _ in range(5):
             _crash(m)
             await m.ensure(spec)
 
     with caplog.at_level(logging.WARNING, logger="mimi.llm"):
         asyncio.run(go())
-    assert m.calls == [(8192, 768, False), (4096, 1536, False), (4096, 3072, False), (4096, 0, True),
-                       (4096, 0, True)]  # CPU only is as far down as it goes
-    assert m.states[-1] == "ready" and m.chat_attempt == 3
+    assert m.calls == [(8192, 768, False), (4096, 1536, False), (4096, 1536, False, "q8_0"), (4096, 3072, False),
+                       (4096, 0, True), (4096, 0, True)]  # CPU only is as far down as it goes
+    assert m.states[-1] == "ready" and m.chat_attempt == 4
+    assert "it restarts with ctx 4096, 1536 MB graphics memory kept free, q8_0 V cache" in _warnings(caplog)[1]
     first = _warnings(caplog)[0]
     assert "m exited unexpectedly with ctx 8192, 768 MB graphics memory kept free (attempt 1)" in first
     assert "it restarts with ctx 4096, 1536 MB graphics memory kept free" in first and OOM in first

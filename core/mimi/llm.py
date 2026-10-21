@@ -61,8 +61,9 @@ def _model_error(text: str) -> ModelError:
     return (ModelOutOfMemory if _OUT_OF_MEMORY.search(text) else ModelError)(f"model error: {text[:400]}")
 
 
-def _settings_text(ctx: int, fit: int, cpu_only: bool) -> str:
-    return f"ctx {ctx}, " + ("CPU only" if cpu_only else f"{fit} MB graphics memory kept free")
+def _settings_text(ctx: int, fit: int, cpu_only: bool, v_cache: str = "f16") -> str:
+    return f"ctx {ctx}, " + ("CPU only" if cpu_only else f"{fit} MB graphics memory kept free") + (
+        f", {v_cache} V cache" if v_cache != "f16" else "")
 
 
 class ModelManager:
@@ -163,7 +164,8 @@ class ModelManager:
         return s
 
     # ------------------------------------------------------------------ lifecycle
-    def _chat_args(self, spec: ModelSpec, ctx: int, fit_target: int = 768, cpu_only: bool = False) -> list[str]:
+    def _chat_args(self, spec: ModelSpec, ctx: int, fit_target: int = 768, cpu_only: bool = False,
+                   v_cache: str = "f16") -> list[str]:
         build = self._build_dir(cpu_only=cpu_only)
         args = [
             str(self.paths.exe(build, "llama-server")),
@@ -173,11 +175,11 @@ class ModelManager:
             "-c", str(ctx),
             "-np", "1",
             "-fa", "on",
-            # Both halves of the KV cache in q8_0. With an f16 V cache, gemma-4-12b at an 8192 context ran
-            # out of graphics memory on a 3,500-token prompt on the F1 (3 GB carved out for its GPU). q8_0
-            # reads prompts and generates as fast (llama-bench: the same within run-to-run noise).
+            # V in f16 unless the ladder asks for q8_0: on the F1 (Vulkan) a q8_0 V
+            # cache added about 3 s to every request that reuses the cached prompt (a 40-token step took 4.5 s
+            # instead of 1.2 s), about 8 s more before an answer's first word. It needs less graphics memory.
             "-ctk", "q8_0",
-            "-ctv", "q8_0",
+            "-ctv", v_cache,
             "-t", str(self._threads()),
             "--jinja",
             "--no-webui",
@@ -193,14 +195,17 @@ class ModelManager:
             args += ["-ngl", "0"]
         return args
 
-    def _ladder(self, spec: ModelSpec) -> tuple[int, list[tuple[int, int, bool]]]:
-        """The wanted context and the (ctx, MB of graphics memory kept free, CPU only) settings to try, in order."""
+    def _ladder(self, spec: ModelSpec) -> tuple[int, list[tuple[int, int, bool, str]]]:
+        """The wanted context and the (ctx, MB of graphics memory kept free, CPU only, V cache type) settings to try,
+        in order."""
         want_ctx = int(min(self.settings.device("models").context, spec.get("context", 8192)))
         small = max(spec.get("min_context", 4096), want_ctx // 2)
-        # When graphics memory is tight (other apps hold shared memory), each retry leaves
-        # more of it free, so llama.cpp keeps more layers on the CPU: slower, but it answers.
-        # The last resort is the CPU build alone.
-        return want_ctx, [(want_ctx, 768, False), (small, 1536, False), (small, 3072, False), (small, 0, True)]
+        # When graphics memory is tight (other apps hold shared memory), each retry needs less of it: a smaller
+        # context, then a q8_0 V cache (smaller, but each request slower to start), then more memory left free,
+        # so llama.cpp keeps more layers on the CPU (half the generation speed on the F1). The last resort is
+        # the CPU build alone.
+        return want_ctx, [(want_ctx, 768, False, "f16"), (small, 1536, False, "f16"), (small, 1536, False, "q8_0"),
+                          (small, 3072, False, "f16"), (small, 0, True, "f16")]
 
     async def ensure(self, spec: ModelSpec) -> str:
         """Make sure `spec` is the resident chat model; returns its base URL."""
@@ -216,9 +221,9 @@ class ModelManager:
             resume_ctx, first = self._resume.get(spec.id, (want_ctx, 0))
             first = min(first, len(attempts) - 1) if resume_ctx == want_ctx else 0
             for attempt in range(first, len(attempts)):
-                ctx, fit, cpu_only = attempts[attempt]
+                ctx, fit, cpu_only, v_cache = attempts[attempt]
                 self.chat_ctx = ctx
-                args = self._chat_args(spec, ctx, fit, cpu_only)
+                args = self._chat_args(spec, ctx, fit, cpu_only, v_cache)
                 proc = ManagedProcess(f"llama[{spec.id}]", args, cwd=self.paths.root, log_path=self.paths.logs / "llama-chat.log")
                 proc.start()
                 ok = await self._wait_ready(proc, CHAT_PORT, timeout=240)
@@ -235,7 +240,7 @@ class ModelManager:
                     return f"http://127.0.0.1:{CHAT_PORT}"
                 tail = proc.tail(12)
                 proc.stop()
-                L.warning("%s failed to start with %s (attempt %s):\n%s", spec.id, _settings_text(ctx, fit, cpu_only), attempt + 1, tail)
+                L.warning("%s failed to start with %s (attempt %s):\n%s", spec.id, _settings_text(*attempts[attempt]), attempt + 1, tail)
             self.chat_model = None
             self._set_state("error", spec, error=f"{spec.name} could not start. Close other apps to free memory, or pick a smaller model.")
             raise ModelError(f"{spec.name} failed to load")
