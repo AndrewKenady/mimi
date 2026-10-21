@@ -147,6 +147,8 @@ def test_a_model_up_but_out_of_graphics_memory_restarts_one_rung_down(monkeypatc
     assert m.calls == [(8192, 768, False), (4096, 1536, False)]
     assert "m ran out of graphics memory with ctx 8192, 768 MB graphics memory kept free" in _warnings(caplog)[0]
     assert not isinstance(llm._model_error("500: something else"), llm.ModelOutOfMemory)
+    # what the next request got on the F1 after a decode had run out of memory
+    assert isinstance(llm._model_error('500: {"error":{"message":"Invalid input batch."}}'), llm.ModelOutOfMemory)
 
 
 def test_a_crash_between_turns_is_noticed_once(monkeypatch, caplog):

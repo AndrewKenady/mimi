@@ -192,6 +192,21 @@ def test_a_model_out_of_graphics_memory_mid_turn_still_answers(svc):
     assert "loading" in statuses  # "Restarting Gemma with lighter settings…"
 
 
+def test_a_warm_up_out_of_graphics_memory_stops_the_model(svc):
+    """On the F1 the prompt-cache warm-up right after loading ran out of graphics memory and the model stayed up;
+    the failed decode broke its cache, and the next question failed with "Invalid input batch"."""
+    from mimi.llm import ModelOutOfMemory
+
+    svc.models = FakeModels([])
+
+    async def oom(*a, **k):
+        raise ModelOutOfMemory("model error: 500: decode() failed: vk::Device::allocateMemory: ErrorOutOfDeviceMemory")
+
+    svc.models.chat_once = oom
+    asyncio.run(svc.chats.warm())
+    assert svc.models.dead  # stopped, so the first question starts it one rung down
+
+
 def test_a_turn_that_ends_without_a_word_is_asked_once_more_without_tools(svc):
     """On the F1 the model once read its search results and then wrote nothing: an empty answer, no error."""
     silent = {"timings": {"predicted_n": 28}}

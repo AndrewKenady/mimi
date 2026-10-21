@@ -48,10 +48,13 @@ class ModelError(RuntimeError):
 
 class ModelOutOfMemory(ModelError):
     """llama-server is still up but can't get graphics memory for a request: other programs took it after the
-    model loaded. On the F1 every request then failed at once, and turns ended with nothing written."""
+    model loaded. On the F1 every request then failed at once, and turns ended with nothing written.
+
+    It also covers "Invalid input batch": a decode that ran out of memory leaves llama-server's cache with
+    inconsistent positions, and on the F1 the next request failed that way."""
 
 
-_OUT_OF_MEMORY = re.compile(r"OutOfDeviceMemory|out of (device )?memory|failed to allocate", re.I)
+_OUT_OF_MEMORY = re.compile(r"OutOfDeviceMemory|out of (device )?memory|failed to allocate|Invalid input batch", re.I)
 
 
 def _model_error(text: str) -> ModelError:

@@ -877,7 +877,12 @@ class ChatService:
                 await mm.chat_once(spec, messages, max_tokens=1, tools=tools.schemas(st, svc) or None, tool_choice="auto")
             L.info("prompt cache warmed in %.1f s", time.time() - t0)
         except Exception as e:
-            L.debug("prompt cache warm-up skipped: %s", e)
+            # Out of graphics memory right after loading: stop it now, so the first question starts it one
+            # rung down instead of meeting a model whose cache the failed decode left broken.
+            if await mm.died_during(e):
+                L.warning("prompt cache warm-up stopped the model: %s", e)
+            else:
+                L.debug("prompt cache warm-up skipped: %s", e)
 
     async def _smart_title(self, ctx: Ctx, chat_id: str, spec, convo: list[dict], tools_: list[dict] | None) -> None:
         """Ask the already-loaded model for a better title, only if it's idle.
@@ -904,7 +909,10 @@ class ChatService:
                 self.db.execute("UPDATE chats SET title=? WHERE id=? AND user_id=?", (title, chat_id, ctx.id))
                 self.svc.events.publish("chat.updated", {"id": chat_id, "title": title}, user_id=ctx.id)
         except Exception as e:
-            L.debug("smart title skipped: %s", e)
+            if await mm.died_during(e):
+                L.warning("chat title request stopped the model: %s", e)
+            else:
+                L.debug("smart title skipped: %s", e)
 
     # ------------------------------------------------------------------ housekeeping
     def purge(self) -> None:
