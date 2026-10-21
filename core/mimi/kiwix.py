@@ -331,6 +331,9 @@ class KiwixClient:
         self._books_at = 0.0
         self.index = index or DocIndex(service.paths.data / "library-index.sqlite")
         self.embedder: Embedder = embedder or self._http_embed
+        # Told after each call to the running embedding server: on the F1 the model manager stopped it as idle
+        # while every search used it, and searches went without it for most of a 5-hour eval run.
+        self.on_embed: Callable[[], None] | None = None
         self._embed_down_until = 0.0
         self._qvecs: dict[str, list[float]] = {}
         self._docs: dict[str, list[Doc]] = {}        # book name → collection items
@@ -717,6 +720,8 @@ class KiwixClient:
         r = await self.http.post(f"http://127.0.0.1:{EMBED_PORT}/v1/embeddings", json={"input": [t[:2000] or " " for t in texts], "model": "embed"},
                                  timeout=httpx.Timeout(connect=0.3, read=RERANK_TIMEOUT, write=1, pool=0.5))
         r.raise_for_status()
+        if self.on_embed:
+            self.on_embed()
         return [d["embedding"] for d in sorted(r.json()["data"], key=lambda d: d["index"])]
 
     async def _embed(self, texts: list[str], timeout: float) -> list[list[float]] | None:

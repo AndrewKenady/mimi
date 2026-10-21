@@ -476,6 +476,10 @@ class ModelManager:
             self.embed_proc, self.embed_model = proc, spec
             return f"http://127.0.0.1:{EMBED_PORT}"
 
+    def embed_used(self) -> None:
+        """Library search used the running embedding server (it never starts it), so the server isn't idle."""
+        self._embed_last_use = time.time()
+
     async def embed(self, texts: list[str], batch: int = 16) -> np.ndarray:
         """Return L2-normalized float32 embeddings, shape (len(texts), dims)."""
         if not texts:

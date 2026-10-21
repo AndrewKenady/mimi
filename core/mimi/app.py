@@ -58,6 +58,7 @@ class Services:
         self.models = ModelManager(paths, self.catalog, self.settings, self.events, self.hw)
         self.kiwix_service = KiwixService(paths, self.settings, self.events)
         self.kiwix = KiwixClient(self.kiwix_service, self.settings)
+        self.kiwix.on_embed = self.models.embed_used
         self.memory = MemoryService(self.db, self.models, self.events, self.settings)
         self.docs = DocsService(self.db, self.models, self.events, paths)
         self.location = LocationService(paths, self.settings, self.events, self.db)

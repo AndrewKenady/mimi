@@ -852,3 +852,31 @@ def test_a_zim_cut_short_is_held_back_and_reported(tmp_path, monkeypatch):
     assert held["mdwiki_en_all_maxi_2025-11.zim"] == {"file": "mdwiki_en_all_maxi_2025-11.zim", "size": 2500, "expected": 4096}
     assert held["notes.zim"]["expected"] == 0
     assert zim_expected_size(paths.zim / "wikivoyage_en_all_maxi_2026-01.zim") == 4096
+
+
+def test_the_librarys_embedding_calls_count_as_use(tmp_path):
+    """On the F1 the model manager stopped the embedding server as idle while every search was using it: only its
+    own embed() calls counted, so searches went without semantic ranking for most of a 5-hour eval run."""
+    c = make_client(tmp_path, FakeKiwix(), [])
+    used = []
+    c.on_embed = lambda: used.append(1)
+
+    async def post(url, json=None, timeout=None):
+        data = [{"index": i, "embedding": [1.0, 0.0]} for i, _ in enumerate(json["input"])]
+        return httpx.Response(200, json={"data": data}, request=httpx.Request("POST", url))
+
+    c.http.post = post
+
+    async def go():
+        assert await c._http_embed(["a", "b"]) == [[1.0, 0.0], [1.0, 0.0]]
+
+    run(go())
+    assert used == [1]
+
+
+def test_core_tells_the_model_manager_when_search_used_embeddings(client):
+    svc = client.app.state.svc
+    assert svc.kiwix.on_embed == svc.models.embed_used
+    svc.models._embed_last_use = 0.0
+    svc.kiwix.on_embed()
+    assert svc.models._embed_last_use > 0
