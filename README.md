@@ -20,7 +20,7 @@ Small local models make things up, and in a field-medicine tool that matters mor
 
 - **Answers come from the library, with sources.** Factual questions must go through a search first, and every claim cites the article or PDF page it came from (*"First Aid, p. 133"*). Sources and a verbatim quote from the best passage appear within seconds, before the model has written a word.
 - **Every citation is checked.** After each answer, Mimi checks whether the cited passage actually supports the sentence: numbers, doses, names and negations included. A claim the source doesn't support gets a visible "check this" marker naming the reason, e.g. *number not in source: 45 °C*. The answer itself is never rewritten.
-- **Answer quality is measured, not asserted.** A 166-question golden set (field medicine, repair, travel, survival, plus adversarial traps like dangerous dosing and false premises) scores retrieval, key facts, forbidden claims and citation faithfulness, and compares models head to head. Model and retrieval changes need an eval run ([docs/EVALUATION.md](docs/EVALUATION.md)), and published runs appear on the [scoreboard](https://andrewkenady.github.io/mimi/scoreboard.html).
+- **Answer quality is measured, not asserted.** A 166-question golden set (field medicine, repair, travel, survival, plus adversarial traps like dangerous dosing and false premises) scores retrieval, key facts, forbidden claims and citation faithfulness, and compares models head to head. On the reference handheld, Gemma 4 12B passes 94.6 % of the set in English and 93.4 % in Spanish, with no forbidden claims ([benchmarks](docs/BENCHMARKS.md#answer-quality-eval-harness)). Model and retrieval changes need an eval run ([docs/EVALUATION.md](docs/EVALUATION.md)), and published runs appear on the [scoreboard](https://andrewkenady.github.io/mimi/scoreboard.html).
 - **The library is honest.** Every book is surveyed: can it be opened, can it be searched, how many items does it really have? PDF collections that other readers show as a blank page open as real document lists, and their text is indexed page by page so chat can cite them.
 
 | Sources first, while Mimi reads | PDF collections, searchable by page | Offline directions |
@@ -81,7 +81,7 @@ Mimi picks the Plus or Max models by itself on hardware that can run them, and u
 
 Every push runs [CI](.github/workflows/ci.yml) (Core on Linux, Windows and macOS):
 
-- **Core:** 640 tests, from geocoding to the CA's name constraints and prompt-injection defenses, plus ruff.
+- **Core:** 712 tests, from geocoding to the CA's name constraints and prompt-injection defenses, plus ruff.
 - **UI:**
   - type checks;
   - a WCAG AA contrast audit of every theme × token pair;

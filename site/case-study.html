@@ -230,7 +230,6 @@ figcaption .mono { font-size: 11.5px; letter-spacing: .12em; color: var(--accent
 .pyr li { --i: 0; margin-inline: calc(var(--i) * 6%); border: 1.5px solid var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 9px 14px 10px; text-align: center; }
 .pyr li:nth-child(1) { --i: 5; } .pyr li:nth-child(2) { --i: 4; } .pyr li:nth-child(3) { --i: 3; }
 .pyr li:nth-child(4) { --i: 2; } .pyr li:nth-child(5) { --i: 1; }
-.pyr li.eval { border-style: dashed; border-color: var(--ink-3); background: transparent; }
 .pyr b { display: block; font-weight: 700; font-stretch: 88%; font-size: 16.5px; color: var(--ink); }
 .pyr span { display: block; font-family: var(--mono); font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
 
@@ -377,10 +376,10 @@ footer a { color: var(--ink-2); }
         </div>
         <ul class="outcomes" aria-label="Headline outcomes">
           <li><span class="k">Library</span><span class="v">1<i>→</i>12</span><p>The Medical Library went from &ldquo;1 article&rdquo; and a blank page to 12 listed books, 3,138 pages searchable and citable by page.</p></li>
-          <li><span class="k">Time to evidence</span><span class="v">Sources first</span><p>Source cards and a verbatim quote arrive when the search returns, instead of after a 36–68&nbsp;s wait for the whole answer.</p></li>
+          <li><span class="k">Time to evidence</span><span class="v">Sources first</span><p>Source cards and a verbatim quote arrive when the search returns, instead of after a 33–75&nbsp;s wait for the whole answer.</p></li>
           <li><span class="k">Contrast</span><span class="v">1.6<i>→</i>4.9:1</span><p>Light-theme status colors went from 1.6–2.2:1 to at least 4.9:1. About 1,600 color pairs are now checked on every build.</p></li>
           <li><span class="k">Accessibility</span><span class="v">0 serious</span><p>Axe finds no serious or critical WCAG 2.2 A/AA violations on any main screen, in dark or light, in CI.</p></li>
-          <li><span class="k">Tests</span><span class="v">182<i>→</i>609</span><p>Core tests more than tripled, plus 35 end-to-end browser tests against the real API (there were none).</p></li>
+          <li><span class="k">Tests</span><span class="v">182<i>→</i>712</span><p>Core tests nearly quadrupled, plus 35 end-to-end browser tests against the real API (there were none).</p></li>
           <li><span class="k">Reach</span><span class="v">~200<i>→</i>16&nbsp;GB</span><p>From one Windows-only, ~200&nbsp;GB install to a 16–24&nbsp;GB Lite tier with a one-line installer for Linux and macOS, plus Docker.</p></li>
         </ul>
       </section>
@@ -393,7 +392,7 @@ footer a { color: var(--ink-2); }
         <div class="plate">
           <dl class="spec">
             <dt>No network</dt><dd><b>Zero internet after setup.</b> No cloud model to fall back on, no web search to verify against. The library on the disk is the only source of truth.</dd>
-            <dt>Slow model</dt><dd><b>6.8–9.2 tokens a second</b> for Gemma 4 12B with everyday apps open. A grounded answer takes <b>36–68&nbsp;s</b>, mostly the model reading passages before it writes.</dd>
+            <dt>Slow model</dt><dd><b>6.4–9.0 tokens a second</b> for Gemma 4 12B with everyday apps open. A grounded answer takes <b>33–75&nbsp;s</b>, mostly the model reading passages before it writes.</dd>
             <dt>Input</dt><dd><b>A game controller first</b>, on a 7-inch screen at arm&rsquo;s length, often outdoors or at night. Touch, keyboard and screen readers must get the same paths.</dd>
             <dt>Stakes</dt><dd><b>Medical questions are expected:</b> hypothermia, burns, bleeding, snakebite. A confident wrong answer can hurt someone.</dd>
             <dt>Model honesty</dt><dd><b>Small models hallucinate.</b> In side-by-side tests on the device, Qwen3.5-9B invented a 1975 first ascent of a mountain, cited sources that didn&rsquo;t say it, and leaked raw tool-call text. Gemma was slower but accurate, so it became the default (<a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DECISIONS.md#d6--default-model-on-the-16-gb-reference-device-gemma-4-12b-qat-q4_0">D6</a>).</dd>
@@ -417,7 +416,7 @@ footer a { color: var(--ink-2); }
               <tr><th scope="row">Offline library servers</th><td data-label="Examples">Internet-in-a-Box, Kiwix Hotspot, PrepperDisk</td><td data-label="Strong at">Huge offline libraries and maps, shared over Wi-Fi</td><td data-label="Gap for this audience">Mostly search and read; little or no assistant grounded in the books</td></tr>
               <tr><th scope="row">Local model apps</th><td data-label="Examples">Ollama + Open WebUI, Jan, LM Studio, GPT4All, AnythingLLM</td><td data-label="Strong at">Running open models well on a desktop</td><td data-label="Gap for this audience">Answers from the model&rsquo;s memory, or from documents you add; no reference library, maps or field use</td></tr>
               <tr><th scope="row">All-in-one bundles</th><td data-label="Examples">Project N.O.M.A.D.</td><td data-label="Strong at">Library, maps and local AI in one Docker stack</td><td data-label="Gap for this audience">Linux and Docker only; AI retrieval covers uploaded documents, not the library; no routing or voice</td></tr>
-              <tr class="us"><th scope="row">Mimi</th><td data-label="Examples">This project</td><td data-label="Strong at">Answers grounded in the library itself, with page-level, checked citations; voice, offline directions and photo reading in a controller-first app</td><td data-label="Gap for this audience">Slow answers on modest hardware; quality not yet measured on the real device</td></tr>
+              <tr class="us"><th scope="row">Mimi</th><td data-label="Examples">This project</td><td data-label="Strong at">Answers grounded in the library itself, with page-level, checked citations; voice, offline directions and photo reading in a controller-first app</td><td data-label="Gap for this audience">Slow answers on modest hardware; quality measured on one device and one model so far</td></tr>
             </tbody>
           </table>
         </div>
@@ -511,7 +510,7 @@ footer a { color: var(--ink-2); }
             </ul></dd>
             <dt>Decision</dt><dd><p>When the search returns, source cards stream in, with a verbatim <b>&ldquo;From the source&rdquo;</b> excerpt: the passage that best matches the question, at most 420 characters, cut at sentence boundaries, and labeled &ldquo;not Mimi&rsquo;s answer.&rdquo; It folds away when the answer starts. Above it, <b>Search → Read → Write</b> names what&rsquo;s happening (&ldquo;Reading &lsquo;Hypothermia&rsquo; (WikiMed) and 2 more&hellip;&rdquo;). An estimate appears only once this device&rsquo;s speed has been measured. A made-up number is worse than none.</p>
               <p>For screen readers, the thread is an ARIA log that is busy while streaming. Stages go to a separate polite status region, so people hear the stages, then the answer once, not every token.</p></dd>
-            <dt>Evidence</dt><dd><p>On the device, a library search with three passages takes 0.2–2.3&nbsp;s; the rest of the wait now has something to read. Tests cover it at two levels: the turn loop with a scripted model checks event order, and a browser test checks that sources and a quote arrive before the answer.</p></dd>
+            <dt>Evidence</dt><dd><p>On the device, a library search takes 0.4–2.6&nbsp;s (1.1&nbsp;s at the median); the rest of the wait now has something to read. Tests cover it at two levels: the turn loop with a scripted model checks event order, and a browser test checks that sources and a quote arrive before the answer.</p></dd>
           </dl>
           <div class="figs">
             <div class="stackf">
@@ -550,7 +549,7 @@ footer a { color: var(--ink-2); }
             <dt>Problem</dt><dd><p>&ldquo;It seemed fine when we tried it&rdquo; was the whole quality process.</p></dd>
             <dt>Decision</dt><dd><p>A golden set of <b>166 questions</b> across seven domains (35 medicine, 20 repair, 20 travel, 22 survival, 37 general, 8 location, 24 adversarial). Each has the expected behavior (answer, hedge or refuse), the articles that should answer it, key facts, and <b>forbidden claims</b>. The scorer reports retrieval, key facts, forbidden claims, behavior, citation faithfulness and latency. A/B runs flag per-question flips and use a McNemar test, so noise doesn&rsquo;t pass for progress. <b>Safety metrics are read first:</b> a faster model that adds forbidden claims in medicine doesn&rsquo;t become the default. Any change to the model, prompt, tool loop or retrieval needs a run (<a href="https://github.com/AndrewKenady/mimi/blob/main/docs/DECISIONS.md#d12--model-and-retrieval-changes-are-backed-by-an-eval-run">D12</a>), and published runs appear on the <a href="scoreboard.html">scoreboard</a>.</p></dd>
             <dt>Evidence</dt><dd><p>A trap I found while testing: for &ldquo;snake bite treatment&rdquo;, keyword search ranks chapter 1 of <i>Where There Is No Doctor</i> (printed p.&nbsp;3), a list of <i>harmful</i> folk remedies given as warnings, above the treatment pages (p.&nbsp;105). Rather than hard-code a demotion, I made it a measured case: item <code>med-011</code> forbids recommending tobacco, bile or kerosene, while still allowing a warning against them. Any ranking or prompt change now answers to it.</p>
-              <p>CI scores two synthetic fixture runs, one slower and more careful and one faster, mirroring the real Gemma-versus-Qwen trade-off, and publishes the scoreboard. <b>No real-device scores exist yet</b>, and the benchmarks page says &ldquo;awaiting run&rdquo; rather than a guess.</p></dd>
+              <p>CI scores two synthetic fixture runs, one slower and more careful and one faster, mirroring the real Gemma-versus-Qwen trade-off, and publishes the scoreboard. On the reference handheld, Gemma 4 12B now passes <b>94.6&nbsp;%</b> of the English set (0.2.0: 90.4&nbsp;%) and <b>93.4&nbsp;%</b> of the Spanish one, with no forbidden claims; the right article comes first in a search for 38&nbsp;% of questions, up from 12&nbsp;%. At 166 items the pass-rate gain isn&rsquo;t yet statistically significant, and the scoreboard says so.</p></dd>
           </dl>
         </div>
 
@@ -605,14 +604,14 @@ footer a { color: var(--ink-2); }
         <figure class="diagram">
           <div class="pyr-axis" aria-hidden="true"><span>Faster, more numerous</span><span>Closer to real use</span></div>
           <ol class="pyr" aria-label="Test layers, from closest to real use down to fastest">
-            <li class="eval"><b>Evaluation</b><span>166 golden questions · fixture scoreboard in CI, real runs on the device</span></li>
+            <li><b>Evaluation</b><span>166 golden questions · fixture scoreboard in CI, real runs on the device</span></li>
             <li><b>Visual snapshots</b><span>library, collection, chat and settings, dark and light</span></li>
             <li><b>Accessibility</b><span>axe, WCAG 2.2 A/AA · every main screen, dark and light</span></li>
             <li><b>End-to-end</b><span>35 Playwright tests · the real core API with a fixture library</span></li>
             <li><b>Turn loop</b><span>a scripted model streams a whole chat turn in milliseconds</span></li>
-            <li><b>Unit</b><span>609 core tests on Linux, Windows and macOS · ~1,600 contrast pairs</span></li>
+            <li><b>Unit</b><span>712 core tests on Linux, Windows and macOS · ~1,600 contrast pairs</span></li>
           </ol>
-          <figcaption><span class="mono">FIG. 6</span> The test layers. The top one is dashed because the real-device eval hasn&rsquo;t been run yet.</figcaption>
+          <figcaption><span class="mono">FIG. 6</span> The test layers. CI runs all of them; the top one also runs on the reference handheld, where a full English run takes two to three hours.</figcaption>
         </figure>
         <div class="prose">
           <p>The browser suite runs the <i>real</i> core API with a scripted model and a small fake library. Product promises become tests with plain names: &ldquo;every card shows an honest status&rdquo;, &ldquo;a document collection opens to a list of its books, not a blank page&rdquo;, &ldquo;a claim its source does not support is flagged, and the answer is left intact&rdquo;. Axe found two real issues while the suite was built, an unlabeled status strip and an empty heading on new chats, and both were fixed.</p>
@@ -631,11 +630,12 @@ footer a { color: var(--ink-2); }
         <h3 style="margin-top:0">Honest limitations</h3>
         <div class="prose">
           <ul>
-            <li><b>No real-device scoreboard yet.</b> The harness is ready, and the next step is a full A/B run on the handheld (1.5–3 hours per model). Until then, D6 rests on side-by-side sessions, not numbers.</li>
+            <li><b>One device, one model.</b> The scoreboard has full runs of Gemma 4 12B on the reference handheld, in English and Spanish. Qwen hasn&rsquo;t been run against it yet, so D6 still rests on side-by-side sessions, not numbers.</li>
             <li><b>Lexical checking is a proxy, not entailment.</b> It misses synonyms outside its stemming and can&rsquo;t follow reasoning across sentences. &ldquo;Unsupported&rdquo; means a person should look; &ldquo;supported&rdquo; means nothing obviously wrong.</li>
             <li><b>Untested platforms.</b> macOS on Apple silicon, arm64 boards, the Steam Deck and GPUs under Linux and Docker should work, but haven&rsquo;t been tried.</li>
             <li><b>No formal user research.</b> The evidence is one tester&rsquo;s report, my daily use on the device, and public discussion. Watching field use is the gap I&rsquo;d close first.</li>
-            <li><b>English only</b>, and not a medical device: passing the medicine set means Mimi repeats well-known first-aid facts from its library, nothing more.</li>
+            <li><b>Spanish and French are less proven than English.</b> Their eval sets were translated by an AI model and haven&rsquo;t had a native speaker&rsquo;s review; the Spanish set has been scored with the English library, and French not at all.</li>
+            <li><b>Not a medical device.</b> Passing the medicine set means Mimi repeats well-known first-aid facts from its library, nothing more.</li>
           </ul>
         </div>
         <h3>What I learned</h3>
@@ -643,7 +643,7 @@ footer a { color: var(--ink-2); }
           <p><b>The most important bug wasn&rsquo;t in the model.</b> I expected trust to be a prompt problem. The biggest failure was a library that looked full and was empty where it mattered. Auditing the content mattered more than tuning the model.</p>
           <p><b>A warning has a budget.</b> Every false alarm spends trust that a real one will need. Choosing precision over recall in what the interface shows, while keeping everything in the data, was the most useful product call in the release.</p>
           <p><b>Design the wait, not just the answer.</b> On slow hardware the waiting state is the main state. Filling it with real evidence did more for perceived speed than any spinner, and it teaches people to check sources.</p>
-          <p><b>&ldquo;Awaiting run&rdquo; is a design choice.</b> Publishing an empty scoreboard with its method beside it is less flattering than a number. It&rsquo;s also the only version I&rsquo;d want someone to rely on.</p>
+          <p><b>&ldquo;Awaiting run&rdquo; was a design choice.</b> Publishing an empty scoreboard with its method beside it was less flattering than a number, and the first real run showed why it mattered. On the handheld it found what CI couldn&rsquo;t: a model that crashed 20&ndash;80 minutes into a session, a bleach dose read from the wrong paragraph, and correct answers the scorer had marked wrong. Each was fixed and measured again before the numbers went up.</p>
         </div>
         <div class="end">
           <p><b>Mimi is open source.</b> The code, the decisions, the eval set and the screenshots behind every claim on this page are in the repository.</p>

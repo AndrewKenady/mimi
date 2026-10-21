@@ -428,9 +428,9 @@ footer a { color: var(--ink-2); }
       </div>
       <ol class="claims">
         <li><h3>Answers come from the library</h3><p>Factual questions must search the offline library first, and each claim cites the article or PDF page it came from, such as <i>Where There Is No Doctor, p.&nbsp;105</i>.</p></li>
-        <li><h3>Sources before the answer</h3><p>Source cards and a verbatim quote, labeled &ldquo;not Mimi&rsquo;s answer&rdquo;, appear as soon as the search returns. A full answer can take 36&ndash;68&nbsp;s on the reference handheld; you read the evidence while you wait.</p></li>
+        <li><h3>Sources before the answer</h3><p>Source cards and a verbatim quote, labeled &ldquo;not Mimi&rsquo;s answer&rdquo;, appear as soon as the search returns. A full answer takes 33&ndash;75&nbsp;s on the reference handheld; you read the evidence while you wait.</p></li>
         <li><h3>Every citation is checked</h3><p>Each cited sentence is compared with the passage the model actually read: numbers and units, doses, names and negations. A claim the source doesn&rsquo;t support is marked with the reason. The answer is never rewritten.</p></li>
-        <li><h3>Quality is measured</h3><p>A 166-question golden set (medicine, repair, travel, survival, and traps like dangerous dosing and false premises) scores retrieval, key facts, forbidden claims and citation faithfulness. Model changes need an A/B run.</p></li>
+        <li><h3>Quality is measured</h3><p>A 166-question golden set (medicine, repair, travel, survival, and traps like dangerous dosing and false premises) scores retrieval, key facts, forbidden claims and citation faithfulness. On the reference handheld Gemma 4 12B passes 94.6&nbsp;% of it in English and 93.4&nbsp;% in Spanish, with no forbidden claims. Model changes need an A/B run.</p></li>
         <li><h3>The library is honest</h3><p>Every book is surveyed and labeled Ready, Indexing&hellip;, Browse only, Search only or Can&rsquo;t open, with a real item count. PDF collections that used to open blank are now listed and searchable page by page, and a book whose download stopped partway is held back, with a note saying how much arrived.</p></li>
       </ol>
       <div class="proofs">
@@ -442,7 +442,7 @@ footer a { color: var(--ink-2); }
         <dl class="ledger" aria-label="Checked in CI on every push">
           <div><dt>166</dt><dd>golden questions, with traps</dd></div>
           <div><dt>42</dt><dd>tests for the citation checker</dd></div>
-          <div><dt>30</dt><dd>end-to-end browser tests</dd></div>
+          <div><dt>35</dt><dd>end-to-end browser tests</dd></div>
           <div><dt>0</dt><dd>serious axe violations on the app&rsquo;s main screens, dark and light</dd></div>
         </dl>
         <p class="more"><a href="case-study.html#decisions">How these were designed, and the evidence behind them</a> &rarr;</p>
@@ -588,9 +588,9 @@ footer a { color: var(--ink-2); }
               <caption>Measured on the reference device</caption>
               <thead><tr><th scope="col">Task</th><th scope="col">Result</th></tr></thead>
               <tbody>
-                <tr><td>Gemma 4 12B writing speed</td><td class="n">6.8–9.2 tokens/s</td></tr>
-                <tr><td>Library search + 3 passages</td><td class="n">0.2–2.3 s</td></tr>
-                <tr><td>Full answer from the library, cold start</td><td class="n">39–68 s</td></tr>
+                <tr><td>Gemma 4 12B writing speed</td><td class="n">6.4–9.0 tokens/s</td></tr>
+                <tr><td>Library search</td><td class="n">0.4–2.6 s</td></tr>
+                <tr><td>Full answer from the library</td><td class="n">33–75 s</td></tr>
                 <tr><td>Voice chat, first word</td><td class="n">1.7–1.9 s</td></tr>
                 <tr><td>Reading text in a photo</td><td class="n">0.5 s</td></tr>
                 <tr><td>98-mile driving route</td><td class="n">0.1 s</td></tr>
@@ -702,10 +702,10 @@ footer a { color: var(--ink-2); }
         <p>These are planned, not built. They're listed so you know where Mimi is headed, not as promises about dates.</p>
       </div>
       <ul class="planned">
-        <li><span class="sign plan">Waiting</span><span><b>The answer-quality <a href="scoreboard.html">scoreboard</a></b> is built and waits for its first numbers: the full 166-question eval on the reference handheld, comparing Gemma and Qwen head to head.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>Gemma and Qwen head to head on the <a href="scoreboard.html">scoreboard</a>.</b> The full 166-question eval has run on the reference handheld with Gemma 4 12B, in English and Spanish; Qwen3.5-9B hasn&rsquo;t been run against it yet.</span></li>
         <li><span class="sign plan">Planned</span><span><b>Testing on more hardware:</b> Apple silicon, Linux and Docker with a GPU, arm64 boards and the Steam Deck, which all should work but haven&rsquo;t been tried yet.</span></li>
         <li><span class="sign plan">Waiting</span><span><b>A bootable Mimi USB</b> is built: write the image to a stick and a PC starts straight into Mimi, with no setup. The image is on the <a href="https://github.com/AndrewKenady/mimi/releases/tag/v0.2.0">0.2.0 release</a> and boots in a virtual machine, but no one has tried it on a real PC yet. It downloads its books and maps once online, or you can build a stick with them included.</span></li>
-        <li><span class="sign plan">Planned</span><span><b>A native speaker&rsquo;s review of the Spanish and French eval sets,</b> and scored runs in both. The 166 questions were translated by an AI model, and Spanish and French books can be added to the library; neither has been scored on the handheld yet.</span></li>
+        <li><span class="sign plan">Planned</span><span><b>A native speaker&rsquo;s review of the Spanish and French eval sets,</b> a scored run in French, and runs with Spanish and French books. The 166 questions were translated by an AI model. The Spanish set has been scored on the handheld with the English library; French hasn&rsquo;t been scored yet.</span></li>
         <li><span class="sign plan">Planned</span><span><b>Whole-country runs of the new map data:</b> address search for the UK, Germany, France, Australia and New Zealand, and fuel stations and hospitals in &ldquo;near me&rdquo;, so far tested on small real areas only.</span></li>
         <li><span class="sign plan">Planned</span><span><b>A long offline field test</b> with measured battery life, and the Plus and Max profiles run on real hardware.</span></li>
       </ul>
