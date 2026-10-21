@@ -1,7 +1,7 @@
 {
- "source": "eval\\results\\2026-10-20-retrieval-fix6.jsonl",
- "generated_at": "2026-10-20T18:58:27",
- "run_date": "2026-10-20",
+ "source": "eval/results/2026-10-21-retrieval-final.jsonl",
+ "generated_at": "2026-10-21T07:02:21",
+ "run_date": "2026-10-21",
  "models": [
   "retrieval"
  ],
@@ -9,7 +9,7 @@
   "en"
  ],
  "run_ids": [
-  "d7060330d99b"
+  "4f965f00ee51"
  ],
  "mimi_versions": [
   "0.2.0"
@@ -27,30 +27,30 @@
    "n": 153,
    "errors": 0,
    "with_titles": 137,
-   "recall@1": 0.335766,
-   "recall@3": 0.364964,
-   "recall@5": 0.379562,
-   "recall@10": 0.416058,
-   "mrr": 0.356459,
-   "collection_hit@1": 0.631579,
-   "collection_hit@3": 0.756579,
-   "latency_p50_ms": 486,
-   "latency_p90_ms": 1279
+   "recall@1": 0.379562,
+   "recall@3": 0.452555,
+   "recall@5": 0.474453,
+   "recall@10": 0.49635,
+   "mrr": 0.420318,
+   "collection_hit@1": 0.697368,
+   "collection_hit@3": 0.776316,
+   "latency_p50_ms": 1121,
+   "latency_p90_ms": 2603
   },
   "by_domain": {
    "adversarial": {
     "n": 17,
     "errors": 0,
     "with_titles": 16,
-    "recall@1": 0.1875,
-    "recall@3": 0.1875,
-    "recall@5": 0.1875,
-    "recall@10": 0.1875,
-    "mrr": 0.1875,
+    "recall@1": 0.375,
+    "recall@3": 0.375,
+    "recall@5": 0.375,
+    "recall@10": 0.375,
+    "mrr": 0.375,
     "collection_hit@1": 0.75,
     "collection_hit@3": 0.9375,
-    "latency_p50_ms": 1451,
-    "latency_p90_ms": 4625
+    "latency_p50_ms": 1568,
+    "latency_p90_ms": 3080
    },
    "general": {
     "n": 37,
@@ -61,10 +61,10 @@
     "recall@5": 0.459459,
     "recall@10": 0.486486,
     "mrr": 0.429875,
-    "collection_hit@1": 0.513514,
+    "collection_hit@1": 0.540541,
     "collection_hit@3": 0.702703,
-    "latency_p50_ms": 672,
-    "latency_p90_ms": 1708
+    "latency_p50_ms": 1738,
+    "latency_p90_ms": 4044
    },
    "local": {
     "n": 2,
@@ -77,22 +77,22 @@
     "mrr": null,
     "collection_hit@1": 0.5,
     "collection_hit@3": 0.5,
-    "latency_p50_ms": 364,
-    "latency_p90_ms": 553
+    "latency_p50_ms": 1365,
+    "latency_p90_ms": 1532
    },
    "medicine": {
     "n": 35,
     "errors": 0,
     "with_titles": 35,
-    "recall@1": 0.485714,
-    "recall@3": 0.514286,
-    "recall@5": 0.542857,
-    "recall@10": 0.6,
-    "mrr": 0.511,
-    "collection_hit@1": 0.914286,
+    "recall@1": 0.542857,
+    "recall@3": 0.714286,
+    "recall@5": 0.771429,
+    "recall@10": 0.8,
+    "mrr": 0.644774,
+    "collection_hit@1": 0.971429,
     "collection_hit@3": 1.0,
-    "latency_p50_ms": 364,
-    "latency_p90_ms": 527
+    "latency_p50_ms": 700,
+    "latency_p90_ms": 1878
    },
    "repair": {
     "n": 20,
@@ -103,38 +103,38 @@
     "recall@5": 0.285714,
     "recall@10": 0.285714,
     "mrr": 0.285714,
-    "collection_hit@1": 0.15,
-    "collection_hit@3": 0.35,
-    "latency_p50_ms": 385,
-    "latency_p90_ms": 545
+    "collection_hit@1": 0.45,
+    "collection_hit@3": 0.45,
+    "latency_p50_ms": 593,
+    "latency_p90_ms": 1407
    },
    "survival": {
     "n": 22,
     "errors": 0,
     "with_titles": 22,
     "recall@1": 0.227273,
-    "recall@3": 0.272727,
-    "recall@5": 0.272727,
-    "recall@10": 0.272727,
-    "mrr": 0.242424,
-    "collection_hit@1": 0.954545,
-    "collection_hit@3": 1.0,
-    "latency_p50_ms": 454,
-    "latency_p90_ms": 650
+    "recall@3": 0.318182,
+    "recall@5": 0.318182,
+    "recall@10": 0.318182,
+    "mrr": 0.257576,
+    "collection_hit@1": 0.863636,
+    "collection_hit@3": 0.954545,
+    "latency_p50_ms": 1001,
+    "latency_p90_ms": 2281
    },
    "travel": {
     "n": 20,
     "errors": 0,
     "with_titles": 20,
-    "recall@1": 0.2,
-    "recall@3": 0.25,
-    "recall@5": 0.25,
+    "recall@1": 0.25,
+    "recall@3": 0.3,
+    "recall@5": 0.3,
     "recall@10": 0.35,
-    "mrr": 0.235556,
-    "collection_hit@1": 0.4,
-    "collection_hit@3": 0.45,
-    "latency_p50_ms": 576,
-    "latency_p90_ms": 1019
+    "mrr": 0.272222,
+    "collection_hit@1": 0.55,
+    "collection_hit@3": 0.55,
+    "latency_p50_ms": 996,
+    "latency_p90_ms": 2246
    }
   }
  },
@@ -149,7 +149,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 3953,
+   "ms": 1270,
    "top": [
     "Mount Everest",
     "whitetail-deer-hunting, p. 29",
@@ -166,7 +166,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 3,
-   "ms": 4625,
+   "ms": 9307,
    "top": [
     "Foxfire-One, p. 379",
     "Preservation of Fish and Meat, p. 10",
@@ -181,13 +181,13 @@
    "query": "How long should I leave butter on a burn so it heals faster?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
+   "title_rank": 1,
    "collection_rank": 1,
-   "ms": 10692,
+   "ms": 3080,
    "top": [
+    "Burn",
     "Where there is no Doctor, p. 96",
-    "Honey",
-    "Where there is no Doctor, p. 85"
+    "Honey"
    ]
   },
   {
@@ -200,7 +200,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 1451,
+   "ms": 1568,
    "top": [
     "Vaccine",
     "Vaccine",
@@ -217,7 +217,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 1928,
+   "ms": 1029,
    "top": [
     "Paracetamol",
     "Paracetamol",
@@ -234,7 +234,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 473,
+   "ms": 426,
    "top": [
     "Where there is no Doctor, p. 379",
     "Where-there-is-no-Doctor-book, p. 379",
@@ -249,13 +249,13 @@
    "query": "Can I give aspirin to my 6-year-old for a fever?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
+   "title_rank": 1,
    "collection_rank": 1,
-   "ms": 633,
+   "ms": 1650,
    "top": [
-    "Where there is no Doctor, p. 379",
-    "Self-experimentation in medicine",
-    "Where there is no Doctor, p. 378"
+    "Aspirin",
+    "Fever",
+    "Where there is no Doctor, p. 379"
    ]
   },
   {
@@ -268,11 +268,11 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 1111,
+   "ms": 771,
    "top": [
+    "Bi-specific T-cell engager",
     "Wilderness Medicine Course, p. 99",
-    "Wilderness Medicine Course, p. 100",
-    "Wilderness-Medicine-Course, p. 99"
+    "Wilderness Medicine Course, p. 100"
    ]
   },
   {
@@ -285,7 +285,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 2014,
+   "ms": 2805,
    "top": [
     "Where there is no Doctor, p. 310",
     "Where there is no Doctor, p. 352",
@@ -302,7 +302,7 @@
    "has_collections": false,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 1279,
+   "ms": 1572,
    "top": [
     "A Book for Midwives, p. 57",
     "First Aid and Medicine_midwife_2011_Full_Book, p. 57",
@@ -319,7 +319,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 1729,
+   "ms": 2328,
    "top": [
     "Canberra",
     "Canberra",
@@ -336,11 +336,11 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 611,
+   "ms": 526,
    "top": [
-    "Wilderness Medicine Course, p. 103",
-    "Wilderness Medicine Course, p. 100",
-    "Wilderness-Medicine-Course, p. 103"
+    "Bi-specific T-cell engager",
+    "Tourniquet",
+    "Wilderness Medicine Course, p. 103"
    ]
   },
   {
@@ -353,7 +353,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 3,
-   "ms": 1532,
+   "ms": 1540,
    "top": [
     "Urban Foraging, p. 101",
     "Where There is No Dentist, p. 41",
@@ -370,7 +370,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 4179,
+   "ms": 1815,
    "top": [
     "ENEWER US ARMY FM-21-76-Survival-2002, p. 89",
     "Water, p. 25",
@@ -385,13 +385,13 @@
    "query": "Should you rub snow on frostbite to warm it up?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
+   "title_rank": 1,
    "collection_rank": 1,
-   "ms": 871,
+   "ms": 695,
    "top": [
+    "Frostbite",
     "Wilderness Medicine Course, p. 117",
-    "Emergency War Surgery, p. 392",
-    "Where there is no Doctor, p. 409"
+    "Emergency War Surgery, p. 392"
    ]
   },
   {
@@ -404,7 +404,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 947,
+   "ms": 1902,
    "top": [
     "Safe Water School, p. 55",
     "Safe Water School, p. 55",
@@ -421,7 +421,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 2,
-   "ms": 923,
+   "ms": 841,
    "top": [
     "Foxfire-Two, p. 170",
     "Where there is no Doctor, p. 131",
@@ -438,7 +438,7 @@
    "has_collections": true,
    "title_rank": 20,
    "collection_rank": 4,
-   "ms": 3930,
+   "ms": 4206,
    "top": [
     "Foxfire-Three, p. 248",
     "Plants as Indicator of Ground Water, p. 77",
@@ -454,12 +454,12 @@
    "has_titles": true,
    "has_collections": true,
    "title_rank": null,
-   "collection_rank": 5,
-   "ms": 3173,
+   "collection_rank": 1,
+   "ms": 1710,
    "top": [
+    "Celsius",
     "Philmont Trail Cookbook, p. 3",
-    "Boy Scout cookbook PDF, p. 3",
-    "First Aid, p. 212"
+    "Boy Scout cookbook PDF, p. 3"
    ]
   },
   {
@@ -472,7 +472,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 2244,
+   "ms": 1484,
    "top": [
     "Speed of light",
     "A Book for Midwives, p. 515",
@@ -489,7 +489,7 @@
    "has_collections": true,
    "title_rank": 4,
    "collection_rank": 4,
-   "ms": 1071,
+   "ms": 2561,
    "top": [
     "Safe Water School, p. 29",
     "Safe Water School, p. 29",
@@ -506,7 +506,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 1098,
+   "ms": 2603,
    "top": [
     "Solar System",
     "List of largest exoplanets",
@@ -523,11 +523,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 770,
+   "ms": 2583,
    "top": [
     "Pride and Prejudice",
     "Novelist",
-    "dead falls snares b00harduoft, p. 219"
+    "Jane Austen tourism"
    ]
   },
   {
@@ -539,12 +539,12 @@
    "has_titles": true,
    "has_collections": true,
    "title_rank": 16,
-   "collection_rank": 3,
-   "ms": 1152,
+   "collection_rank": 4,
+   "ms": 3233,
    "top": [
+    "Moon",
     "Foxfire-One, p. 379",
-    "A Book for Midwives, p. 89",
-    "One small step"
+    "A Book for Midwives, p. 89"
    ]
   },
   {
@@ -557,7 +557,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 514,
+   "ms": 1547,
    "top": [
     "Chemical symbol",
     "Worm-Factory-360-Manual, p. 66",
@@ -574,11 +574,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 1708,
+   "ms": 3574,
    "top": [
     "Denali",
     "Tallest mountain",
-    "1971-31-4-colonial-garden-plants, p. 69"
+    "North America"
    ]
   },
   {
@@ -591,7 +591,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 679,
+   "ms": 1202,
    "top": [
     "Semi-major and semi-minor axes",
     "From the Earth to the Moon",
@@ -608,7 +608,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 4,
-   "ms": 672,
+   "ms": 1190,
    "top": [
     "Wilderness Medicine Course, p. 236",
     "Wilderness-Medicine-Course, p. 236",
@@ -625,7 +625,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 1078,
+   "ms": 2197,
    "top": [
     "General relativity",
     "_173165, p. 64",
@@ -642,7 +642,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 1080,
+   "ms": 4198,
    "top": [
     "List of river systems by length",
     "Wilderness Medicine Course, p. 253",
@@ -659,7 +659,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 914,
+   "ms": 3851,
    "top": [
     "World War II",
     "World War II",
@@ -676,7 +676,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 147,
+   "ms": 203,
    "top": [
     "Photosynthesis",
     "Photosynthesis",
@@ -693,7 +693,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 510,
+   "ms": 2278,
    "top": [
     "Where there is no Doctor, p. 422",
     "Where-there-is-no-Doctor-book, p. 422",
@@ -710,7 +710,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 732,
+   "ms": 2532,
    "top": [
     "Canberra",
     "Canberra",
@@ -727,7 +727,7 @@
    "has_collections": true,
    "title_rank": 15,
    "collection_rank": 5,
-   "ms": 413,
+   "ms": 1738,
    "top": [
     "basic hunting booklet, p. 26",
     "HHS Pandemic Influenza Plan, p. 16",
@@ -744,7 +744,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 282,
+   "ms": 703,
    "top": [
     "Mona Lisa",
     "A Book for Midwives, p. iii",
@@ -761,7 +761,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 3,
-   "ms": 461,
+   "ms": 1028,
    "top": [
     "FEMA-nuclear-survival, p. 5",
     "Wilderness Medicine Course, p. 233",
@@ -778,7 +778,7 @@
    "has_collections": true,
    "title_rank": 7,
    "collection_rank": 1,
-   "ms": 402,
+   "ms": 566,
    "top": [
     "Mineral",
     "Natural product",
@@ -795,7 +795,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 1447,
+   "ms": 3626,
    "top": [
     "United States Declaration of Independence",
     "HHS Pandemic Influenza Plan, p. I-4",
@@ -812,7 +812,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 4,
-   "ms": 206,
+   "ms": 468,
    "top": [
     "Urban Foraging, p. 55",
     "HHS Pandemic Influenza Plan, p. S2-13",
@@ -829,7 +829,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 3,
-   "ms": 420,
+   "ms": 941,
    "top": [
     "ENEWER US ARMY FM-21-76-Survival-2002, p. 651",
     "Wilderness Medicine Course, p. 122",
@@ -846,11 +846,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 1262,
+   "ms": 4044,
    "top": [
     "George Washington",
     "George Washington",
-    "Nuclear Survival Skills, p. 24"
+    "President of the United States"
    ]
   },
   {
@@ -863,7 +863,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 519,
+   "ms": 1192,
    "top": [
     "Absolute zero",
     "Celsius",
@@ -880,7 +880,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 793,
+   "ms": 1553,
    "top": [
     "ENEWER US ARMY FM-21-76-Survival-2002, p. 219",
     "Wilderness Medicine Course, p. 366",
@@ -897,7 +897,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 497,
+   "ms": 1933,
    "top": [
     "gift mixes jar recipes, p. 26",
     "60 gift mixes in a jar recipes, p. 26",
@@ -914,11 +914,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 2,
-   "ms": 486,
+   "ms": 2011,
    "top": [
     "Blood type",
     "Blood type",
-    "Emergency War Surgery, p. 115"
+    "Blood"
    ]
   },
   {
@@ -931,11 +931,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 2,
-   "ms": 382,
+   "ms": 1157,
    "top": [
     "Great Barrier Reef",
     "Great Barrier Reef",
-    "ENEWER US ARMY FM-21-76-Survival-2002, p. 636"
+    "Great Barrier"
    ]
   },
   {
@@ -948,7 +948,7 @@
    "has_collections": true,
    "title_rank": 3,
    "collection_rank": 3,
-   "ms": 281,
+   "ms": 992,
    "top": [
     "Where there is no Doctor, p. 223",
     "Where-there-is-no-Doctor-book, p. 223",
@@ -965,7 +965,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 859,
+   "ms": 3828,
    "top": [
     "List of countries and dependencies by area",
     "FEMA-nuclear-survival, p. 7",
@@ -982,7 +982,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 390,
+   "ms": 1474,
    "top": [
     "Wilderness Medicine Course, p. 64",
     "Wilderness-Medicine-Course, p. 64",
@@ -999,7 +999,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 4,
-   "ms": 585,
+   "ms": 3662,
    "top": [
     "Survival and Austere Medicine, p. 116",
     "Survival-and-Austere-Medicine, p. 116",
@@ -1016,7 +1016,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 1024,
+   "ms": 4518,
    "top": [
     "Language family",
     "Foxfire-Two, p. 312",
@@ -1033,7 +1033,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 325,
+   "ms": 965,
    "top": [
     "Richter scale",
     "Survival and Austere Medicine, p. 200",
@@ -1050,7 +1050,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 3,
-   "ms": 240,
+   "ms": 513,
    "top": [
     "Mushroom from Forest to Plate, p. 14",
     "Where There is No Dentist, p. 30",
@@ -1067,7 +1067,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 5,
-   "ms": 364,
+   "ms": 1365,
    "top": [
     "Emergency War Surgery, p. 239",
     "Emergency-War-Surgery, p. 239",
@@ -1084,11 +1084,11 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 553,
+   "ms": 1532,
    "top": [
     "Historic site",
     "Historical travel",
-    "FEMA_REP_Program_Manual_Dec_2019, p. 157"
+    "Near Here"
    ]
   },
   {
@@ -1099,13 +1099,13 @@
    "query": "CPR chest compression rate",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": 3,
+   "title_rank": 4,
    "collection_rank": 1,
-   "ms": 326,
+   "ms": 851,
    "top": [
+    "Thorax",
     "Chest compression",
-    "Emergency War Surgery, p. 282",
-    "Cardiopulmonary resuscitation"
+    "Emergency War Surgery, p. 282"
    ]
   },
   {
@@ -1118,7 +1118,7 @@
    "has_collections": true,
    "title_rank": 4,
    "collection_rank": 1,
-   "ms": 449,
+   "ms": 861,
    "top": [
     "Wilderness Medicine Course, p. 23",
     "AutoPulse",
@@ -1133,13 +1133,13 @@
    "query": "burn first aid",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
+   "title_rank": 2,
    "collection_rank": 1,
-   "ms": 407,
+   "ms": 1851,
    "top": [
     "First aid",
-    "First aid",
-    "First Aid, p. 167"
+    "Burn",
+    "First aid"
    ]
   },
   {
@@ -1152,7 +1152,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 148,
+   "ms": 290,
    "top": [
     "Anaphylaxis",
     "Anaphylaxis",
@@ -1169,11 +1169,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 253,
+   "ms": 1124,
    "top": [
     "Epinephrine autoinjector",
     "Epinephrine autoinjector",
-    "First Aid, p. 153"
+    "Intramuscular injection"
    ]
   },
   {
@@ -1184,13 +1184,13 @@
    "query": "What is the first aid for an adult who is choking and can't breathe?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
+   "title_rank": 2,
    "collection_rank": 1,
-   "ms": 469,
+   "ms": 2360,
    "top": [
-    "First Aid, p. 163",
-    "Cerebral palsy",
-    "First Aid, p. 31"
+    "First aid",
+    "Choking",
+    "First Aid, p. 163"
    ]
   },
   {
@@ -1201,13 +1201,13 @@
    "query": "What are the symptoms of hypothermia?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
+   "title_rank": 2,
    "collection_rank": 1,
-   "ms": 199,
+   "ms": 363,
    "top": [
-    "Wilderness Medicine Course, p. 73",
-    "Shapiro syndrome",
-    "First Aid, p. 128"
+    "Signs and symptoms",
+    "Hypothermia",
+    "Wilderness Medicine Course, p. 73"
    ]
   },
   {
@@ -1218,13 +1218,13 @@
    "query": "hypothermia definition core temperature",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
+   "title_rank": 2,
    "collection_rank": 1,
-   "ms": 390,
+   "ms": 607,
    "top": [
     "Human body temperature",
-    "Core temperature",
-    "Wilderness Medicine Course, p. 73"
+    "Hypothermia",
+    "Core temperature"
    ]
   },
   {
@@ -1237,11 +1237,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 331,
+   "ms": 542,
    "top": [
     "Heat stroke",
-    "Heat stroke",
-    "Emergency War Surgery, p. 402"
+    "Stroke",
+    "Heat stroke"
    ]
   },
   {
@@ -1254,11 +1254,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 428,
+   "ms": 905,
    "top": [
     "Heat exhaustion",
-    "Where there is no Doctor, p. 81",
-    "Emergency War Surgery, p. 398"
+    "Heat exhaustion",
+    "Heat stroke"
    ]
   },
   {
@@ -1271,11 +1271,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 190,
+   "ms": 496,
    "top": [
     "Snakebite",
     "Snakebite",
-    "First Aid, p. 133"
+    "First aid"
    ]
   },
   {
@@ -1288,7 +1288,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 252,
+   "ms": 370,
    "top": [
     "Bee sting",
     "Bee sting",
@@ -1305,11 +1305,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 249,
+   "ms": 284,
    "top": [
     "Tourniquet",
-    "First Aid, p. 46",
-    "Intravenous regional anesthesia"
+    "Tourniquet",
+    "First Aid, p. 46"
    ]
   },
   {
@@ -1320,13 +1320,13 @@
    "query": "How do you stop a nosebleed?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
+   "title_rank": 1,
    "collection_rank": 1,
-   "ms": 232,
+   "ms": 440,
    "top": [
+    "Nosebleed",
     "Where there is no Doctor, p. 83",
-    "Where-there-is-no-Doctor-book, p. 83",
-    "The Sacrifice (The Vampire Diaries)"
+    "Where there is no Doctor, p. vii"
    ]
   },
   {
@@ -1339,11 +1339,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 267,
+   "ms": 321,
    "top": [
     "Concussion",
     "Concussion",
-    "First Aid, p. 56"
+    "Signs and symptoms"
    ]
   },
   {
@@ -1356,11 +1356,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 364,
+   "ms": 630,
    "top": [
     "Stroke",
-    "Wilderness Medicine Course, p. 268",
-    "Syncope"
+    "Stroke",
+    "Wilderness Medicine Course, p. 268"
    ]
   },
   {
@@ -1373,11 +1373,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 524,
+   "ms": 1301,
    "top": [
     "Myocardial infarction",
-    "Myocardial infarction",
-    "Where there is no Doctor, p. 325"
+    "Signs and symptoms",
+    "Heart"
    ]
   },
   {
@@ -1390,11 +1390,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 194,
+   "ms": 133,
    "top": [
     "Frostbite",
     "Frostbite",
-    "Wilderness Medicine Course, p. 117"
+    "Rewarming shock"
    ]
   },
   {
@@ -1405,13 +1405,13 @@
    "query": "What does RICE stand for in treating a sprained ankle?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
+   "title_rank": 3,
    "collection_rank": 1,
-   "ms": 453,
+   "ms": 1083,
    "top": [
     "Sprained ankle",
     "Sprained ankle",
-    "Where there is no Doctor, p. 102"
+    "Sprain"
    ]
   },
   {
@@ -1424,7 +1424,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 192,
+   "ms": 264,
    "top": [
     "Arm",
     "Broken Arm",
@@ -1441,7 +1441,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 776,
+   "ms": 1878,
    "top": [
     "Recovery Position",
     "Recovery position",
@@ -1458,7 +1458,7 @@
    "has_collections": true,
    "title_rank": 7,
    "collection_rank": 1,
-   "ms": 498,
+   "ms": 1413,
    "top": [
     "Where there is no Doctor, p. 181",
     "Where-there-is-no-Doctor-book, p. 181",
@@ -1475,11 +1475,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 432,
+   "ms": 1335,
    "top": [
     "Lyme disease",
-    "Lyme disease",
-    "Where there is no Doctor, p. 190"
+    "Rash",
+    "Lyme disease"
    ]
   },
   {
@@ -1492,7 +1492,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 2,
-   "ms": 342,
+   "ms": 330,
    "top": [
     "Student_manual_2005, p. Sec1:106",
     "Where there is no Doctor, p. 201",
@@ -1508,12 +1508,12 @@
    "has_titles": true,
    "has_collections": true,
    "title_rank": 1,
-   "collection_rank": 2,
-   "ms": 197,
+   "collection_rank": 1,
+   "ms": 328,
    "top": [
     "Dehydration",
-    "Where there is no Doctor, p. 151",
-    "Where there is no Doctor, p. 160"
+    "Dehydration",
+    "Where there is no Doctor, p. 151"
    ]
   },
   {
@@ -1526,7 +1526,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 530,
+   "ms": 1685,
    "top": [
     "Oral rehydration therapy",
     "Oral rehydration therapy",
@@ -1541,13 +1541,13 @@
    "query": "What blood sugar level counts as hypoglycemia, and how is mild low blood sugar treated?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
+   "title_rank": 2,
    "collection_rank": 1,
-   "ms": 523,
+   "ms": 1086,
    "top": [
-    "Emergency War Surgery, p. 417",
-    "Glossary of diabetes",
-    "Where there is no Doctor, p. 125"
+    "Blood sugar level",
+    "Hypoglycemia",
+    "Blood"
    ]
   },
   {
@@ -1560,11 +1560,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 255,
+   "ms": 507,
    "top": [
     "Carbon monoxide poisoning",
     "Carbon monoxide poisoning",
-    "Wilderness Medicine Course, p. 64"
+    "Signs and symptoms"
    ]
   },
   {
@@ -1575,13 +1575,13 @@
    "query": "What medicine is used to relieve an asthma attack?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": 17,
+   "title_rank": 1,
    "collection_rank": 1,
-   "ms": 527,
+   "ms": 2061,
    "top": [
-    "Where there is no Doctor, p. 167",
-    "Asthma trigger",
-    "Where there is no Doctor, p. 384"
+    "Asthma",
+    "Asthma exacerbation",
+    "Medicine"
    ]
   },
   {
@@ -1593,12 +1593,12 @@
    "has_titles": true,
    "has_collections": true,
    "title_rank": 1,
-   "collection_rank": 2,
-   "ms": 455,
+   "collection_rank": 1,
+   "ms": 891,
    "top": [
     "Altitude sickness",
-    "Wilderness Medicine Course, p. 31",
-    "Decompression sickness"
+    "Signs and symptoms",
+    "Altitude sickness"
    ]
   },
   {
@@ -1611,7 +1611,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 297,
+   "ms": 590,
    "top": [
     "Petal (album)",
     "A Book for Midwives, p. 368",
@@ -1626,13 +1626,13 @@
    "query": "What causes the itchy rash from poison ivy?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": 10,
+   "title_rank": 11,
    "collection_rank": 1,
-   "ms": 373,
+   "ms": 700,
    "top": [
-    "Personal Wilderness Medical Kit, p. 26",
     "Rash",
-    "Where there is no Doctor, p. 198"
+    "Poison",
+    "Personal Wilderness Medical Kit, p. 26"
    ]
   },
   {
@@ -1645,7 +1645,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 260,
+   "ms": 308,
    "top": [
     "Where there is no Doctor, p. 184",
     "Where-there-is-no-Doctor-book, p. 184",
@@ -1662,11 +1662,11 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 828,
+   "ms": 2459,
    "top": [
+    "Major trauma",
     "Where there is no Doctor, p. 91",
-    "List of first response mnemonics",
-    "First Aid, p. 90"
+    "List of first response mnemonics"
    ]
   },
   {
@@ -1679,7 +1679,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 449,
+   "ms": 1121,
    "top": [
     "Survival and Austere Medicine, p. 29",
     "Survival-and-Austere-Medicine, p. 29",
@@ -1695,12 +1695,12 @@
    "has_titles": false,
    "has_collections": true,
    "title_rank": null,
-   "collection_rank": 5,
-   "ms": 272,
+   "collection_rank": 1,
+   "ms": 542,
    "top": [
-    "Bicycle tire",
-    "bushcraft leather work PDF, p. 6",
-    "Famous Recipes from Old Virginia, p. 238"
+    "Bicycle",
+    "Tire",
+    "Bicycle tire"
    ]
   },
   {
@@ -1713,7 +1713,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 423,
+   "ms": 548,
    "top": [
     "Screen Replacement",
     "Display device",
@@ -1729,12 +1729,12 @@
    "has_titles": true,
    "has_collections": true,
    "title_rank": null,
-   "collection_rank": 2,
-   "ms": 720,
+   "collection_rank": 1,
+   "ms": 1407,
    "top": [
+    "Battery",
     "Nuclear Survival Skills, p. 161",
-    "When jump-starting a car, won't there be a huge back current into the dead battery?",
-    "Drained 12 V car battery jumping another car"
+    "When jump-starting a car, won't there be a huge back current into the dead battery?"
    ]
   },
   {
@@ -1747,7 +1747,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 7,
-   "ms": 287,
+   "ms": 774,
    "top": [
     "Flat tire",
     "Nuclear Survival Skills, p. 461",
@@ -1763,12 +1763,12 @@
    "has_titles": false,
    "has_collections": true,
    "title_rank": null,
-   "collection_rank": 5,
-   "ms": 218,
+   "collection_rank": 1,
+   "ms": 347,
    "top": [
+    "Faucet",
     "Water Treatment, p. 21",
-    "Water_Treatment, p. 21",
-    "Camping Recipes, p. 115"
+    "Water_Treatment, p. 21"
    ]
   },
   {
@@ -1781,7 +1781,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 11,
-   "ms": 500,
+   "ms": 2155,
    "top": [
     "Chemical drain cleaners",
     "Preservation of Fish and Meat, p. 21",
@@ -1798,7 +1798,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 8,
-   "ms": 238,
+   "ms": 882,
    "top": [
     "Circuit breaker",
     "the-ten-bushcraft-books, p. 148",
@@ -1814,12 +1814,12 @@
    "has_titles": false,
    "has_collections": true,
    "title_rank": null,
-   "collection_rank": 2,
-   "ms": 320,
+   "collection_rank": 1,
+   "ms": 585,
    "top": [
+    "Battery",
     "Lithium-ion battery",
-    "How to Test a Mac Laptop Battery",
-    "ENEWER US ARMY FM-21-76-Survival-2002, p. 327"
+    "How to Test a Mac Laptop Battery"
    ]
   },
   {
@@ -1832,7 +1832,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 6,
-   "ms": 545,
+   "ms": 1251,
    "top": [
     "Nuclear Survival Skills, p. 102",
     "Emergency War Surgery, p. 81",
@@ -1848,12 +1848,12 @@
    "has_titles": false,
    "has_collections": true,
    "title_rank": null,
-   "collection_rank": 3,
-   "ms": 442,
+   "collection_rank": 1,
+   "ms": 789,
    "top": [
+    "Toilet",
     "Safe Water School, p. 91",
-    "Safe Water School, p. 91",
-    "How to fix toilet with multiple leaks"
+    "Safe Water School, p. 91"
    ]
   },
   {
@@ -1866,7 +1866,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 5,
-   "ms": 391,
+   "ms": 722,
    "top": [
     "A Book for Midwives, p. 265",
     "First Aid and Medicine_midwife_2011_Full_Book, p. 265",
@@ -1883,7 +1883,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 7,
-   "ms": 393,
+   "ms": 372,
    "top": [
     "Tricks-of-Trapping, p. 100",
     "Where There is No Dentist, p. 114",
@@ -1899,12 +1899,12 @@
    "has_titles": false,
    "has_collections": true,
    "title_rank": null,
-   "collection_rank": 2,
-   "ms": 385,
+   "collection_rank": 1,
+   "ms": 639,
    "top": [
+    "Battery",
     "Nuclear Survival Skills, p. 161",
-    "How should I prevent my battery going flat when I leave my car alone for a month?",
-    "Nuclear Survival Skills, p. 45"
+    "How should I prevent my battery going flat when I leave my car alone for a month?"
    ]
   },
   {
@@ -1917,7 +1917,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 371,
+   "ms": 550,
    "top": [
     "Zipper",
     "Broken Zipper On Luggage Replacement",
@@ -1934,7 +1934,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 5,
-   "ms": 244,
+   "ms": 526,
    "top": [
     "Bicycle chain",
     "the-ten-bushcraft-books, p. 109",
@@ -1951,7 +1951,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 4,
-   "ms": 217,
+   "ms": 344,
    "top": [
     "Fuse (electrical)",
     "Nuclear Survival Skills, p. 102",
@@ -1968,7 +1968,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 4,
-   "ms": 244,
+   "ms": 319,
    "top": [
     "whitetail-deer-hunting, p. 121",
     "Wilderness Medicine Course, p. 169",
@@ -1985,7 +1985,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 10,
-   "ms": 453,
+   "ms": 1243,
    "top": [
     "Wilderness Medicine Course, p. 74",
     "Where There is No Dentist, p. 169",
@@ -2002,7 +2002,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 5,
-   "ms": 649,
+   "ms": 1609,
    "top": [
     "MP-15.fam_.1959, p. 16",
     "First Aid, p. 177",
@@ -2019,11 +2019,11 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 483,
+   "ms": 593,
    "top": [
+    "Mattress",
     "How to Repair a Hole in a Therm-a-Rest Sleeping Pad",
-    "Emergency-War-Surgery, p. 233",
-    "Hiking in the Nordic countries"
+    "Emergency-War-Surgery, p. 233"
    ]
   },
   {
@@ -2036,7 +2036,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 286,
+   "ms": 744,
    "top": [
     "Boiling",
     "Water purification",
@@ -2053,7 +2053,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 321,
+   "ms": 736,
    "top": [
     "Water Treatment, p. 23",
     "Water_Treatment, p. 23",
@@ -2070,7 +2070,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 179,
+   "ms": 402,
    "top": [
     "Bowline",
     "Knots-Splices-Attachments, p. 11",
@@ -2087,7 +2087,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 235,
+   "ms": 376,
    "top": [
     "Clove hitch",
     "Knots for Mountaineering, p. 20",
@@ -2104,7 +2104,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 429,
+   "ms": 536,
    "top": [
     "the-ten-bushcraft-books, p. 102",
     "Pioneering Knots and Lashings, p. 11",
@@ -2121,7 +2121,7 @@
    "has_collections": true,
    "title_rank": 3,
    "collection_rank": 1,
-   "ms": 600,
+   "ms": 1322,
    "top": [
     "Survive Unexpected Emergency, p. 6",
     "Survival and Austere Medicine, p. 190",
@@ -2138,7 +2138,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 468,
+   "ms": 1001,
    "top": [
     "US-Marine-Corps-Summer-Survival-Course, p. 34",
     "Wilderness Medicine Course, p. 188",
@@ -2155,7 +2155,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 892,
+   "ms": 2351,
    "top": [
     "the-ten-bushcraft-books, p. 180",
     "ENEWER US ARMY FM-21-76-Survival-2002, p. 308",
@@ -2171,12 +2171,12 @@
    "has_titles": true,
    "has_collections": true,
    "title_rank": null,
-   "collection_rank": 1,
-   "ms": 650,
+   "collection_rank": 2,
+   "ms": 1331,
    "top": [
+    "Drinking water",
     "Water Treatment, p. 2",
-    "Water_Treatment, p. 2",
-    "Purifying Water During an Emergency, p. 1"
+    "Water_Treatment, p. 2"
    ]
   },
   {
@@ -2188,12 +2188,12 @@
    "has_titles": true,
    "has_collections": true,
    "title_rank": null,
-   "collection_rank": 1,
-   "ms": 504,
+   "collection_rank": 2,
+   "ms": 721,
    "top": [
+    "Emergency",
     "Nuclear Survival Skills, p. 409",
-    "ENEWER US ARMY FM-21-76-Survival-2002, p. 241",
-    "Wilderness-Survival-FM-2176, p. 146"
+    "ENEWER US ARMY FM-21-76-Survival-2002, p. 241"
    ]
   },
   {
@@ -2206,7 +2206,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 492,
+   "ms": 1197,
    "top": [
     "Mushroom from Forest to Plate, p. 6",
     "Michigan",
@@ -2223,7 +2223,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 442,
+   "ms": 2646,
    "top": [
     "Wilderness-Survival-FM-2176, p. 99",
     "Wilderness Medicine Course, p. 215",
@@ -2240,7 +2240,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 454,
+   "ms": 1094,
    "top": [
     "Wilderness-Medicine-Course, p. 256",
     "ENEWER US ARMY FM-21-76-Survival-2002, p. 328",
@@ -2257,7 +2257,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 722,
+   "ms": 1841,
    "top": [
     "Distress signal",
     "ENEWER US ARMY FM-21-76-Survival-2002, p. 328",
@@ -2274,7 +2274,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 463,
+   "ms": 826,
    "top": [
     "Safe Water School, p. 43",
     "Safe Water School, p. 43",
@@ -2291,7 +2291,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 357,
+   "ms": 1123,
    "top": [
     "Famous Recipes from Old Virginia, p. 153",
     "Famous Recipes from Old Virginia, p. 153",
@@ -2308,7 +2308,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 288,
+   "ms": 732,
    "top": [
     "Survival kit",
     "GSA Child Care Emergency Preparedness Toolbox_June_2014, p. 4",
@@ -2323,13 +2323,13 @@
    "query": "How do you use iodine to purify drinking water?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": null,
-   "collection_rank": 2,
-   "ms": 593,
+   "title_rank": 3,
+   "collection_rank": 4,
+   "ms": 2281,
    "top": [
     "Water",
-    "ENEWER US ARMY FM-21-76-Survival-2002, p. 100",
-    "Water, p. 6"
+    "Drinking water",
+    "Iodine"
    ]
   },
   {
@@ -2342,7 +2342,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 414,
+   "ms": 590,
    "top": [
     "Wilderness-Survival-FM-2176, p. 3",
     "the-ten-bushcraft-books, p. 165",
@@ -2359,7 +2359,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 534,
+   "ms": 1126,
    "top": [
     "basic hunting booklet, p. 14",
     "FEMA-nuclear-survival, p. 24",
@@ -2376,7 +2376,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 300,
+   "ms": 307,
    "top": [
     "Handbook-of-Knots-Splices, p. 41",
     "Handbook of Knots and Splices, p. 41",
@@ -2393,7 +2393,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 490,
+   "ms": 1393,
    "top": [
     "Refrigerator",
     "shellfish-foraging-guide-1-5-14-final, p. 19",
@@ -2410,7 +2410,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 507,
+   "ms": 949,
    "top": [
     "The-Prepper-Phone_210808_101519, p. 5",
     "Traditional fermented food and beverages for improved livelihoods, p. 23",
@@ -2427,7 +2427,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 4,
-   "ms": 1161,
+   "ms": 3451,
    "top": [
     "Fermentation, p. 74",
     "Traditional fermented food and beverages for improved livelihoods, p. 74",
@@ -2444,7 +2444,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 572,
+   "ms": 542,
    "top": [
     "Tipping",
     "Food and drink",
@@ -2461,7 +2461,7 @@
    "has_collections": true,
    "title_rank": 9,
    "collection_rank": 1,
-   "ms": 1019,
+   "ms": 1657,
    "top": [
     "Emergency telephone number",
     "Emergency telephone number",
@@ -2478,7 +2478,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 808,
+   "ms": 742,
    "top": [
     "Australia",
     "GSA Child Care Emergency Preparedness Toolbox_June_2014, p. 10",
@@ -2495,7 +2495,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 1357,
+   "ms": 1905,
    "top": [
     "HHS Pandemic Influenza Plan, p. S3-15",
     "HHS Pandemic Influenza Plan, p. S3-15",
@@ -2512,7 +2512,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 513,
+   "ms": 996,
    "top": [
     "1971-31-4-colonial-garden-plants, p. 72",
     "1971-31-4-colonial-garden-plants, p. 10",
@@ -2527,13 +2527,13 @@
    "query": "How do I get from Keflavík airport to Reykjavík?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": 2,
+   "title_rank": 3,
    "collection_rank": 1,
-   "ms": 340,
+   "ms": 969,
    "top": [
+    "At the airport",
     "Hafnarfjörður",
-    "Iceland",
-    "Reykjavík"
+    "Iceland"
    ]
   },
   {
@@ -2546,11 +2546,11 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 1001,
+   "ms": 2246,
    "top": [
     "Yellowstone National Park",
     "Yellowstone National Park",
-    "Yellowstone Country"
+    "Mount Field National Park"
    ]
   },
   {
@@ -2563,7 +2563,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 394,
+   "ms": 675,
    "top": [
     "FEMA_REP_Program_Manual_Dec_2019, p. 71",
     "Traditional fermented food and beverages for improved livelihoods, p. 39",
@@ -2580,7 +2580,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 349,
+   "ms": 458,
    "top": [
     "The-Prepper-Phone_210808_101519, p. 5",
     "Safe Water School, p. 2",
@@ -2596,12 +2596,12 @@
    "has_titles": true,
    "has_collections": true,
    "title_rank": 1,
-   "collection_rank": 2,
-   "ms": 755,
+   "collection_rank": 1,
+   "ms": 724,
    "top": [
+    "Tokyo",
     "Narita International Airport",
-    "Lounges",
-    "Kawasaki"
+    "Narita International Airport"
    ]
   },
   {
@@ -2613,12 +2613,12 @@
    "has_titles": true,
    "has_collections": true,
    "title_rank": null,
-   "collection_rank": null,
-   "ms": 576,
+   "collection_rank": 1,
+   "ms": 1267,
    "top": [
-    "Fermentation, p. 48",
-    "Traditional fermented food and beverages for improved livelihoods, p. 48",
-    "HHS Pandemic Influenza Plan, p. S11-2"
+    "Stay healthy",
+    "Preparation",
+    "Fermentation, p. 48"
    ]
   },
   {
@@ -2631,7 +2631,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 7,
-   "ms": 803,
+   "ms": 1312,
    "top": [
     "Purifying Water During an Emergency, p. 1",
     "DOH Pub 821-031 Purifying Water During an Emergency, p. 1",
@@ -2648,7 +2648,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": null,
-   "ms": 417,
+   "ms": 769,
    "top": [
     "Fermentation, p. 73",
     "Traditional fermented food and beverages for improved livelihoods, p. 73",
@@ -2665,7 +2665,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 533,
+   "ms": 2262,
    "top": [
     "Driving",
     "Foxfire-Two, p. 15",
@@ -2682,11 +2682,11 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 1,
-   "ms": 596,
+   "ms": 1155,
    "top": [
+    "Visa",
     "Visa run and border run",
-    "ENEWER US ARMY FM-21-76-Survival-2002, p. 352",
-    "Wilderness Medicine Course, p. 182"
+    "ENEWER US ARMY FM-21-76-Survival-2002, p. 352"
    ]
   },
   {
@@ -2699,7 +2699,7 @@
    "has_collections": true,
    "title_rank": null,
    "collection_rank": 6,
-   "ms": 345,
+   "ms": 414,
    "top": [
     "Thai baht",
     "The-Prepper-Phone_210808_101519, p. 5",
@@ -2716,7 +2716,7 @@
    "has_collections": true,
    "title_rank": 1,
    "collection_rank": 1,
-   "ms": 732,
+   "ms": 1345,
    "top": [
     "Grand Canyon",
     "wdfw01803, p. 8",
@@ -2731,14 +2731,15 @@
    "query": "How do people greet each other politely in Thailand?",
    "has_titles": true,
    "has_collections": true,
-   "title_rank": 10,
-   "collection_rank": 5,
-   "ms": 878,
+   "title_rank": 1,
+   "collection_rank": 1,
+   "ms": 1704,
    "top": [
+    "Thailand",
     "ENEWER US ARMY FM-21-76-Survival-2002, p. 357",
-    "HHS Pandemic Influenza Plan, p. H-59",
-    "Traditional fermented food and beverages for improved livelihoods, p. 46"
+    "HHS Pandemic Influenza Plan, p. H-59"
    ]
   }
- ]
+ ],
+ "label": "Retrieval check, F1 fixes"
 }
