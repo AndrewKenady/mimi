@@ -25,6 +25,7 @@ def _manager(ready_on: int | None, monkeypatch):
     m._switch_lock = asyncio.Lock()
     m.chat_model = m.chat_proc = None
     m.chat_attempt, m._chat_ladder = 0, (0, [])
+    m.chat_vision = False
     m._resume = {}
     m.context = 8192
     m.settings = SimpleNamespace(device=lambda section: SimpleNamespace(context=m.context, temperature=None))
@@ -32,10 +33,12 @@ def _manager(ready_on: int | None, monkeypatch):
     m.states = []
     m._set_state = lambda status, model=None, error=None: m.states.append(status)
     m.calls = []
+    m.visions = []
     m.procs = []
 
-    def args(spec, ctx, fit=768, cpu_only=False, v_cache="f16"):
+    def args(spec, ctx, fit=768, cpu_only=False, v_cache="f16", vision=False):
         m.calls.append((ctx, fit, cpu_only) if v_cache == "f16" else (ctx, fit, cpu_only, v_cache))
+        m.visions.append(vision)
         return ["llama-server"]
     m._chat_args = args
 
@@ -249,3 +252,23 @@ def test_build_dir_follows_the_detected_backend(tmp_path, backend, installed, ex
         (tmp_path / b / "llama-server").write_text("")
     assert m._build_dir() == expected
     assert m._build_dir(cpu_only=True) == "llama-cpu"
+
+
+def test_a_model_restarts_with_vision_for_a_photo_and_keeps_it(monkeypatch):
+    m = _manager(None, monkeypatch)
+
+    class Seeing(Spec):
+        vision = True
+        mmproj = "mmproj.gguf"
+
+    spec = Seeing(context=8192)
+
+    async def go():
+        await m.ensure(spec)                # started for text: no projector
+        await m.ensure(spec)                # still resident
+        await m.ensure(spec, vision=True)   # a photo: restarted with the projector
+        await m.ensure(spec)                # text again: no swap back
+        assert m.chat_vision and not m.procs[0].alive() and m.procs[1].alive()
+
+    asyncio.run(go())
+    assert m.visions == [False, True] and len(m.calls) == 2

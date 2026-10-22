@@ -81,6 +81,7 @@ class ModelManager:
         self.chat_attempt = 0
         # model id → (wanted context, first rung to try): set when a started model crashed
         self._resume: dict[str, tuple[int, int]] = {}
+        self.chat_vision = False  # the resident chat model was started with its vision projector
         self.embed_proc: ManagedProcess | None = None
         self.embed_model: ModelSpec | None = None
         self._embed_last_use = 0.0
@@ -165,7 +166,7 @@ class ModelManager:
 
     # ------------------------------------------------------------------ lifecycle
     def _chat_args(self, spec: ModelSpec, ctx: int, fit_target: int = 768, cpu_only: bool = False,
-                   v_cache: str = "f16") -> list[str]:
+                   v_cache: str = "f16", vision: bool = False) -> list[str]:
         build = self._build_dir(cpu_only=cpu_only)
         args = [
             str(self.paths.exe(build, "llama-server")),
@@ -189,7 +190,10 @@ class ModelManager:
             "--fit-target", str(fit_target),
             "--reasoning-format", "deepseek",
         ]
-        if spec.vision and spec.mmproj:
+        # The vision projector only for a turn that needs it (a photo). It takes graphics memory: on the F1,
+        # without it Gemma 4 12B started at the full context with an f16 V cache, where with it the model fell
+        # to the q8_0 rung.
+        if vision and spec.vision and spec.mmproj:
             args += ["--mmproj", str(spec.mmproj)]
         if build == "llama-cpu":
             args += ["-ngl", "0"]
@@ -207,11 +211,15 @@ class ModelManager:
         return want_ctx, [(want_ctx, 768, False, "f16"), (small, 1536, False, "f16"), (small, 1536, False, "q8_0"),
                           (small, 3072, False, "f16"), (small, 0, True, "f16")]
 
-    async def ensure(self, spec: ModelSpec) -> str:
-        """Make sure `spec` is the resident chat model; returns its base URL."""
+    async def ensure(self, spec: ModelSpec, vision: bool = False) -> str:
+        """Make sure `spec` is the resident chat model, with its vision projector when `vision`; returns its base URL.
+
+        A model started with vision stays as it is for text turns: swapping back would cost a restart."""
+        vision = vision and spec.vision
         async with self._switch_lock:
             self.crashed()
-            if self.chat_model and self.chat_model.id == spec.id and self.chat_proc and self.chat_proc.alive():
+            if (self.chat_model and self.chat_model.id == spec.id and self.chat_proc and self.chat_proc.alive()
+                    and (self.chat_vision or not vision)):
                 return f"http://127.0.0.1:{CHAT_PORT}"
             await self._stop_chat()
             want_ctx, attempts = self._ladder(spec)
@@ -223,19 +231,19 @@ class ModelManager:
             for attempt in range(first, len(attempts)):
                 ctx, fit, cpu_only, v_cache = attempts[attempt]
                 self.chat_ctx = ctx
-                args = self._chat_args(spec, ctx, fit, cpu_only, v_cache)
+                args = self._chat_args(spec, ctx, fit, cpu_only, v_cache, vision)
                 proc = ManagedProcess(f"llama[{spec.id}]", args, cwd=self.paths.root, log_path=self.paths.logs / "llama-chat.log")
                 proc.start()
                 ok = await self._wait_ready(proc, CHAT_PORT, timeout=240)
                 if ok:
-                    self.chat_proc, self.chat_model = proc, spec
+                    self.chat_proc, self.chat_model, self.chat_vision = proc, spec, vision
                     self.chat_attempt, self._chat_ladder = attempt, (want_ctx, attempts)
                     try:
                         props = (await self.client.get(f"http://127.0.0.1:{CHAT_PORT}/props", timeout=10)).json()
                         self.chat_ctx = int(props.get("default_generation_settings", {}).get("n_ctx") or ctx)
                     except Exception:
                         pass
-                    L.info("%s ready in %.1fs (ctx %s)", spec.id, time.time() - t0, self.chat_ctx)
+                    L.info("%s ready in %.1fs (ctx %s%s)", spec.id, time.time() - t0, self.chat_ctx, ", with vision" if vision else "")
                     self._set_state("ready", spec)
                     return f"http://127.0.0.1:{CHAT_PORT}"
                 tail = proc.tail(12)
@@ -379,9 +387,10 @@ class ModelManager:
 
     async def chat_stream(self, spec: ModelSpec, messages: list[dict], *, tools: list[dict] | None = None,
                           max_tokens: int = 1024, temperature: float | None = None, think: bool = False,
-                          cancel: asyncio.Event | None = None, tool_choice: str = "auto") -> AsyncIterator[dict]:
-        """Yields {'type': 'content'|'reasoning'|'tool_calls'|'done', ...}. Caller must hold gen_lock."""
-        base = await self.ensure(spec)
+                          cancel: asyncio.Event | None = None, tool_choice: str = "auto", vision: bool = False) -> AsyncIterator[dict]:
+        """Yields {'type': 'content'|'reasoning'|'tool_calls'|'done', ...}. Caller must hold gen_lock.
+        `vision`: the messages hold images, so the model needs its vision projector."""
+        base = await self.ensure(spec, vision=vision)
         body = self._body(spec, messages, tools=tools, max_tokens=max_tokens, temperature=temperature, think=think, stream=True, tool_choice=tool_choice)
         calls: dict[int, dict] = {}
         finish = None
