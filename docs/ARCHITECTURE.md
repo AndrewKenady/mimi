@@ -103,6 +103,7 @@ All offline, all SQLite files in `maps/` opened read-only (`geodata.py`, `addres
 The reference device has 16 GB of RAM; about 3 GB of that is carved out for the iGPU, which the model can also use.
 
 - **One chat model resident.** Switching roles (main → reader) swaps llama-server processes, and the UI shows "Waking up…".
+- **Vision on demand.** A vision model starts without its projector (`--mmproj`). A turn with a photo asks for vision, and the model restarts with it ("Waking up…" again) and keeps it until its next fresh start. On the F1 the projector's graphics memory decided the rung: without it Gemma 4 12B starts at the full context with an f16 V cache. The reference-image tool needs vision, so it is offered only in a turn with a photo.
 - **Auto-fit.** `--fit on` lets llama.cpp choose how many layers go to the GPU, so a model still loads when other apps hold memory.
 - **Memory budget.**
   - **KV cache:** K is q8_0 and V f16. A q8_0 V half needs less graphics memory but, on the F1, made every request that reuses the cached prompt about 3 s slower to start, so it is a fallback rung, not the default (D22).
