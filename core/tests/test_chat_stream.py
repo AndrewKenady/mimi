@@ -4,8 +4,10 @@ The model and the library are faked so the whole turn loop runs in milliseconds.
 """
 
 import asyncio
+import json
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from mimi.kiwix import Hit, Passage
@@ -41,20 +43,40 @@ class FakeModels:
         self.chat_proc = SimpleNamespace(alive=lambda: True)
         self.chat_ctx = 8192
         self.prompts = []
+        self.tools = []  # the tools offered on each call
+        self.restarts = 0
+        self.dead = False
 
     def model_for(self, role):
         return self.spec
 
     async def ensure(self, spec):
-        pass
+        if self.dead:
+            self.restarts += 1
+            self.dead = False
+
+    async def died_during(self, err):
+        from mimi.llm import ModelOutOfMemory
+
+        if isinstance(err, ModelOutOfMemory):  # the real manager stops it and starts it one rung down
+            self.dead = True
+        return self.dead
 
     async def chat_stream(self, spec, messages, **kw):
         self.prompts.append(list(messages))
+        self.tools.append(kw.get("tools"))
         step = self.steps.pop(0) if self.steps else {"text": "…"}
         if step.get("raise"):
             raise ModelError(step["raise"])
+        if step.get("oom"):  # llama-server up, but out of graphics memory for this request
+            from mimi.llm import ModelOutOfMemory
+
+            raise ModelOutOfMemory("model error: decode() failed: vk::Device::allocateMemory: ErrorOutOfDeviceMemory")
         for piece in step.get("text_pieces") or ([step["text"]] if step.get("text") else []):
             yield {"type": "content", "text": piece}
+        if step.get("crash"):  # llama-server ran out of graphics memory and exited
+            self.dead = True
+            raise httpx.ReadError("connection closed")
         if step.get("calls"):
             yield {"type": "tool_calls", "calls": step["calls"]}
         yield {"type": "done", "timings": step.get("timings") or {}}
@@ -106,6 +128,94 @@ def run_turn(svc, steps, chat_id=None, **kw):
         return [ev async for ev in svc.chats.send(svc.ctx, chat_id, **kw)]
 
     return asyncio.run(go())
+
+
+def test_a_turn_with_several_searches_is_fitted_into_a_small_context():
+    """At the 4096-token context the F1 falls back to, three searches overflowed the prompt (4112 > 4096)."""
+    from mimi import chat, tools
+
+    passage = "Carbon-14 has a half-life of about 5,730 years. " * 40
+    result = "\n\n".join(f"[{n}] Carbon-14 — Wikipedia\n" + tools.untrusted(passage, "Wikipedia: Carbon-14") for n in (1, 2, 3))
+    messages = [{"role": "system", "content": "rules " * 900}, {"role": "user", "content": "What is the half-life of carbon-14?"}]
+    for i in range(3):
+        messages += [{"role": "assistant", "content": "", "tool_calls": []}, {"role": "tool", "tool_call_id": f"t{i}", "content": result}]
+    schema = [{"type": "function", "function": {"name": "search_library", "description": "Search the library " * 20}}]
+    offered, max_out = chat._fit_turn(messages, schema, 4096, 1400)
+    prompt = sum(chat.est_tokens(m["content"]) for m in messages) + (chat.est_tokens(json.dumps(offered)) if offered else 0)
+    assert prompt + chat.ANSWER_ROOM <= 4096 - 64 and chat.ANSWER_ROOM <= max_out <= 1400
+    for m in messages[2:]:
+        if m["role"] == "tool":  # every passage still sits inside its own markers
+            assert m["content"].count("<<<BEGIN UNTRUSTED") == m["content"].count("<<<END UNTRUSTED>>>") == 3
+            assert "half-life of about 5,730 years" in m["content"]
+
+
+def test_fitting_ends_when_a_result_cannot_be_shortened():
+    """A result made of many tiny passages can't shrink inside its markers: fitting must move on, not spin
+    (it once looped forever on the F1 and froze Core)."""
+    from mimi import chat, tools
+
+    tiny = "\n\n".join(f"[{n}] Place {n} — Map\n" + tools.untrusted("2 km", f"Map: place {n}") for n in range(60))
+    messages = [{"role": "system", "content": "rules " * 3000}, {"role": "user", "content": "What is near me?"},
+                {"role": "tool", "tool_call_id": "t1", "content": tiny}, {"role": "tool", "tool_call_id": "t2", "content": "x" * 5000}]
+    offered, max_out = chat._fit_turn(messages, [{"type": "function"}], 4096, 1400)  # returns at all: the point of the test
+    assert offered is None and max_out == 256
+    assert messages[2]["content"].count("<<<END UNTRUSTED>>>") == 60
+
+
+def test_one_search_at_a_small_context_is_read_in_full():
+    """Fitting must not cut what fits: one search at 4096 tokens leaves room for an answer as it is
+    (reserving the whole answer budget cut every search and halved the answers with citations)."""
+    from mimi import chat, tools
+
+    result = "\n\n".join(f"[{n}] Hypothermia — WikiMed\n" + tools.untrusted("Body temperature below 35 °C. " * 30, "WikiMed") for n in (1, 2, 3))
+    messages = [{"role": "system", "content": "rules " * 430}, {"role": "user", "content": "What is hypothermia?"},
+                {"role": "tool", "tool_call_id": "t1", "content": result}]
+    schema = [{"type": "function", "function": {"name": "search_library", "description": "x" * 4600}}]  # ~1280 tokens, like Mimi's 9 tools
+    offered, max_out = chat._fit_turn(messages, schema, 4096, 1400)
+    assert messages[2]["content"] == result and offered == schema
+    assert chat.ANSWER_ROOM <= max_out < 1400  # the answer gets the rest of the context
+
+
+def test_a_prompt_the_server_finds_too_long_is_shortened_and_asked_again(svc):
+    too_long = {"raise": 'model error 400: {"error":{"code":400,"type":"exceed_context_size_error","n_ctx":4096}}'}
+    evs = run_turn(svc, [SEARCH, too_long, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    done = next(e for e in evs if e["event"] == "done")["data"]["message"]
+    assert done["content"] == "Warm the person slowly [1]." and not done["meta"].get("error")
+
+
+def test_a_model_out_of_graphics_memory_mid_turn_still_answers(svc):
+    """The F1 sample that came back empty: the search went through, then every request failed for memory."""
+    evs = run_turn(svc, [SEARCH, {"oom": True}, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    done = next(e for e in evs if e["event"] == "done")["data"]["message"]
+    assert done["content"] == "Warm the person slowly [1]." and svc.models.restarts == 1
+    statuses = [e["data"]["state"] for e in evs if e["event"] == "status"]
+    assert "loading" in statuses  # "Restarting Gemma with lighter settings…"
+
+
+def test_a_warm_up_out_of_graphics_memory_stops_the_model(svc):
+    """On the F1 the prompt-cache warm-up right after loading ran out of graphics memory and the model stayed up;
+    the failed decode broke its cache, and the next question failed with "Invalid input batch"."""
+    from mimi.llm import ModelOutOfMemory
+
+    svc.models = FakeModels([])
+
+    async def oom(*a, **k):
+        raise ModelOutOfMemory("model error: 500: decode() failed: vk::Device::allocateMemory: ErrorOutOfDeviceMemory")
+
+    svc.models.chat_once = oom
+    asyncio.run(svc.chats.warm())
+    assert svc.models.dead  # stopped, so the first question starts it one rung down
+
+
+def test_a_turn_that_ends_without_a_word_is_asked_once_more_without_tools(svc):
+    """On the F1 the model once read its search results and then wrote nothing: an empty answer, no error."""
+    silent = {"timings": {"predicted_n": 28}}
+    evs = run_turn(svc, [SEARCH, silent, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    done = next(e for e in evs if e["event"] == "done")["data"]["message"]
+    assert done["content"] == "Warm the person slowly [1]."
+    assert svc.models.tools[1] and svc.models.tools[2] is None  # the second try can only write
+    evs = run_turn(svc, [SEARCH, silent, silent], content="How do you treat hypothermia?", mode="everyday")
+    assert len(svc.models.prompts) == 3  # asked once more, not forever
 
 
 def test_sources_and_preview_arrive_before_the_answer(svc):
@@ -174,6 +284,39 @@ def test_failed_turn_can_be_retried_from_the_user_message(svc):
     assert final["versions"]["count"] == 2  # the failed attempt stays as version 1
     thread = svc.chats.get_full(svc.ctx, chat_id)["messages"]
     assert [m["role"] for m in thread] == ["user", "assistant"]
+
+
+CRASH = {"crash": True}
+
+
+def test_a_model_that_crashes_under_the_prompt_is_restarted_and_asked_again(svc):
+    """It loaded, then ran out of graphics memory reading the prompt: the turn still gets its answer."""
+    evs = run_turn(svc, [CRASH, SEARCH, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    assert "error" not in [e["event"] for e in evs]
+    statuses = [e["data"] for e in evs if e["event"] == "status"]
+    assert [s["state"] for s in statuses] == ["thinking", "loading", "thinking", "searching", "reading", "writing"]
+    assert statuses[1]["label"] == "Restarting Gemma with lighter settings…"
+    assert svc.models.restarts == 1 and svc.models.prompts[0] == svc.models.prompts[1]  # the same question again
+    done = evs[-1]["data"]["message"]
+    assert done["content"] == "Warm the person slowly [1]." and not done["meta"]["error"]
+
+
+def test_a_crash_while_reading_the_sources_is_retried_too(svc):
+    evs = run_turn(svc, [SEARCH, CRASH, ANSWER], content="How do you treat hypothermia?", mode="everyday")
+    assert svc.models.restarts == 1
+    assert [e["data"]["state"] for e in evs if e["event"] == "status"][-3:] == ["loading", "thinking", "writing"]
+    assert evs[-1]["data"]["message"]["content"] == "Warm the person slowly [1]."
+
+
+@pytest.mark.parametrize("steps", [
+    [CRASH, CRASH],                                    # it crashed on the lighter settings too: one retry per turn
+    [{"crash": True, "text_pieces": ["Warm the "]}],   # it had begun answering: asking again would repeat it
+])
+def test_a_crash_that_is_not_retried_says_the_model_stopped(svc, steps):
+    evs = run_turn(svc, steps, content="How do you treat hypothermia?", mode="everyday")
+    err = next(e["data"] for e in evs if e["event"] == "error")
+    assert err["message"] == "The model stopped unexpectedly. It will restart on your next message."
+    assert svc.models.restarts == (1 if len(steps) == 2 else 0)
 
 
 def test_stop_keeps_partial_content(svc):

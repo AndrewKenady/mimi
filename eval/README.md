@@ -34,7 +34,7 @@ python\python.exe eval\run.py --model qwen3.5-9b
 python\python.exe eval\score.py eval\results\<date>-gemma-4-12b.jsonl --compare eval\results\<date>-qwen3.5-9b.jsonl
 ```
 
-Smaller runs: `--domain medicine,adversarial`, `--ids med-001,adv-012` or `--limit 10`. A run can be stopped and restarted at any time: it picks up where it left off (rows that errored are retried). Use `--fresh` to start over.
+Smaller runs: `--domain medicine,adversarial`, `--ids med-001,adv-012` or `--limit 10`. A run can be stopped and restarted at any time: it picks up where it left off (rows that errored are retried, and `score.py` counts only the newest row for each question). Use `--fresh` to start over.
 
 In Spanish or French: `--lang es` or `--lang fr` (ids then end in `-es` or `-fr`, e.g. `--ids med-001-es`). Results go to `<date>-<model>-es.jsonl`, and `score.py` scores them against the same language's set. Scores in different languages aren't comparable, so `--compare` only pairs runs in the same language.
 
@@ -70,4 +70,4 @@ cd core && python ../eval/score.py ../eval/fixtures/results-a.jsonl --compare ..
 
 ## Adding questions
 
-Append a line to the right `questions/*.jsonl` file. Keep facts stable and well known, write key facts as forgiving regexes (accept "2 inches" as well as "5 cm"), and phrase forbidden claims affirmatively: a match inside a negated sentence ("do **not** put butter on it") is ignored. Add its Spanish and French versions at the same position in `questions/es/` and `questions/fr/`, with key facts and forbidden claims written for that language. `cd core && python -m pytest tests/test_eval_pipeline.py tests/test_eval_languages.py` validates the whole set (unique ids, known domains and collections, valid regexes) and checks that the translations still match the English items one to one.
+Append a line to the right `questions/*.jsonl` file. Keep facts stable and well known, write key facts as forgiving regexes (accept "2 inches" as well as "5 cm"), and phrase forbidden claims affirmatively: a match inside a negated sentence ("do **not** put butter on it"), or one the rest of its sentence debunks ("…was based on a fraudulent paper"), is ignored. Make a forbidden claim specific to the danger: "a tablespoon of bleach" also matches the right answer's labeled kitchen dilution, so the item skips one its sentence ties to surfaces or cleaning. Add its Spanish and French versions at the same position in `questions/es/` and `questions/fr/`, with key facts and forbidden claims written for that language. `cd core && python -m pytest tests/test_eval_pipeline.py tests/test_eval_languages.py` validates the whole set (unique ids, known domains and collections, valid regexes) and checks that the translations still match the English items one to one.

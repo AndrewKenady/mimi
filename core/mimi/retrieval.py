@@ -122,7 +122,7 @@ BASE_PRIORS: dict[str, float] = {"qa": 0.85, "dictionary": 0.8}
 
 INTENTS: list[Intent] = [
     Intent("medical", _rx(
-        r"bleed|blood|wound|burn|fever|infect|fractur|broken bone|sprain|bite|sting|poison|venom|pain|ache|symptom|"
+        r"bleed|nosebleed|blood|wound|burn|fever|infect|fractur|broken bone|sprain|bite|sting|poison|venom|pain|ache|symptom|"
         r"diagnos|treat|medic|medicine|drug|dose|dosage|mg\b|antibiot|allerg|asthma|diabet|pregnan|birth|labou?r|"
         r"diarrh|vomit|dehydrat|cpr|first aid|injur|disease|illness|sick|rash|cough|chok|unconscious|seizure|heart attack|"
         r"stroke|shock|hypotherm|heat ?stroke|frostbite|splint|tourniquet|suture|stitch|tooth|teeth|dental|malaria|cholera"),

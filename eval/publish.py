@@ -30,6 +30,8 @@ def describe(path: Path, report: dict) -> dict:
         "kind": "compare" if "compare" in report else "single",
         "run_date": max(r.get("run_date") or "" for r in runs),
         "models": [m for r in runs for m in r.get("models") or []],
+        # one name per run: its label, when two runs of the same model are compared, else its model(s)
+        "labels": [r.get("label") or " + ".join(r.get("models") or []) for r in runs],
         # reports from before the Spanish and French sets have no languages: they are English
         "languages": sorted({x for r in runs for x in r.get("languages") or ["en"]}),
         "devices": sorted({d for r in runs for d in r.get("devices") or []}),

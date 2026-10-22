@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import json
 import re
 import time
 from pathlib import Path
@@ -204,6 +205,63 @@ def _status(state: str, label: str, t_start: float, **extra) -> dict:
     data = {"state": state, "label": label, "elapsed_ms": int((time.time() - t_start) * 1000)}
     data.update({k: v for k, v in extra.items() if v is not None})
     return {"event": "status", "data": data}
+
+
+def _fit_history(messages: list[dict], n_history: int, ctx: int, max_out: int) -> int:
+    """Drop the oldest history (right after the system prompt) until the prompt fits `ctx`; returns how much is left."""
+    while n_history and sum(est_tokens(m.get("content") or "") for m in messages) + max_out > ctx - 256:
+        messages.pop(1)
+        n_history -= 1
+    return n_history
+
+
+_UNTRUSTED_BLOCK = re.compile(f"({re.escape(persona.UNTRUSTED_BEGIN)}[^\\n]*>>>\\n)(.*?)(\\n{re.escape(persona.UNTRUSTED_END)})", re.S)
+
+
+def _cut(text: str, keep: float) -> str:
+    n = int(len(text) * keep)
+    return text if n >= len(text) else (text[:n].rsplit(" ", 1)[0] or text[:n]) + " …"
+
+
+def _shorten_result(text: str, keep: float) -> str:
+    """A tool result cut to about `keep` of its length; outside passages are cut inside their own markers."""
+    if _UNTRUSTED_BLOCK.search(text):
+        return _UNTRUSTED_BLOCK.sub(lambda m: m.group(1) + _cut(m.group(2), keep) + m.group(3), text)
+    return _cut(text, keep)
+
+
+ANSWER_ROOM = 512  # tokens an answer needs at least; it gets more when the context has it
+
+
+def _fit_turn(messages: list[dict], tools_: list[dict] | None, ctx: int, max_out: int, room: float = 1.0) -> tuple[list[dict] | None, int]:
+    """Keep one step's prompt inside the model's context; returns the tools to offer and the answer length.
+
+    The history is fitted before the turn, but every tool call adds its results and the tool
+    definitions take room too: at the 4096-token context the F1 falls back to, a turn with a few
+    searches overflowed it and the answer failed. Only when the prompt leaves less than
+    ANSWER_ROOM for the answer are the longest results shortened, and then no more tools offered;
+    the answer gets what is left, up to `max_out`. `room` below 1 leaves more slack."""
+    limit = int(ctx * room) - 64
+
+    def prompt() -> int:
+        return sum(est_tokens(m.get("content") or "") for m in messages) + (est_tokens(json.dumps(tools_)) if tools_ else 0)
+
+    done: set[int] = set()  # results with nothing left to cut inside their markers
+    for _ in range(100):  # every round shortens something or moves to the next measure
+        if prompt() + ANSWER_ROOM <= limit:
+            break
+        results = [m for m in messages if m.get("role") == "tool" and id(m) not in done and len(m.get("content") or "") > 600]
+        if results:
+            longest = max(results, key=lambda m: len(m["content"]))
+            before = len(longest["content"])
+            longest["content"] = _shorten_result(longest["content"], 0.6)
+            if len(longest["content"]) > 0.9 * before:
+                done.add(id(longest))
+        elif tools_:
+            tools_ = None
+        else:
+            break
+    return tools_, max(256, min(max_out, limit - prompt()))
 
 
 def _join_names(names: list[str]) -> str:
@@ -578,42 +636,78 @@ class ChatService:
             async with svc.models.gen_lock:
                 if svc.models.waiting:
                     svc.models.waiting = max(0, svc.models.waiting - 1)
+                n_history = len(history)
                 if not (svc.models.chat_model and svc.models.chat_model.id == spec.id and svc.models.chat_proc and svc.models.chat_proc.alive()):
                     yield _status("loading", tr("Waking up {name}…", name=spec.name), t_start)
                     await svc.models.ensure(spec)
-                    budget_ctx = svc.models.chat_ctx
                     # re-trim history if the model came up with a smaller context
-                    while len(messages) > 2 and sum(est_tokens(m.get("content") or "") for m in messages) + max_out > budget_ctx - 256:
-                        messages.pop(1)
+                    n_history = _fit_history(messages, n_history, svc.models.chat_ctx, max_out)
                 yield _status("thinking", tr("Thinking…"), t_start)
                 want_think = think if think is not None else svc.settings.device("models").think_harder
                 must_ground = (svc.kiwix_service.alive() and looks_factual(content) and not image_parts
                                and mode_id != "storyteller")
+                restarted = False
+                asked_again = False  # the model ended a turn without a word and was asked once more
                 for step in range(MAX_STEPS):
-                    avail = tools.schemas(state, svc) if step < MAX_STEPS - 1 else None
+                    avail = tools.schemas(state, svc) if step < MAX_STEPS - 1 and not asked_again else None
                     choice = "required" if (step == 0 and must_ground and avail) else "auto"
                     if step == 0:
                         first_tools = avail
-                    step_text = ""
-                    calls = None
-                    async for ev in svc.models.chat_stream(spec, messages, tools=avail, max_tokens=max_out, think=bool(want_think),
-                                                           cancel=cancel, tool_choice=choice):
-                        if ev["type"] == "content":
-                            if not step_text:
-                                yield _status("writing", tr("Writing the answer…"), t_start)
-                            step_text += ev["text"]
-                            yield {"event": "delta", "data": {"text": ev["text"]}}
-                        elif ev["type"] == "reasoning":
-                            reasoning += ev["text"]
-                            yield {"event": "reasoning", "data": {"text": ev["text"]}}
-                        elif ev["type"] == "tool_calls":
-                            calls = ev["calls"]
-                        elif ev["type"] == "done":
-                            timings = ev.get("timings") or timings
-                            self.note_speed(spec.id, ev.get("timings") or {})
-                    answer += step_text
-                    if cancel.is_set() or not calls:
+                    squeezed = False  # the server said the prompt was still too long: fit it with more slack
+                    while True:
+                        step_text = ""
+                        calls = None
+                        reasoned = len(reasoning)
+                        step_tools, step_out = _fit_turn(messages, avail, svc.models.chat_ctx or spec.get("context", 8192), max_out,
+                                                         0.8 if squeezed else 1.0)
+                        try:
+                            async for ev in svc.models.chat_stream(spec, messages, tools=step_tools, max_tokens=step_out, think=bool(want_think),
+                                                                   cancel=cancel, tool_choice=choice):
+                                if ev["type"] == "content":
+                                    if not step_text:
+                                        yield _status("writing", tr("Writing the answer…"), t_start)
+                                    step_text += ev["text"]
+                                    yield {"event": "delta", "data": {"text": ev["text"]}}
+                                elif ev["type"] == "reasoning":
+                                    reasoning += ev["text"]
+                                    yield {"event": "reasoning", "data": {"text": ev["text"]}}
+                                elif ev["type"] == "tool_calls":
+                                    calls = ev["calls"]
+                                elif ev["type"] == "done":
+                                    timings = ev.get("timings") or timings
+                                    self.note_speed(spec.id, ev.get("timings") or {})
+                        except Exception as e:
+                            if "exceed_context_size" in str(e) and not squeezed and not step_text:
+                                squeezed = True  # our token estimate ran short: shorten the results more and ask again
+                                L.warning("%s: prompt longer than the context; shortening the tool results", spec.id)
+                                continue
+                            # The model can load fine and then run out of graphics memory on a prompt. If its
+                            # process died before it said anything, restart it once with lighter settings and
+                            # ask again, rather than end the turn with an error.
+                            if cancel.is_set() or not await svc.models.died_during(e):
+                                raise
+                            if restarted or step_text or len(reasoning) > reasoned:
+                                raise ModelError("The model stopped unexpectedly. It will restart on your next message.") from e
+                            restarted = True
+                            L.warning("%s crashed while answering (%s); restarting it with lighter settings", spec.id, type(e).__name__)
+                            yield _status("loading", tr("Restarting {name} with lighter settings…", name=spec.name), t_start)
+                            await svc.models.ensure(spec)
+                            n_history = _fit_history(messages, n_history, svc.models.chat_ctx, max_out)
+                            yield _status("thinking", tr("Thinking…"), t_start)
+                            continue
                         break
+                    answer += step_text
+                    if cancel.is_set():
+                        break
+                    if not calls:
+                        if answer.strip() or asked_again or step >= MAX_STEPS - 1:
+                            break
+                        # The model ended the turn without a word (seen on the F1 right after reading search
+                        # results): ask once more, without tools, so it writes the answer from what it read.
+                        asked_again = True
+                        L.warning("%s ended its turn without an answer; asking once more without tools", spec.id)
+                        yield _status("thinking", tr("Thinking…"), t_start)
+                        continue
                     messages.append({"role": "assistant", "content": step_text or "",
                                      "tool_calls": [{"id": c["id"], "type": "function", "function": {"name": c["name"], "arguments": c["arguments"] or "{}"}} for c in calls]})
                     images: list[str] = []
@@ -783,7 +877,12 @@ class ChatService:
                 await mm.chat_once(spec, messages, max_tokens=1, tools=tools.schemas(st, svc) or None, tool_choice="auto")
             L.info("prompt cache warmed in %.1f s", time.time() - t0)
         except Exception as e:
-            L.debug("prompt cache warm-up skipped: %s", e)
+            # Out of graphics memory right after loading: stop it now, so the first question starts it one
+            # rung down instead of meeting a model whose cache the failed decode left broken.
+            if await mm.died_during(e):
+                L.warning("prompt cache warm-up stopped the model: %s", e)
+            else:
+                L.debug("prompt cache warm-up skipped: %s", e)
 
     async def _smart_title(self, ctx: Ctx, chat_id: str, spec, convo: list[dict], tools_: list[dict] | None) -> None:
         """Ask the already-loaded model for a better title, only if it's idle.
@@ -810,7 +909,10 @@ class ChatService:
                 self.db.execute("UPDATE chats SET title=? WHERE id=? AND user_id=?", (title, chat_id, ctx.id))
                 self.svc.events.publish("chat.updated", {"id": chat_id, "title": title}, user_id=ctx.id)
         except Exception as e:
-            L.debug("smart title skipped: %s", e)
+            if await mm.died_during(e):
+                L.warning("chat title request stopped the model: %s", e)
+            else:
+                L.debug("smart title skipped: %s", e)
 
     # ------------------------------------------------------------------ housekeeping
     def purge(self) -> None:

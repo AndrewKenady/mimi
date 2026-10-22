@@ -71,6 +71,8 @@ class FakeKiwix:
         self.content: dict[tuple[str, str], tuple[bytes, str]] = {}
         self.mains: dict[str, str] = {}
         self.search_results: dict[str, list[tuple[str, str, str]]] = {}  # book → [(path, title, snippet)]
+        self.titles: dict[str, list[tuple[str, str]]] = {}  # book → [(path, title)] for /suggest
+        self.redirects: dict[tuple[str, str], str] = {}  # (book, path) → the path it redirects to
         self.requests: list[str] = []
         self.searches: list[tuple[str, list[str]]] = []  # (pattern, books) of every full-text search
 
@@ -87,13 +89,18 @@ class FakeKiwix:
                 f"<item><title>{t}</title><link>/content/{b}/{p}</link><description>{s}</description><wordCount>100</wordCount></item>"
                 for b in books for p, t, s in self.search_results.get(b, []))
             return httpx.Response(200, text=f"<rss><channel>{items}</channel></rss>")
-        if path == "/suggest":
-            return httpx.Response(200, json=[])
+        if path == "/suggest":  # like kiwix-serve: titles holding every word of the term, in any order
+            want = set(re.findall(r"\w+", request.url.params.get("term", "").lower()))
+            got = [{"kind": "path", "value": t, "path": p} for p, t in self.titles.get(request.url.params.get("content"), [])
+                   if want <= set(re.findall(r"\w+", t.lower()))]
+            return httpx.Response(200, json=got[: int(request.url.params.get("count", "10"))])
         m = re.match(r"^/content/([^/]+)/?(.*)$", path)
         if m:
             book, p = m.group(1), m.group(2)
             if not p:
                 return httpx.Response(302, headers={"location": f"/content/{book}/{self.mains.get(book, 'index')}"})
+            if (book, p) in self.redirects:
+                return httpx.Response(302, headers={"location": f"/content/{book}/{self.redirects[(book, p)]}"})
             if (book, p) in self.content:
                 body, ctype = self.content[(book, p)]
                 return httpx.Response(200, content=body, headers={"content-type": ctype, "content-length": str(len(body))})
@@ -150,6 +157,7 @@ def test_intent_detection_and_priors():
     from mimi.retrieval import detect_intent, prior
 
     assert detect_intent("how do I stop heavy bleeding from a wound").name == "medical"
+    assert detect_intent("How do you stop a nosebleed?").name == "medical"  # "bleed" inside a word
     assert detect_intent("replace the battery in my laptop").name == "repair"
     assert detect_intent("how to purify drinking water").name == "survival"
     assert detect_intent("tallest mountain in canada") is None
@@ -426,6 +434,222 @@ def test_books_in_the_users_language_are_searched_in_it(tmp_path):
     run(go())
 
 
+def test_titles_are_found_as_the_question_words_them(tmp_path):
+    """The title lookup matches titles the way the question writes them: little words count
+    ("Speed of light", not the "Speed light" flash), a title can sit anywhere in the question,
+    and a keyword query still finds a title that has little words ("Picadura de abeja")."""
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    medes = book("wikipedia_es_medicine_maxi_2026-10", "Wikipedia Médica", articles=40_000, tags="_ftindex:yes", language="spa")
+    fake.titles[wiki.name] = [("Speed_light", "Speed light"), ("Speed_of_light", "Speed of light"), ("Since", "Since"),
+                              ("Great_Wall_(China)", "Great Wall (China)"), ("Great_Wall_of_China", "Great Wall of China"),
+                              ("Capital_of_Australia", "Capital of Australia"), ("Capital", "Capital")]
+    fake.titles[medes.name] = [("Picadura_de_abeja", "Picadura de abeja")]
+    c = make_client(tmp_path, fake, [wiki, medes])
+
+    async def titles(q, books=(wiki,), language=""):
+        return [h.title for h in await c._title_hits(q, list(books), language)]
+
+    async def go():
+        assert await titles("What is the speed of light in a vacuum?") == ["Speed of light"]
+        assert await titles("speed of light") == ["Speed of light"]
+        wall = await titles("Since the Great Wall of China is visible from the Moon, how wide is it?")
+        assert wall[0] == "Great Wall of China" and "Great Wall (China)" not in wall  # longest first; search() vets "Since"
+        assert (await titles("What is the capital of Australia?"))[0] == "Capital of Australia"
+        assert await titles("picadura abeja", (medes,), "spa") == ["Picadura de abeja"]
+
+    run(go())
+
+
+def test_a_one_word_title_needs_the_full_text_search_to_agree(tmp_path):
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    fake.titles[wiki.name] = [("Since", "Since"), ("Hypothermia", "Hypothermia")]
+    fake.search_results[wiki.name] = [("Hypothermia", "Hypothermia", "Hypothermia is a body temperature below 35 °C"),
+                                      ("Frostbite", "Frostbite", "Frostbite is damage to skin from freezing")]
+    c = make_client(tmp_path, fake, [wiki])
+
+    async def go():
+        assert [h.title for h in await c._title_hits("Since when is hypothermia dangerous?", [wiki])] == ["Since", "Hypothermia"]
+        hits = await c.search("Since when is hypothermia dangerous?", limit=3)
+        assert hits[0].title == "Hypothermia" and "Since" not in [h.title for h in hits]
+
+    run(go())
+
+
+def test_a_generic_title_does_not_hide_the_topics_own(tmp_path):
+    """Models add "first aid" to their queries: the "First aid" article must not crowd out "Nosebleed"."""
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    fake.titles[wiki.name] = [("First_aid", "First aid"), ("Nosebleed", "Nosebleed")]
+    fake.search_results[wiki.name] = [("Nosebleed", "Nosebleed", "A nosebleed is bleeding from the nose"),
+                                      ("Epistaxis_care", "Epistaxis care", "Lean forward and pinch the nose")]
+    c = make_client(tmp_path, fake, [wiki])
+
+    async def go():
+        hits = await c.search("how to stop a nosebleed first aid", limit=3)
+        assert hits[0].title == "Nosebleed"
+
+    run(go())
+
+
+def test_a_one_word_title_from_a_book_on_the_subject_is_kept(tmp_path):
+    """med-008 on the F1: for "hypothermia core body temperature threshold" MDWiki's full-text search didn't rank
+    "Hypothermia" in its top 8, and the longer "Core body temperature" (→ Human body temperature) took its place."""
+    fake = FakeKiwix()
+    med = book("mdwiki_en_all_maxi_2025-11", "MDWiki Medical Encyclopedia", articles=363_000, tags="_ftindex:yes")
+    fake.titles[med.name] = [("Core_body_temperature", "Core body temperature"), ("Hypothermia", "Hypothermia"),
+                             ("Temperature", "Temperature")]
+    fake.redirects[(med.name, "Core_body_temperature")] = "Human_body_temperature"
+    fake.redirects[(med.name, "Temperature")] = "Thermoregulation"  # a generic word the full text agrees with
+    fake.add(med.name, "Thermoregulation", "<h1>Thermoregulation</h1><p>Keeping the body temperature steady.</p>")
+    fake.add(med.name, "Human_body_temperature", "<h1>Human body temperature</h1><p>Normal is about 37 °C.</p>")
+    fake.add(med.name, "Hypothermia", "<h1>Hypothermia</h1><p>A core temperature below 35.0 °C.</p>")
+    fake.search_results[med.name] = [("Human_body_temperature", "Human body temperature", "Normal human body temperature"),
+                                      ("Thermoregulation", "Thermoregulation", "Keeping the body temperature steady")]
+    c = make_client(tmp_path, fake, [med])
+    assert med.collection == "medicine"
+
+    async def go():
+        top = [h.title for h in await c.search("hypothermia core body temperature threshold", limit=3)][:3]
+        assert "Hypothermia" in top  # among the three articles the model reads
+
+    run(go())
+
+
+def test_one_title_from_three_books_leaves_room_for_a_four_letter_topic(tmp_path):
+    """med-003 on the F1: for "burn first aid" three books' "First aid" took every title slot, and "burn" (four
+    letters) was never looked up, so no burn article reached the model."""
+    fake = FakeKiwix()
+    med = book("mdwiki_en_all_maxi_2025-11", "MDWiki Medical Encyclopedia", articles=363_000, tags="_ftindex:yes")
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    top = book("wikipedia_en_100_2026-08", "Wikipedia 100", articles=3_000, tags="_ftindex:yes")
+    for b in (med, wiki, top):
+        fake.titles[b.name] = [("First_aid", "First aid")]
+        fake.add(b.name, "First_aid", "<h1>First aid</h1><p>Help given to a sick or injured person.</p>")
+        fake.search_results[b.name] = [("First_aid", "First aid", "Help given to an injured person")]
+    fake.titles[med.name].append(("Burn", "Burn"))
+    fake.add(med.name, "Burn", "<h1>Burn</h1><p>Cool a burn under running water for 20 minutes.</p>")
+    c = make_client(tmp_path, fake, [med, wiki, top])
+
+    async def go():
+        assert "Burn" in [h.title for h in await c.search("burn first aid", limit=5)]
+
+    run(go())
+
+
+def test_one_word_titles_from_big_books_leave_room_for_the_topic(tmp_path):
+    """med-019: "Rice", "Stand" and "Treating" from the two biggest books filled the title lookup's places
+    before MDWiki's "Sprained" (a redirect to Sprain) was reached."""
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    top = book("wikipedia_en_top_maxi_2026-08", "Wikipedia's top articles", articles=1_000_000, tags="_ftindex:yes")
+    med = book("mdwiki_en_all_maxi_2025-11", "MDWiki Medical Encyclopedia", articles=363_000, tags="_ftindex:yes")
+    for b in (wiki, top):
+        fake.titles[b.name] = [("Rice", "Rice"), ("Stand", "Stand"), ("Treating", "Treating")]
+    fake.titles[med.name] = [("Sprained", "Sprained")]
+    fake.redirects[(med.name, "Sprained")] = "Sprain"
+    fake.add(med.name, "Sprain", "<h1>Sprain</h1><p>Rest, ice, compression and elevation (RICE).</p>")
+    c = make_client(tmp_path, fake, [wiki, top, med])
+
+    async def go():
+        hits = await c.search("What does RICE stand for in treating a sprained ankle?", limit=5)
+        assert "Sprain" in [h.title for h in hits]
+
+    run(go())
+
+
+def test_every_books_copy_of_a_title_is_kept(tmp_path):
+    """med-017: keeping one copy per title kept Wikipedia's "Myocardial infarction" and dropped MDWiki's."""
+    fake = FakeKiwix()
+    med = book("mdwiki_en_all_maxi_2025-11", "MDWiki Medical Encyclopedia", articles=363_000, tags="_ftindex:yes")
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    for b in (med, wiki):
+        fake.titles[b.name] = [("Myocardial_infarction", "Myocardial infarction")]
+        fake.add(b.name, "Myocardial_infarction", "<h1>Myocardial infarction</h1><p>Chest pain is the most common symptom.</p>")
+    c = make_client(tmp_path, fake, [med, wiki])
+
+    async def go():
+        hits = await c.search("myocardial infarction symptoms", limit=5)
+        assert {h.book for h in hits if h.title == "Myocardial infarction"} == {med.name, wiki.name}
+
+    run(go())
+
+
+def test_a_title_redirect_becomes_its_article_and_a_small_part_of_the_question_needs_the_full_text(tmp_path):
+    fake = FakeKiwix()
+    wiki = book("wikipedia_en_all_maxi_2026-08", "Wikipedia", articles=6_000_000, tags="_ftindex:yes")
+    fake.titles[wiki.name] = [("Capital_of_Australia", "Capital of Australia"), ("Warm_It_Up", "Warm It Up")]
+    fake.redirects[(wiki.name, "Capital_of_Australia")] = "Canberra"
+    fake.add(wiki.name, "Canberra", "<h1>Canberra</h1><p>Canberra is the capital city of Australia.</p>")
+    fake.add(wiki.name, "Warm_It_Up", "<h1>Warm It Up</h1><p>A song.</p>")
+    fake.search_results[wiki.name] = [("Canberra", "Canberra", "Canberra is the capital city of Australia"),
+                                      ("Frostbite", "Frostbite", "Do not rub frostbitten skin")]
+    c = make_client(tmp_path, fake, [wiki])
+
+    async def go():
+        hits = await c.search("What is the capital of Australia?", limit=3)
+        assert [(h.title, h.path) for h in hits][:1] == [("Canberra", "Canberra")]
+        assert [h.path for h in hits].count("Canberra") == 1  # the redirect merged with the article's full-text hit
+        hits = await c.search("Should you rub snow on frostbite to warm it up?", limit=3)
+        assert "Warm It Up" not in [h.title for h in hits]
+
+    run(go())
+
+
+def test_kiwix_serve_starts_with_a_small_search_cache_and_enough_threads(tmp_path, monkeypatch):
+    """libkiwix kept ~70 MB per recent full-text search; on the F1 it reached 5 GB and starved the model."""
+    import mimi.kiwix as K
+    from mimi.db import Database
+    from mimi.events import EventBus
+    from mimi.paths import Paths
+    from mimi.settings import SettingsStore
+
+    paths = Paths(data_override=tmp_path / "data")
+    svc = K.KiwixService(paths, SettingsStore(Database(paths.db_file)), EventBus())
+    exe = tmp_path / "kiwix-serve.exe"
+    exe.write_bytes(b"")
+    monkeypatch.setattr(paths, "exe", lambda *a: exe)
+    monkeypatch.setattr(svc, "zim_files", lambda: [tmp_path / "wikipedia_en_all_maxi_2026-08.zim"])
+    started = {}
+
+    class Proc:
+        def __init__(self, name, args, cwd=None, log_path=None, env=None):
+            started.update(args=args, env=env)
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(K, "ManagedProcess", Proc)
+    ok, real = httpx.MockTransport(lambda r: httpx.Response(200, text="<feed/>")), httpx.AsyncClient
+    monkeypatch.setattr(K.httpx, "AsyncClient", lambda *a, **k: real(transport=ok))
+    run(svc.start())
+    assert started["env"] == {"KIWIX_SEARCH_CACHE_SIZE": "2"}
+    assert 4 <= int(started["args"][started["args"].index("--threads") + 1]) <= 8
+
+
+def test_kiwix_serve_is_restarted_only_when_it_holds_too_much_and_the_library_is_idle(tmp_path, monkeypatch):
+    """libkiwix held 4-5 GB within an hour of searches on the F1; a fresh process gives it back."""
+    import time
+
+    import mimi.kiwix as K
+
+    fake = FakeKiwix()
+    c = make_client(tmp_path, fake, [])
+    svc = c.service
+    svc.alive = lambda: True
+    assert K.KiwixService.memory_limit() >= 1.5 * 2**30  # 12 % of this machine's RAM, at least 1.5 GB
+    monkeypatch.setattr(K.KiwixService, "memory_limit", staticmethod(lambda: 2 * 2**30))
+    held = {"bytes": 3 * 2**30}
+    monkeypatch.setattr(svc, "memory", lambda: held["bytes"])
+    run(K.KiwixClient._used(c, None))  # a request just now
+    assert not svc.needs_fresh_start()  # never in the middle of a search
+    svc.last_used = time.monotonic() - K.IDLE_BEFORE_RESTART - 1
+    assert svc.needs_fresh_start()
+    held["bytes"] = 1 * 2**30
+    assert not svc.needs_fresh_start()  # under the limit: leave it alone
+
+
 def test_a_full_wikipedia_hides_only_its_own_languages_small_edition(tmp_path, monkeypatch):
     from mimi.db import Database
     from mimi.events import EventBus
@@ -628,3 +852,31 @@ def test_a_zim_cut_short_is_held_back_and_reported(tmp_path, monkeypatch):
     assert held["mdwiki_en_all_maxi_2025-11.zim"] == {"file": "mdwiki_en_all_maxi_2025-11.zim", "size": 2500, "expected": 4096}
     assert held["notes.zim"]["expected"] == 0
     assert zim_expected_size(paths.zim / "wikivoyage_en_all_maxi_2026-01.zim") == 4096
+
+
+def test_the_librarys_embedding_calls_count_as_use(tmp_path):
+    """On the F1 the model manager stopped the embedding server as idle while every search was using it: only its
+    own embed() calls counted, so searches went without semantic ranking for most of a 5-hour eval run."""
+    c = make_client(tmp_path, FakeKiwix(), [])
+    used = []
+    c.on_embed = lambda: used.append(1)
+
+    async def post(url, json=None, timeout=None):
+        data = [{"index": i, "embedding": [1.0, 0.0]} for i, _ in enumerate(json["input"])]
+        return httpx.Response(200, json={"data": data}, request=httpx.Request("POST", url))
+
+    c.http.post = post
+
+    async def go():
+        assert await c._http_embed(["a", "b"]) == [[1.0, 0.0], [1.0, 0.0]]
+
+    run(go())
+    assert used == [1]
+
+
+def test_core_tells_the_model_manager_when_search_used_embeddings(client):
+    svc = client.app.state.svc
+    assert svc.kiwix.on_embed == svc.models.embed_used
+    svc.models._embed_last_use = 0.0
+    svc.kiwix.on_embed()
+    assert svc.models._embed_last_use > 0

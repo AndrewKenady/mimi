@@ -37,6 +37,8 @@ Mimi is three pieces that live in one portable folder:
 3. The prompt is **cache-friendly**. A stable system prompt (persona, rules, mode) is followed by the history, which is replayed exactly as the model saw it. The per-turn facts (time, location, memories) go in a bracketed note on the *latest* message only, so llama.cpp reuses its KV cache for everything before it.
 4. Questions that look factual force a tool call on the first step (`tool_choice: required`), so the answer is grounded in the library rather than the model's memory.
 5. Tools return numbered sources. After generation, `sanitize_citations` removes any `[n]` that doesn't match a real source, and any reference list the model wrote itself.
+   - **Each step is fitted to the context.** Before every model call, `_fit_turn` checks the prompt, including the tool definitions and every result so far. If it would leave fewer than 512 tokens for the answer, the longest results are shortened (each passage inside its own untrusted markers), then no more tools are offered. If llama-server still reports that the prompt is too long, the results are shortened further and the step is asked once more.
+   - **No silent empty answers.** A turn that ends without a word (the model read its results and wrote nothing) is asked once more without tools. An error llama-server reports inside its stream is raised as an error, not taken for an empty answer.
 6. The assistant message is stored with its sources, tool trail, memories used, model and timings. The UI then refetches the canonical thread, including answer versions. A memory counts as "used" (and gets a chip) only when the answer draws on it, meaning one of its distinctive words appears in the reply.
 
 ## Streaming protocol
@@ -58,7 +60,7 @@ A grounded answer takes 36–68 s on the reference handheld (see [BENCHMARKS.md]
 | `error` | `message`, `message_id` | the turn failed; `done` still follows if an answer was stored |
 | `done` | `message` (the stored assistant message, with `meta`), `chat` | last |
 
-`status.state` moves through `queued` → `loading` → `thinking` → `searching` (or `tool`) → `reading` → `writing`, repeating the middle steps if the model calls tools again. Labels are specific ("Searching Wikipedia and WikiMed for “hypothermia”…", "Reading “Hypothermia” (WikiMed) and 2 more…"). The `reading` status carries `prompt_tokens`, an estimate of what the model must now process, and `eta_ms` only when this device's prompt speed has been measured (from earlier answers' llama.cpp timings, prompts of 150+ tokens). Without a measurement no estimate is sent: a made-up number is worse than none.
+`status.state` moves through `queued` → `loading` → `thinking` → `searching` (or `tool`) → `reading` → `writing`, repeating the middle steps if the model calls tools again. Two states can also come back mid-turn: `loading` ("Restarting Gemma 4 12B with lighter settings…") when the model crashed or ran out of graphics memory before writing anything, and `thinking` when a turn that ended without a word is asked once more. Labels are specific ("Searching Wikipedia and WikiMed for “hypothermia”…", "Reading “Hypothermia” (WikiMed) and 2 more…"). The `reading` status carries `prompt_tokens`, an estimate of what the model must now process, and `eta_ms` only when this device's prompt speed has been measured (from earlier answers' llama.cpp timings, prompts of 150+ tokens). Without a measurement no estimate is sent: a made-up number is worse than none.
 
 `preview` is purely extractive: the paragraph of the top source's retrieved passage that best matches the question, cut at sentence boundaries (≤ 420 characters). The UI shows it as "From the source", marked as a quote and not Mimi's answer, and folds it away once the generated answer starts. It is also stored as `meta.preview`.
 
@@ -74,12 +76,17 @@ In the browser, deltas are batched per animation frame and the markdown is rende
 
 ## The library
 
-`kiwix.py` runs `kiwix-serve` over `zim/*.zim` (loopback only) and reads everything through its HTTP API: the OPDS catalog, `/content`, `/search` (Xapian) and `/suggest`.
+`kiwix.py` runs `kiwix-serve` over `zim/*.zim` (loopback only) and reads everything through its HTTP API: the OPDS catalog, `/content`, `/search` (Xapian) and `/suggest`. It runs 4 to 8 threads, by core count, so a search's dozens of title lookups don't queue behind its full-text query. It keeps only two recent searches (`KIWIX_SEARCH_CACHE_SIZE=2`). libkiwix still holds on to memory as it searches (4–5 GB within an hour on the F1), so the library watcher restarts kiwix-serve with the same books once it holds more than 12 % of RAM (at least 1.5 GB). It does so only after the library has been idle for 15 s, so no search is cut short.
 
 - **Survey.** In the background after each start, and whenever the ZIM set changes, every book is classified as articles, documents (nautilus PDF/media collections), videos (TED) or books (Gutenberg). The last three have JavaScript-built home pages, so Core parses their data files (`database.js`, `assets/data_<lang>.js`, `full_by_popularity.js`) and the UI lists the items natively at `/library/book/<book>`. A health check records whether each book is readable and searchable, gives an honest item count and a short note, and `GET /api/library/books` returns these. See [D13](DECISIONS.md#d13--an-honest-library-survey-every-book-list-what-javascript-would-have-listed).
 - **Document text.** `libindex.py` extracts PDF text page by page (pypdf, in a low-priority worker process) into `data/library-index.sqlite`, an FTS5 cache keyed by ZIM, path and page, with printed page labels. A document is read once per ZIM build. See D15.
-- **Search.** `KiwixClient.search()` queries Xapian per language group, tries an exact-title lookup and searches the PDF pages, all in parallel. `retrieval.py` then fuses the lists by reciprocal rank with intent priors (medical questions favor Medicine, repairs favor iFixit). When the bge-m3 embedding server is already up, it also reranks the top 20 semantically, with a 1.2 s cap. See D14.
-- **Passages and citations.** `passage()` picks paragraphs by BM25 (plus embedding similarity when available). A PDF hit is cited by page ("Where there is no Doctor, p. 265") and links to `/library/read/<book>/<file>.pdf#page=312`, which opens the browser's PDF viewer at that page.
+- **Search.** `KiwixClient.search()` queries Xapian per language group, looks up titles and searches the PDF pages, all in parallel. `retrieval.py` then fuses the lists by reciprocal rank with intent priors (medical questions favor Medicine, repairs favor iFixit). When the bge-m3 embedding server is already up, it also reranks the top 20 semantically, with a 1.2 s cap. See D14.
+- **Title lookup.** It tries runs of one to four of the query's content words (a lone word needs four letters, so "burn" but not "cut"), anywhere in it and with the little words inside a run kept ("great wall of china"), in the four largest books that aren't Q&A.
+  - **Matching.** A suggested title counts when it appears in the query word for word, or without its own inner little words ("Picadura de abeja" in "picadura abeja").
+  - **Redirects** are followed, so a hit is the article itself ("Capital of Australia" → Canberra).
+  - **Short titles.** A title that is only a small part of the question ("Since", "Ratio") is kept only when the full-text search found that article too, or when it comes from a book on the question's subject ("Hypothermia" in MDWiki for a medical question).
+  - **Weight.** Up to three different titles, each from every book that has it, join the fusion at weight 2, the ones the full text agrees with first. See D10.
+- **Passages and citations.** `passage()` picks paragraphs by BM25 (plus embedding similarity when available), over the model's search words and the user's own question. A few search words alone can pick the wrong paragraph: "bleach ratio" chose a surface-cleaning dilution over the drinking-water dose on the same page. Books in the user's language use the `local_query` words instead. A PDF hit is cited by page ("Where there is no Doctor, p. 265") and links to `/library/read/<book>/<file>.pdf#page=312`, which opens the browser's PDF viewer at that page.
 - **Reader.** HTML articles are cleaned server-side (`render_reader`): scripts, frames and forms are dropped, and only http(s)/mailto and relative links survive. PDFs, video and audio are served by the `/kiwix` proxy, where only PDFs and media may be framed (by Mimi itself) and ZIM HTML/SVG is CSP-sandboxed. See D16.
 
 ## Places, services and addresses
@@ -97,7 +104,16 @@ The reference device has 16 GB of RAM; about 3 GB of that is carved out for the 
 
 - **One chat model resident.** Switching roles (main → reader) swaps llama-server processes, and the UI shows "Waking up…".
 - **Auto-fit.** `--fit on` lets llama.cpp choose how many layers go to the GPU, so a model still loads when other apps hold memory.
-- **Voice, OCR and embeddings run on the CPU.** Whisper and Kokoro unload after 8 idle minutes, and the embedding server after 15.
+- **Memory budget.**
+  - **KV cache:** K is q8_0 and V f16. A q8_0 V half needs less graphics memory but, on the F1, made every request that reuses the cached prompt about 3 s slower to start, so it is a fallback rung, not the default (D22).
+  - **Prompt cache in RAM:** llama.cpp keeps earlier prompts' state in system memory (`--cache-ram`), 8 GB by default. Core sizes it to the device: 512 MB up to 16 GB, 2 GB up to 32 GB, 8 GB above. A Gemma prompt state is about 3 GB, so on the F1 it isn't kept, and the cache can no longer grow next to the model until a turn fails to allocate.
+- **A fallback ladder.** Rungs: ctx 8192 with 768 MB of graphics memory kept free, then ctx 4096 with 1536 MB, the same with a q8_0 V cache, 4096 with 3072 MB, and finally the CPU alone.
+  - **Won't start:** Core tries the next rung.
+  - **Starts, then fails:** a model that crashes, or stays up but can't get graphics memory for a request because other programs took it after it loaded, is stopped and restarted one rung further down. That includes the prompt-cache warm-up Core runs right after a load and the chat-title request, and llama-server's "Invalid input batch", which follows a decode that ran out of memory.
+  - **The question is asked again once** if nothing had been written yet; otherwise the turn ends with "The model stopped unexpectedly…".
+  - **Back to full settings:** once the lighter settings have answered, the next fresh start tries the full ones again.
+  - **Speed:** on the F1 the first two rungs are about as fast as each other. The q8_0 rung generates nearly as fast (7.8 tokens/s) but takes about 3 s longer to start each request. The 3072 MB rung keeps so many layers on the CPU that it generates at about half speed (5 instead of 8.4 tokens/s).
+- **Voice, OCR and embeddings run on the CPU.** Whisper and Kokoro unload after 8 idle minutes, and the embedding server after 15. Library search never starts the embedding server, but its calls to a running one count as use.
 
 ## Data layout
 

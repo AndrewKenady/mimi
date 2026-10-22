@@ -25,6 +25,7 @@ from typing import Awaitable, Callable
 from urllib.parse import quote, unquote, urljoin
 
 import httpx
+import psutil
 from selectolax.parser import HTMLParser, Node
 
 from . import i18n, log
@@ -38,6 +39,7 @@ from .settings import SettingsStore
 
 L = log.get("kiwix")
 PORT = int(os.environ.get("MIMI_KIWIX_PORT", "7620"))
+IDLE_BEFORE_RESTART = 15  # seconds without a library request before kiwix-serve may be restarted to free memory
 NS = {"a": "http://www.w3.org/2005/Atom"}
 
 # Collection = a friendly grouping used by the UI and by the search tool.
@@ -101,6 +103,14 @@ def alias_of(name: str) -> str:
 
 def quote_path(path: str) -> str:
     return quote(path, safe="/:()%,_-.~!*'")
+
+
+def _title_is_topic(title: str, query: str) -> bool:
+    """A looked-up title is the question's topic when it holds at least half of the question's
+    content words ("Capital of Australia" in "what is the capital of Australia"), or the question
+    is one word. Shorter ones ("Since", "Warm It Up") are often just words of the question."""
+    tn, qn = len(R.query_terms(title)), len(R.query_terms(query))
+    return qn <= 1 or (tn >= 2 and 2 * tn >= qn)
 
 
 @dataclass
@@ -178,6 +188,7 @@ class KiwixService:
         self._task: asyncio.Task | None = None
         self._client: KiwixClient | None = None
         self.started_at = 0.0
+        self.last_used = 0.0  # time.monotonic() of the client's latest request
 
     @property
     def base(self) -> str:
@@ -222,9 +233,16 @@ class KiwixService:
             L.info("no ZIM files yet; kiwix-serve not started")
             self.events.publish("library", {"status": "empty", "books": 0}, sticky=True)
             return
-        args = [str(exe), "--address", "127.0.0.1", "--port", str(PORT), "--threads", "4", "-n", "-m", "-b", "-k", "-z",
+        # A search sends kiwix-serve dozens of title lookups next to its full-text query; more threads
+        # keep them from queueing behind each other (4 to 8, by core count).
+        threads = max(4, min(8, os.cpu_count() or 4))
+        args = [str(exe), "--address", "127.0.0.1", "--port", str(PORT), "--threads", str(threads), "-n", "-m", "-b", "-k", "-z",
                 "--attachToProcess", str(os.getpid()), *[str(f) for f in self.files]]
-        self.proc = ManagedProcess("kiwix-serve", args, cwd=self.paths.root, log_path=self.paths.logs / "kiwix.log")
+        # libkiwix keeps every recent full-text search in memory, about 70 MB each over the English
+        # books; on the F1 that reached 5 GB of commit in an hour and starved the model. Two is plenty:
+        # Mimi doesn't page through results.
+        self.proc = ManagedProcess("kiwix-serve", args, cwd=self.paths.root, log_path=self.paths.logs / "kiwix.log",
+                                   env={"KIWIX_SEARCH_CACHE_SIZE": "2"})
         self.proc.start()
         async with httpx.AsyncClient() as c:
             for _ in range(100):
@@ -253,6 +271,34 @@ class KiwixService:
     def alive(self) -> bool:
         return bool(self.proc and self.proc.alive())
 
+    # libkiwix holds on to memory as it searches (on the F1: 28-70 MB per full-text search, 4-5 GB within
+    # an hour), and none of its cache settings bounds all of it. A fresh process gives it back.
+    def memory(self) -> int:
+        """kiwix-serve's committed memory in bytes (resident memory where the OS reports no commit), 0 if unknown."""
+        try:
+            info = psutil.Process(self.proc.pid).memory_info() if self.proc and self.proc.pid else None
+        except psutil.Error:
+            return 0
+        return int(getattr(info, "private", 0) or info.rss) if info else 0
+
+    @staticmethod
+    def memory_limit() -> int:
+        """The committed memory at which kiwix-serve is restarted: 12 % of RAM, at least 1.5 GB."""
+        return max(int(1.5 * 2**30), int(0.12 * psutil.virtual_memory().total))
+
+    def needs_fresh_start(self) -> bool:
+        """Over its memory limit, and the library idle long enough that no search is cut short."""
+        return self.alive() and time.monotonic() - self.last_used > IDLE_BEFORE_RESTART and self.memory() > self.memory_limit()
+
+    async def fresh_start(self) -> None:
+        """The same books in a new kiwix-serve; the client's survey and indexing carry on."""
+        held = self.memory()
+        if self.proc:
+            await asyncio.to_thread(self.proc.stop)
+            self.proc = None
+        await self.start()
+        L.info("restarted kiwix-serve to give back %.1f GB it was holding", held / 2**30)
+
     def watch(self, client: KiwixClient) -> None:
         self._client = client
         client.refresh()  # survey the books and index their documents in the background
@@ -267,6 +313,8 @@ class KiwixService:
                         await self.restart()
                         client.invalidate()
                         client.refresh()
+                    elif self.needs_fresh_start():
+                        await self.fresh_start()
                 except Exception as e:  # keep watching no matter what
                     L.warning("kiwix watcher: %s", e)
 
@@ -278,11 +326,14 @@ class KiwixClient:
     def __init__(self, service: KiwixService, settings: SettingsStore, index: DocIndex | None = None, embedder: Embedder | None = None):
         self.service = service
         self.settings = settings
-        self.http = httpx.AsyncClient(timeout=httpx.Timeout(connect=3, read=30, write=10, pool=5))
+        self.http = httpx.AsyncClient(timeout=httpx.Timeout(connect=3, read=30, write=10, pool=5), event_hooks={"request": [self._used]})
         self._books: list[Book] | None = None
         self._books_at = 0.0
         self.index = index or DocIndex(service.paths.data / "library-index.sqlite")
         self.embedder: Embedder = embedder or self._http_embed
+        # Told after each call to the running embedding server: on the F1 the model manager stopped it as idle
+        # while every search used it, and searches went without it for most of a 5-hour eval run.
+        self.on_embed: Callable[[], None] | None = None
         self._embed_down_until = 0.0
         self._qvecs: dict[str, list[float]] = {}
         self._docs: dict[str, list[Doc]] = {}        # book name → collection items
@@ -292,6 +343,9 @@ class KiwixClient:
         self.worker_process = True  # extract PDF text in a separate process (tests use a thread)
         self._pool: ProcessPoolExecutor | None = None
         self._looked_up: set[str] = set()
+
+    async def _used(self, request: httpx.Request) -> None:
+        self.service.last_used = time.monotonic()  # kiwix-serve is only restarted while nothing is asking it
 
     def invalidate(self) -> None:
         self._books = None
@@ -666,6 +720,8 @@ class KiwixClient:
         r = await self.http.post(f"http://127.0.0.1:{EMBED_PORT}/v1/embeddings", json={"input": [t[:2000] or " " for t in texts], "model": "embed"},
                                  timeout=httpx.Timeout(connect=0.3, read=RERANK_TIMEOUT, write=1, pool=0.5))
         r.raise_for_status()
+        if self.on_embed:
+            self.on_embed()
         return [d["embedding"] for d in sorted(r.json()["data"], key=lambda d: d["index"])]
 
     async def _embed(self, texts: list[str], timeout: float) -> list[list[float]] | None:
@@ -722,10 +778,36 @@ class KiwixClient:
         per = max(limit, 8)
         local_books = [b for b in text_books if lang and b.language == lang]
         other_books = [b for b in text_books if b not in local_books]
+        async def titles(q: str, books_: list[Book], language: str = "") -> list[tuple[str, Hit]]:
+            return await self._resolve_redirects(await self._title_hits(q, books_, language))
+
         titled, local_titled, docs, *groups = await asyncio.gather(
-            self._title_hits(query, other_books), self._title_hits(local_q, local_books, lang), self._doc_hits(query, doc_books, per),
+            titles(query, other_books), titles(local_q, local_books, lang), self._doc_hits(query, doc_books, per),
             *(self._search_group(q_for(language), grp, per) for language, grp in by_lang.items()), return_exceptions=True)
-        titled = (titled if isinstance(titled, list) else []) + (local_titled if isinstance(local_titled, list) else [])
+        pairs = (titled if isinstance(titled, list) else []) + (local_titled if isinstance(local_titled, list) else [])
+        # A title that is only a small part of the question ("Since", "Ratio", "Warm It Up" in a frostbite
+        # question) is often just its words: it counts as the topic only when the full-text search found
+        # that article too, or when it comes from a book on the question's subject ("Hypothermia" in
+        # MDWiki for a medical question, which MDWiki's own full-text search didn't rank in its top 8).
+        # Redirects were followed, so a hit is the article itself.
+        found = {(h.book, h.path) for g in groups if isinstance(g, list) for h in g}
+        intent = R.detect_intent(query)
+
+        def tier(matched: str, h: Hit) -> int | None:
+            if (h.book, h.path) in found:
+                return 0  # full-text search agrees: first
+            if _title_is_topic(matched, local_q if lang and h.language == lang else query) or R.prior(h.collection, intent) > 1.0:
+                return 1
+            return None
+
+        tiers = [(t, h) for matched, h in pairs if (t := tier(matched, h)) is not None]
+        # three, not two: a generic word can redirect to an article the full text also finds ("Temperature" →
+        # Thermoregulation) and would otherwise crowd out the topic's own title. Three different titles, each
+        # from every book that has it: the same "First aid" from three books would crowd out "Burn" in "burn
+        # first aid", and keeping one copy would drop MDWiki's "Myocardial infarction" for Wikipedia's.
+        ordered = [h for _, h in sorted(tiers, key=lambda x: x[0])]
+        names = list(dict.fromkeys(h.title.lower() for h in ordered))[:3]
+        titled = [h for h in ordered if h.title.lower() in names]
         index: dict[tuple, Hit] = {}
 
         def ranked(name: str, hits, weight: float) -> R.RankedList:
@@ -777,36 +859,71 @@ class KiwixClient:
     async def _title_hits(self, query: str, books: list[Book], language: str = "") -> list[Hit]:
         """An article whose title *is* the topic ("Bee sting") beats full-text relevance.
 
-        Try the query's leading words as a title prefix (4 → 2 words) in the
-        largest few books; keep suggestions whose title is contained in the query.
-        ``language`` (a Kiwix code) is the books' language when it isn't English: its
-        own little words ("de", "la") are skipped on both sides ("Picadura de abeja").
+        Look up runs of the query's words as titles in the largest few books, longest first
+        (4 content words → 1, anywhere in the query, little words inside a run kept: "great wall
+        of china"), and keep the suggestions whose title appears in the query: word for word
+        ("Speed of light" in "what is the speed of light in a vacuum"), or without its little
+        words when it has some ("Picadura de abeja" in "picadura abeja"). A title without little
+        words must appear word for word, so "speed of light" doesn't find the "Speed light" flash.
+        ``language`` (a Kiwix code) picks the little words when the books aren't English.
+        One-word titles are checked against the full-text results in search().
         """
         stop = R.STOPWORDS_BY_LANGUAGE.get(language, STOPWORDS)
-        words = [w for w in re.findall(r"[^\W_][\w'’-]*", query) if w.lower() not in stop]
-        if len(words) < 1 or not books:
+        raw = [w.lower() for w in re.findall(r"[^\W_][\w'’-]*", query)]
+        content = [i for i, w in enumerate(raw) if w not in stop][:6]
+        # Q&A titles are whole questions, almost never a topic's name
+        top = sorted((b for b in books if b.collection != "qa"), key=lambda b: -b.articles)[:4]
+        if not content or not top:
             return []
-        qnorm = " " + " ".join(w.lower() for w in words) + " "
-        top = sorted(books, key=lambda b: -b.articles)[:4]
+        qraw = " " + " ".join(raw) + " "
+        qbare = " " + " ".join(w for w in raw if w not in stop) + " "
+        # Every run at once, longest first: a generic title ("First aid") must not hide the topic's
+        # own ("Nosebleed" in "how to stop a nosebleed first aid"); search() picks among them.
+        terms: list[str] = []
+        for n in range(min(4, len(content)), 0, -1):
+            for s in range(len(content) - n + 1):
+                term = " ".join(raw[content[s]:content[s + n - 1] + 1])
+                if (n > 1 or len(term) >= 4) and term not in terms:  # "burn", not "cut"
+                    terms.append(term)
+        pairs = [(t, b) for t in terms for b in top]
+        got = await asyncio.gather(*(self.suggest(t, b.name, 8) for t, b in pairs), return_exceptions=True)
         out: list[Hit] = []
-        for n in range(min(4, len(words)), 0, -1):
-            prefix = " ".join(words[:n])
-            if n == 1 and len(prefix) < 5:
-                break
-            sugg = await asyncio.gather(*(self.suggest(prefix, b.name, 5) for b in top), return_exceptions=True)
-            for b, res in zip(top, sugg):
-                if not isinstance(res, list):
+        seen: set[tuple[str, str]] = set()
+        for (_, b), res in zip(pairs, got):
+            for s in res if isinstance(res, list) else []:
+                t = (s.get("title") or "").strip()
+                tw = re.findall(r"[^\W_][\w'’-]*", t.lower())
+                bare = [w for w in tw if w not in stop]
+                traw, tbare = " " + " ".join(tw) + " ", " " + " ".join(bare) + " "
+                if not (t and s.get("path") and len(tbare.strip()) >= 4) or (b.name, tbare) in seen:
                     continue
-                for s in res:
-                    t = (s.get("title") or "").strip()
-                    tw = re.findall(r"[^\W_][\w'’-]*", t.lower())
-                    tn = " " + " ".join(w for w in tw if not language or w not in stop) + " "
-                    if t and s.get("path") and tn.strip() and tn in qnorm and len(tn.strip()) >= 4:
-                        out.append(Hit(title=t, path=s["path"], book=b.name, book_title=b.title, collection=b.collection, snippet="",
-                                       score=2.0, language=b.language))
-            if out:
-                break
-        return out[:2]
+                # without its little words only when they sit inside it ("Picadura de abeja", not "Childhood ME")
+                inside = len(bare) < len(tw) and tw[0] not in stop and tw[-1] not in stop
+                if traw in qraw or (inside and tbare in qbare):
+                    seen.add((b.name, tbare))
+                    out.append(Hit(title=t, path=s["path"], book=b.name, book_title=b.title, collection=b.collection, snippet="",
+                                   score=2.0, language=b.language))
+        # ten, not six: the big books' "Rice" and "Stand" for "what does RICE stand for in treating a sprained
+        # ankle" filled six places before MDWiki's "Sprained" (→ Sprain); search() then drops most of them
+        return out[:10]
+
+    async def _resolve_redirects(self, hits: list[Hit]) -> list[tuple[str, Hit]]:
+        """(title as matched, hit) with each hit pointing at the article its title redirects to.
+
+        Titles from the lookup are often redirects ("Capital of Australia" → Canberra). Pointing them at
+        the article lets them merge with its full-text hit, shows its real title and keeps one article
+        from taking two of the few places in an answer's sources."""
+        got = await asyncio.gather(*(self._fetch(h.book, h.path) for h in hits), return_exceptions=True)
+        out: list[tuple[str, Hit]] = []
+        seen: set[tuple[str, str]] = set()
+        for h, f in zip(hits, got):
+            matched = h.title
+            if isinstance(f, Fetched) and f.status == 200 and f.final and f.final != h.path:
+                h.path, h.title = f.final, f.final.rsplit("/", 1)[-1].replace("_", " ")
+            if (h.book, h.path) not in seen:
+                seen.add((h.book, h.path))
+                out.append((matched, h))
+        return out
 
     async def _search_group(self, query: str, group: list[Book], limit: int) -> list[Hit]:
         params = [("pattern", query), ("format", "xml"), ("pageLength", str(limit)), ("start", "0")] + [("books.name", b.name) for b in group]

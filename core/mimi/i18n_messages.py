@@ -23,6 +23,7 @@ ES: dict[str, str] = {
     # ---- chat status
     "Waiting for Mimi to finish another answer…": "Esperando a que Mimi termine otra respuesta…",
     "Waking up {name}…": "Despertando a {name}…",
+    "Restarting {name} with lighter settings…": "Reiniciando {name} con ajustes más ligeros…",
     "Thinking…": "Pensando…",
     "Writing the answer…": "Escribiendo la respuesta…",
     "Going over the results…": "Revisando los resultados…",
@@ -170,6 +171,7 @@ FR: dict[str, str] = {
     "articles": "articles", "documents": "documents", "talks": "conférences", "books": "livres",
     "Waiting for Mimi to finish another answer…": "Mimi termine une autre réponse…",
     "Waking up {name}…": "Réveil de {name}…",
+    "Restarting {name} with lighter settings…": "Redémarrage de {name} avec des réglages plus légers…",
     "Thinking…": "Réflexion…",
     "Writing the answer…": "Rédaction de la réponse…",
     "Going over the results…": "Examen des résultats…",
