@@ -84,7 +84,7 @@ Measured on the F1 with `eval/run.py` + `eval/score.py` on the 166-question gold
 | This release's run (q8_0 rung) | 23.9 s / 47.4 s | 47.8 s / 70.0 s | 64 tok/s | 7.7 tok/s |
 | 0.2.0 | 17.0 s / 39.4 s | 40.5 s / 53.8 s | 89 tok/s | 8.5 tok/s |
 
-29 of 30 passed (26 in this release's run on the same questions), with no forbidden claims.
+29 of 30 passed (26 in this release's run on the same questions), with no forbidden claims. A photo ("What does this sign say?") then takes 90–105 s to its answer on the F1, including the restart with the projector and a rung that runs out of memory; the text question after it, which waits for the model to restart without the projector, took 44 s.
 
 | Retrieval check (153 items, R@k over the 137 with expected titles) | R@1 | R@5 | R@10 | MRR | Search p50 / p90 |
 |---|---|---|---|---|---|

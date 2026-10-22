@@ -207,6 +207,19 @@ def _status(state: str, label: str, t_start: float, **extra) -> dict:
     return {"event": "status", "data": data}
 
 
+def _text_only(messages: list[dict]) -> list[dict]:
+    """The messages with their images replaced by " [attachment]", as history replays them: the chat-title request
+    goes to whichever model is resident, which may have started without its vision projector."""
+    out = []
+    for m in messages:
+        c = m.get("content")
+        if isinstance(c, list):
+            text = " ".join(p.get("text", "") for p in c if p.get("type") == "text")
+            c = text + (" [attachment]" if any(p.get("type") == "image_url" for p in c) else "")
+        out.append({**m, "content": c})
+    return out
+
+
 def _fit_history(messages: list[dict], n_history: int, ctx: int, max_out: int) -> int:
     """Drop the oldest history (right after the system prompt) until the prompt fits `ctx`; returns how much is left."""
     while n_history and sum(est_tokens(m.get("content") or "") for m in messages) + max_out > ctx - 256:
@@ -638,8 +651,7 @@ class ChatService:
                 if svc.models.waiting:
                     svc.models.waiting = max(0, svc.models.waiting - 1)
                 n_history = len(history)
-                if not (svc.models.chat_model and svc.models.chat_model.id == spec.id and svc.models.chat_proc and svc.models.chat_proc.alive()
-                        and (svc.models.chat_vision or not state.vision)):
+                if not svc.models.serves(spec, state.vision):
                     yield _status("loading", tr("Waking up {name}…", name=spec.name), t_start)
                     await svc.models.ensure(spec, vision=state.vision)
                     # re-trim history if the model came up with a smaller context
@@ -799,7 +811,8 @@ class ChatService:
             title = heuristic_title(content)
             self.db.execute("UPDATE chats SET title=? WHERE id=?", (title, chat_id))
             if base_messages and answer:
-                asyncio.create_task(self._smart_title(ctx, chat_id, spec, base_messages + [{"role": "assistant", "content": answer}], first_tools))
+                asyncio.create_task(self._smart_title(ctx, chat_id, spec, _text_only(base_messages) + [{"role": "assistant", "content": answer}],
+                                                      first_tools))
         final = self.thread(chat_id, asst_id)[-1]
         if error:
             yield {"event": "error", "data": {"message": error, "message_id": asst_id}}

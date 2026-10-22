@@ -61,6 +61,16 @@ def _model_error(text: str) -> ModelError:
     return (ModelOutOfMemory if _OUT_OF_MEMORY.search(text) else ModelError)(f"model error: {text[:400]}")
 
 
+# MB more graphics memory left free on each rung when the vision projector loads, for the image encoder: on the
+# F1 a photo ran the model out of graphics memory on every GPU rung, and it answered from the CPU-only one.
+VISION_FIT_EXTRA = 1024
+
+
+def _resume_key(model_id: str, vision: bool) -> str:
+    """Where a model restarts on its ladder is kept apart for its starts with and without vision."""
+    return f"{model_id}+vision" if vision else model_id
+
+
 def _settings_text(ctx: int, fit: int, cpu_only: bool, v_cache: str = "f16") -> str:
     return f"ctx {ctx}, " + ("CPU only" if cpu_only else f"{fit} MB graphics memory kept free") + (
         f", {v_cache} V cache" if v_cache != "f16" else "")
@@ -199,7 +209,7 @@ class ModelManager:
             args += ["-ngl", "0"]
         return args
 
-    def _ladder(self, spec: ModelSpec) -> tuple[int, list[tuple[int, int, bool, str]]]:
+    def _ladder(self, spec: ModelSpec, vision: bool = False) -> tuple[int, list[tuple[int, int, bool, str]]]:
         """The wanted context and the (ctx, MB of graphics memory kept free, CPU only, V cache type) settings to try,
         in order."""
         want_ctx = int(min(self.settings.device("models").context, spec.get("context", 8192)))
@@ -208,25 +218,35 @@ class ModelManager:
         # context, then a q8_0 V cache (smaller, but each request slower to start), then more memory left free,
         # so llama.cpp keeps more layers on the CPU (half the generation speed on the F1). The last resort is
         # the CPU build alone.
-        return want_ctx, [(want_ctx, 768, False, "f16"), (small, 1536, False, "f16"), (small, 1536, False, "q8_0"),
-                          (small, 3072, False, "f16"), (small, 0, True, "f16")]
+        x = VISION_FIT_EXTRA if vision else 0
+        return want_ctx, [(want_ctx, 768 + x, False, "f16"), (small, 1536 + x, False, "f16"), (small, 1536 + x, False, "q8_0"),
+                          (small, 3072 + x, False, "f16"), (small, 0, True, "f16")]
+
+    def serves(self, spec: ModelSpec, vision: bool = False) -> bool:
+        """Whether the resident chat model answers a turn for `spec` as it is: the same model, up, with its vision
+        projector if the turn needs it. A model started with vision serves text turns too, unless it had to start
+        on a lighter rung: without the projector it starts higher (on the F1, at 8192 instead of CPU only)."""
+        if not (self.chat_model and self.chat_model.id == spec.id and self.chat_proc and self.chat_proc.alive()):
+            return False
+        if vision and spec.vision:
+            return self.chat_vision
+        return not self.chat_vision or self.chat_attempt == 0
 
     async def ensure(self, spec: ModelSpec, vision: bool = False) -> str:
         """Make sure `spec` is the resident chat model, with its vision projector when `vision`; returns its base URL.
 
-        A model started with vision stays as it is for text turns: swapping back would cost a restart."""
+        See serves() for when a model started with vision answers text turns."""
         vision = vision and spec.vision
         async with self._switch_lock:
             self.crashed()
-            if (self.chat_model and self.chat_model.id == spec.id and self.chat_proc and self.chat_proc.alive()
-                    and (self.chat_vision or not vision)):
+            if self.serves(spec, vision):
                 return f"http://127.0.0.1:{CHAT_PORT}"
             await self._stop_chat()
-            want_ctx, attempts = self._ladder(spec)
+            want_ctx, attempts = self._ladder(spec, vision)
             self._set_state("loading", spec)
             t0 = time.time()
             # After a crash, start where the crashed settings left off (same wanted context only).
-            resume_ctx, first = self._resume.get(spec.id, (want_ctx, 0))
+            resume_ctx, first = self._resume.get(_resume_key(spec.id, vision), (want_ctx, 0))
             first = min(first, len(attempts) - 1) if resume_ctx == want_ctx else 0
             for attempt in range(first, len(attempts)):
                 ctx, fit, cpu_only, v_cache = attempts[attempt]
@@ -281,7 +301,7 @@ class ModelManager:
             self.chat_model = None  # ensure() clears away the dead process and starts it again
             want_ctx, attempts = self._chat_ladder  # as it was started (Settings may have changed since)
             nxt = min(self.chat_attempt + 1, len(attempts) - 1)
-            self._resume[spec.id] = (want_ctx, nxt)
+            self._resume[_resume_key(spec.id, self.chat_vision)] = (want_ctx, nxt)
             L.warning("%s exited unexpectedly with %s (attempt %s); it restarts with %s:\n%s", spec.id,
                       _settings_text(*attempts[self.chat_attempt]), self.chat_attempt + 1, _settings_text(*attempts[nxt]), proc.tail(12))
             self._set_state("error", error="The model stopped unexpectedly. It will restart on your next message.")
@@ -307,7 +327,7 @@ class ModelManager:
             return self.crashed()
         want_ctx, attempts = self._chat_ladder
         nxt = min(self.chat_attempt + 1, len(attempts) - 1)
-        self._resume[spec.id] = (want_ctx, nxt)
+        self._resume[_resume_key(spec.id, self.chat_vision)] = (want_ctx, nxt)
         L.warning("%s ran out of graphics memory with %s (attempt %s); it restarts with %s", spec.id,
                   _settings_text(*attempts[self.chat_attempt]), self.chat_attempt + 1, _settings_text(*attempts[nxt]))
         await self._stop_chat()
@@ -315,8 +335,14 @@ class ModelManager:
         return True
 
     def _answered(self, spec: ModelSpec) -> None:
-        # Its current settings work, so a later fresh start (after a model swap) tries the full ones again.
-        self._resume.pop(spec.id, None)
+        # Its current settings work, so a later fresh start (after a model swap) tries the full ones again. Not
+        # with vision: a photo is rare and a failed start slow (on the F1, two failed rungs cost 45 s), so the
+        # next photo starts where this one worked.
+        key = _resume_key(spec.id, self.chat_vision)
+        if self.chat_vision:
+            self._resume[key] = (self._chat_ladder[0], self.chat_attempt)
+        else:
+            self._resume.pop(key, None)
 
     async def _stop_chat(self) -> None:
         if self.chat_proc:

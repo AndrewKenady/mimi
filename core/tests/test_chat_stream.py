@@ -53,6 +53,9 @@ class FakeModels:
     def model_for(self, role):
         return self.spec
 
+    def serves(self, spec, vision=False):
+        return not self.dead and (self.chat_vision or not vision)
+
     async def ensure(self, spec, vision=False):
         self.ensured.append((spec.id, vision))
         if vision and not self.chat_vision:
@@ -498,3 +501,14 @@ def test_a_missing_chat_is_reported_with_a_stable_code(svc):
     finally:
         i18n._current.reset(token)
     assert evs[0]["event"] == "error" and evs[0]["data"] == {"message": "Discussion introuvable", "code": "chat_not_found"}
+
+
+def test_the_title_request_gets_the_photo_as_text():
+    """It goes to whichever model is resident, which may have started without its vision projector."""
+    from mimi import chat
+
+    msgs = [{"role": "system", "content": "rules"},
+            {"role": "user", "content": [{"type": "text", "text": "What does this sign say?"},
+                                         {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,AAAA"}}]}]
+    assert chat._text_only(msgs) == [{"role": "system", "content": "rules"},
+                                     {"role": "user", "content": "What does this sign say? [attachment]"}]
