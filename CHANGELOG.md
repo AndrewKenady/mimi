@@ -2,7 +2,9 @@
 
 All notable changes to Mimi. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/) once 1.0 ships. Tagged releases publish the top section as their notes.
 
-## [Unreleased]
+## [0.2.1] — 2026-10-22
+
+The release from the first full eval on the reference handheld: long sessions no longer run out of memory, the bleach answer is safe, and library search finds the article that is the topic, measured on the device ([docs/BENCHMARKS.md](docs/BENCHMARKS.md#answer-quality-eval-harness)).
 
 ### Fixed
 - **Mimi no longer runs out of memory after an hour of questions.** Two caches grew until a turn failed to allocate memory and the model crashed, 20–80 minutes into a session on a 16 GB handheld. llama.cpp kept earlier prompts in system memory, up to 8 GB by default; that cache is now sized to the device (512 MB up to 16 GB, 2 GB up to 32 GB, 8 GB above). And kiwix-serve held on to memory as it searched, reaching 4–5 GB in an hour; it now keeps only two recent searches, and Mimi restarts it with the same books when it holds more than 12 % of RAM (at least 1.5 GB) while the library is idle, so no search is cut short.
