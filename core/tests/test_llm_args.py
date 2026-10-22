@@ -53,3 +53,19 @@ def test_the_v_cache_is_f16_unless_the_ladder_asks_for_q8():
     assert args[args.index("-ctk") + 1] == "q8_0" and args[args.index("-ctv") + 1] == "f16"
     args = m._chat_args(Spec(), 4096, 1536, False, "q8_0")
     assert args[args.index("-ctv") + 1] == "q8_0"
+
+
+def test_the_vision_projector_is_loaded_only_when_asked_for():
+    """It takes graphics memory: on the F1, without it Gemma 4 12B started at the full context."""
+    m = llm.ModelManager.__new__(llm.ModelManager)
+    m.hw = {"backend": "vulkan", "cores": 8, "ram_installed_gb": 16}
+    m.paths = SimpleNamespace(exe=lambda build, name: Exe(build))
+
+    class Seeing(Spec):
+        vision = True
+        mmproj = "mmproj.gguf"
+
+    assert "--mmproj" not in m._chat_args(Seeing(), 8192)
+    args = m._chat_args(Seeing(), 8192, vision=True)
+    assert args[args.index("--mmproj") + 1] == "mmproj.gguf"
+    assert "--mmproj" not in m._chat_args(Spec(), 8192, vision=True)  # a model without vision has no projector

@@ -46,9 +46,9 @@ using Microsoft.Win32;
 [assembly: AssemblyProduct("Mimi")]
 [assembly: AssemblyCompany("Mimi contributors")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Drew K. Kennedy and Mimi contributors. MIT License.")]
-[assembly: AssemblyVersion("0.2.0.0")]
-[assembly: AssemblyFileVersion("0.2.0.0")]
-[assembly: AssemblyInformationalVersion("0.2.0")]
+[assembly: AssemblyVersion("0.2.1.0")]
+[assembly: AssemblyFileVersion("0.2.1.0")]
+[assembly: AssemblyInformationalVersion("0.2.1")]
 [assembly: ComVisible(false)]
 
 namespace Mimi.Shell
@@ -59,7 +59,7 @@ namespace Mimi.Shell
 
     internal static class AppInfo
     {
-        public const string Version = "0.2.0";
+        public const string Version = "0.2.1";
         public const string ShellKind = "winforms-webview2";
 
         public const string CoreHost = "127.0.0.1";

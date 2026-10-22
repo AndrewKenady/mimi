@@ -344,9 +344,9 @@ footer a { color: var(--ink-2); }
       <p class="dek">Mimi is an open-source assistant that runs entirely offline on a handheld PC. Its first version worked. This is how I made it <b>trustworthy</b>: an honest library, evidence on screen before the answer, a checker for every citation, and a way to measure quality instead of asserting it.</p>
       <dl class="facts">
         <div><dt>Role</dt><dd>Drew K. Kennedy<small>Designer and engineer, solo: research, UX, UI, front end, back end</small></dd></div>
-        <div><dt>Timeline</dt><dd>Sept 26 – Oct 16, 2026<small>0.1.0 in two days; 0.2.0, the work below, in the weeks after</small></dd></div>
+        <div><dt>Timeline</dt><dd>Sept 26 – Oct 22, 2026<small>0.1.0 in two days; 0.2.0 and 0.2.1, the work below, in the weeks after</small></dd></div>
         <div><dt>Platform</dt><dd>7-inch handheld PC<small>Controller-first, full screen; phones and laptops join over local Wi-Fi</small></dd></div>
-        <div><dt>Shipped</dt><dd>Mimi 0.2.0, MIT<small>SvelteKit app, Python core, eval harness, docs and CI</small></dd></div>
+        <div><dt>Shipped</dt><dd>Mimi 0.2.1, MIT<small>SvelteKit app, Python core, eval harness, docs and CI</small></dd></div>
       </dl>
       <p class="try"><a class="btn primary" href="demo/">Try the live demo</a><span>The real interface in your browser, replaying recorded answers at the handheld’s real speed.</span></p>
     </div>
@@ -379,7 +379,7 @@ footer a { color: var(--ink-2); }
           <li><span class="k">Time to evidence</span><span class="v">Sources first</span><p>Source cards and a verbatim quote arrive when the search returns, instead of after a 33–75&nbsp;s wait for the whole answer.</p></li>
           <li><span class="k">Contrast</span><span class="v">1.6<i>→</i>4.9:1</span><p>Light-theme status colors went from 1.6–2.2:1 to at least 4.9:1. About 1,600 color pairs are now checked on every build.</p></li>
           <li><span class="k">Accessibility</span><span class="v">0 serious</span><p>Axe finds no serious or critical WCAG 2.2 A/AA violations on any main screen, in dark or light, in CI.</p></li>
-          <li><span class="k">Tests</span><span class="v">182<i>→</i>712</span><p>Core tests nearly quadrupled, plus 35 end-to-end browser tests against the real API (there were none).</p></li>
+          <li><span class="k">Tests</span><span class="v">182<i>→</i>718</span><p>Core tests nearly quadrupled, plus 35 end-to-end browser tests against the real API (there were none).</p></li>
           <li><span class="k">Reach</span><span class="v">~200<i>→</i>16&nbsp;GB</span><p>From one Windows-only, ~200&nbsp;GB install to a 16–24&nbsp;GB Lite tier with a one-line installer for Linux and macOS, plus Docker.</p></li>
         </ul>
       </section>
@@ -609,7 +609,7 @@ footer a { color: var(--ink-2); }
             <li><b>Accessibility</b><span>axe, WCAG 2.2 A/AA · every main screen, dark and light</span></li>
             <li><b>End-to-end</b><span>35 Playwright tests · the real core API with a fixture library</span></li>
             <li><b>Turn loop</b><span>a scripted model streams a whole chat turn in milliseconds</span></li>
-            <li><b>Unit</b><span>712 core tests on Linux, Windows and macOS · ~1,600 contrast pairs</span></li>
+            <li><b>Unit</b><span>718 core tests on Linux, Windows and macOS · ~1,600 contrast pairs</span></li>
           </ol>
           <figcaption><span class="mono">FIG. 6</span> The test layers. CI runs all of them; the top one also runs on the reference handheld, where a full English run takes two to three hours.</figcaption>
         </figure>
