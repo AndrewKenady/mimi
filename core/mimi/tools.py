@@ -337,12 +337,12 @@ async def show_reference_image(args: dict, st: TurnState, svc) -> ToolResult:
     got = await svc.kiwix.raw(book.name, path)
     if not got:
         return ToolResult("Couldn't open the article.", label=f"Looked for a picture of “{title}”", ok=False)
-    from selectolax.parser import HTMLParser
+    from selectolax.lexbor import LexborHTMLParser
 
     from .kiwix import alias_of, lead_image
 
     html, final = got
-    img = lead_image(HTMLParser(html), book.name, final)
+    img = lead_image(LexborHTMLParser(html), book.name, final)
     if not img:
         return ToolResult(f"“{title}” has no picture.", label=f"Looked for a picture of “{title}”", ok=False)
     fetched = await svc.kiwix.image_bytes(book.name, img[len("/kiwix"):])

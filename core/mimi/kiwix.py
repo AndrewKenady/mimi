@@ -26,7 +26,7 @@ from urllib.parse import quote, unquote, urljoin
 
 import httpx
 import psutil
-from selectolax.parser import HTMLParser, Node
+from selectolax.lexbor import LexborHTMLParser, LexborNode
 
 from . import i18n, log
 from . import retrieval as R
@@ -1157,7 +1157,7 @@ def _clean(s: str) -> str:
 _NOT_CONTENT_IMG = re.compile(r"(logo|icon|favicon|sprite|badge|avatar|gravatar|button|spinner|flag_of|filler|blank|pixel)", re.I)
 
 
-def lead_image(tree: HTMLParser, book: str, path: str) -> str | None:
+def lead_image(tree: LexborHTMLParser, book: str, path: str) -> str | None:
     for sel in ("table.infobox img", "figure img", ".thumb img", ".mw-file-element", "article img", "img"):
         for img in tree.css(sel):
             src = img.attributes.get("src") or ""
@@ -1174,7 +1174,7 @@ def lead_image(tree: HTMLParser, book: str, path: str) -> str | None:
 
 def article_blocks(html: str, book: str = "", path: str = "") -> tuple[str, str | None, list[tuple[str, str]]]:
     """(title, lead image, [(kind, text)]) where kind is "h" (h2/h3 heading) or "p" (paragraph, list item…)."""
-    tree = HTMLParser(html)
+    tree = LexborHTMLParser(html)
     h1 = tree.css_first("h1")
     title = _clean(h1.text()) if h1 else _clean(tree.css_first("title").text() if tree.css_first("title") else "")
     image = lead_image(tree, book, path)
@@ -1264,7 +1264,7 @@ def select_blocks(blocks: list[tuple[str, str]], scores: list[float], max_chars:
 def extract_passage(html: str, query: str, max_chars: int, book: str = "", path: str = "") -> tuple[str, str, str | None]:
     title, image, blocks = article_blocks(html, book, path)
     if not blocks:
-        tree = HTMLParser(html)
+        tree = LexborHTMLParser(html)
         for sel in ("script", "style", "noscript"):
             for n in tree.css(sel):
                 n.decompose()
@@ -1279,7 +1279,7 @@ def _page_substance(html: str, book: str, path: str) -> tuple[str, int]:
     if not html:
         return "", 0
     r = render_reader(html, book, path, alias_of(book), "")
-    tree = HTMLParser(r["html"] or "<p></p>")
+    tree = LexborHTMLParser(r["html"] or "<p></p>")
     text = _clean((tree.body or tree.root).text() if (tree.body or tree.root) is not None else "")
     return text, len(tree.css("a[data-internal]"))
 
@@ -1304,7 +1304,7 @@ def _scheme(url: str) -> str:
     return m.group(1).lower() if m else ""
 
 
-def _drop_attr(n: Node, name: str) -> None:
+def _drop_attr(n: LexborNode, name: str) -> None:
     """Remove every attribute called `name` (namespaced duplicates included)."""
     for _ in range(8):
         if name not in n.attributes:
@@ -1322,7 +1322,7 @@ def render_reader(html: str, book: str, path: str, alias: str, book_title: str) 
     "external" markers; every other URL scheme (javascript:, vbscript:, data:,
     file:…) is removed, except data: images in <img>.
     """
-    tree = HTMLParser(html)
+    tree = LexborHTMLParser(html)
     h1 = tree.css_first("h1")
     tnode = tree.css_first("title")
     title = _clean(h1.text()) if h1 else (_clean(tnode.text()) if tnode and _clean(tnode.text()) else path.replace("_", " "))

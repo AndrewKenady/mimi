@@ -228,9 +228,9 @@ def sse_events(lines: Iterator[str]) -> Iterator[tuple[str, dict]]:
 
 def html_to_text(html: str) -> str:
     try:
-        from selectolax.parser import HTMLParser
+        from selectolax.lexbor import LexborHTMLParser
 
-        tree = HTMLParser(html)
+        tree = LexborHTMLParser(html)
         for sel in ("script", "style", "table.infobox", "sup.reference", ".reference", ".mw-references-wrap", "figure"):
             for n in tree.css(sel):
                 n.decompose()

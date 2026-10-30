@@ -107,3 +107,38 @@ def test_start_and_stop_a_quick_process(tmp_path):
     assert _wait_for(lambda: not mp.alive())
     mp.stop()
     assert "hello" in (tmp_path / "echo.log").read_text()
+
+
+def _alive_win(pid: int) -> bool:
+    out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True).stdout
+    return str(pid) in out
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows job objects")
+def test_helpers_die_when_core_is_killed_on_windows(tmp_path):
+    """Core puts itself in its kill-on-close job, so even a helper it starts with plain Popen (a plugin
+    worker, a PDF extractor) dies when Core is killed outright."""
+    pidfile = tmp_path / "helper.pid"
+    fake_core = textwrap.dedent(f"""
+        import subprocess, sys, time
+        sys.path.insert(0, {str(CORE)!r})
+        from pathlib import Path
+        from mimi import procs
+        if not procs.contain_self():
+            sys.exit(3)
+        p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(300)"])
+        Path({str(pidfile)!r}).write_text(str(p.pid))
+        time.sleep(300)
+    """)
+    core = subprocess.Popen([sys.executable, "-c", fake_core])
+    try:
+        assert _wait_for(lambda: pidfile.exists() or core.poll() is not None)
+        assert core.poll() is None, f"Core couldn't put itself in its job (exit code {core.returncode})"
+        helper = _read_pid(pidfile)
+        assert _alive_win(helper)
+        core.kill()  # TerminateProcess: no cleanup code runs
+        core.wait(timeout=5)
+        assert _wait_for(lambda: not _alive_win(helper), 5), "helper outlived a killed Core"
+    finally:
+        if core.poll() is None:
+            core.kill()
