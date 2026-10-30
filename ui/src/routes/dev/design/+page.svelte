@@ -240,7 +240,7 @@
 
 			<section aria-labelledby="motion">
 				<h2 id="motion">Motion & layers</h2>
-				<p class="note">Durations are tokens that collapse to 0 under reduced motion; <code>$lib/motion</code> hands the same values to Svelte transitions and drops slides and zooms. {reducedMotion() ? 'Reduced motion is on right now, so the demo jumps.' : ''}</p>
+				<p class="note">Durations are tokens that collapse to 0 under reduced motion; <code>#lib/motion</code> hands the same values to Svelte transitions and drops slides and zooms. {reducedMotion() ? 'Reduced motion is on right now, so the demo jumps.' : ''}</p>
 				<div class="two">
 					<div>
 						<button class="btn btn-sm" onclick={() => play++}><Play size={14} aria-hidden="true" /> Play</button>
@@ -354,7 +354,7 @@
 			</section>
 
 			<footer class="foot">
-				<p>Source: <code>ui/src/app.css</code> (tokens), <code>$lib/color</code>, <code>$lib/theme</code>, <code>$lib/motion</code>, <code>$lib/dialog</code>, <code>$lib/confirm</code>. Guide: <code>docs/DESIGN_SYSTEM.md</code>.</p>
+				<p>Source: <code>ui/src/app.css</code> (tokens), <code>#lib/color</code>, <code>#lib/theme</code>, <code>#lib/motion</code>, <code>#lib/dialog</code>, <code>#lib/confirm</code>. Guide: <code>docs/DESIGN_SYSTEM.md</code>.</p>
 			</footer>
 		</div>
 	</div>

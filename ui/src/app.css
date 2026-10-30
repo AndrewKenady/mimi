@@ -100,7 +100,7 @@
 	--z-system: 120; /* connection banner */
 
 	/* Motion — durations collapse to 0 under reduced motion (OS or app setting),
-	   and $lib/motion reads these same tokens for Svelte transitions. */
+	   and #lib/motion reads these same tokens for Svelte transitions. */
 	--dur-instant: 80ms; /* press feedback */
 	--dur-fast: 140ms; /* hover, color, small state changes */
 	--dur-base: 200ms; /* enter/exit of small surfaces, toggles */
@@ -740,7 +740,7 @@ kbd {
 	-webkit-backdrop-filter: blur(18px) saturate(1.2);
 }
 
-/* Modal scaffolding: a scrim and a raised panel (see $lib/dialog). */
+/* Modal scaffolding: a scrim and a raised panel (see #lib/dialog). */
 .scrim {
 	position: fixed;
 	inset: 0;

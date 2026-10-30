@@ -372,7 +372,7 @@ class AppState {
 	}
 }
 
-/** @deprecated use shade() from $lib/color */
+/** @deprecated use shade() from #lib/color */
 export { shade } from './color';
 
 export const app = new AppState();

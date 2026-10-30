@@ -2,6 +2,11 @@
 
 All notable changes to Mimi. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/) once 1.0 ships. Tagged releases publish the top section as their notes.
 
+## [Unreleased]
+
+### Fixed
+- **The Linux and macOS installer asks for Node.js 22.17 or newer,** what SvelteKit 3 needs since 0.2.2. It accepted any Node 20+, so with an older system Node the app UI failed to build; now it fetches its pinned Node 22 instead.
+
 ## [0.2.2] — 2026-10-30
 
 Answers start sooner on the reference handheld now that the vision projector loads only for a photo, and the Windows setup is tested end to end: it no longer stumbles on Git's tar, MIMI.exe builds against a pinned SDK, and helpers really do stop with Core. Under the hood, the UI moves to SvelteKit 3 and Core to selectolax's Lexbor parser.

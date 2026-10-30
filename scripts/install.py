@@ -12,7 +12,7 @@ gets Python 3.12 with it and then runs this file. Steps, each safe to re-run:
 
   1. Python environment   <root>/python, a virtualenv with Mimi Core and its packages
   2. Engines              llama.cpp, kiwix-serve, pmtiles for this OS (scripts/fetch.py)
-  3. App UI               ui/build (Node 20+; a pinned, checksummed Node is fetched if missing)
+  3. App UI               ui/build (Node 22.17+; a pinned, checksummed Node is fetched if missing)
   4. Content              the tier's packs (scripts/content.py add <tier>), after a space check
 
 Then start Mimi with  <root>/python/bin/mimi serve  and open http://localhost:7600.
@@ -35,7 +35,8 @@ from fetch import ROOT, say
 PYTHON = "3.12"
 # Packages Core needs beyond core/pyproject.toml: Valhalla (directions) and osmium (map builds).
 EXTRAS = ["pyvalhalla>=3.9,<4", "osmium>=4,<5"]
-NODE = {  # pinned Node.js LTS for building the UI when the system has no Node 20+
+MIN_NODE = (22, 17)  # SvelteKit 3 needs Node 22.17 or newer
+NODE = {  # pinned Node.js LTS for building the UI when the system has no new enough Node
     "version": "v22.23.3",
     "linux-x64": ("node-v22.23.3-linux-x64.tar.xz", "df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de"),
     "linux-arm64": ("node-v22.23.3-linux-arm64.tar.xz", "a44aeb94849a299b22df10b9e622ec2f605c2183501bc40590705131de7c740f"),
@@ -134,12 +135,12 @@ def engines(args) -> None:
 
 # --------------------------------------------------------------------------- 3. UI
 def node_bin(dry: bool) -> Path | None:
-    """A Node 20+ to build the UI with: the system's, or a pinned download in .tools/."""
+    """A Node 22.17+ to build the UI with: the system's, or a pinned download in .tools/."""
     node = shutil.which("node")
     if node and shutil.which("npm"):
         try:
             v = subprocess.run([node, "--version"], capture_output=True, text=True, timeout=20).stdout.strip()
-            if int(v.lstrip("v").split(".")[0]) >= 20:
+            if tuple(int(x) for x in v.lstrip("v").split(".")[:2]) >= MIN_NODE:
                 return Path(node).parent
         except (OSError, ValueError, subprocess.SubprocessError):
             pass
@@ -171,7 +172,7 @@ def build_ui(args) -> None:
         return
     nb = node_bin(args.dry_run)
     if not nb:
-        say("   ! No Node.js 20+ found and none published for this platform; install Node 20+ and re-run.")
+        say("   ! No Node.js 22.17+ found and none published for this platform; install Node 22.17+ and re-run.")
         return
     env = dict(os.environ, PATH=f"{nb}{os.pathsep}{os.environ.get('PATH', '')}")
     npm = str(nb / ("npm.cmd" if os.name == "nt" else "npm")) if (nb / "npm").exists() or (nb / "npm.cmd").exists() else "npm"
