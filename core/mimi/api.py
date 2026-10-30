@@ -862,9 +862,9 @@ async def _discover_item(svc, b, path: str, min_html: int) -> dict | None:
     art = await svc.kiwix.reader(b.name, path)
     if not art or len(art.get("html", "")) < min_html or _DISCOVER_SKIP.search(art.get("title") or ""):
         return None
-    from selectolax.parser import HTMLParser
+    from selectolax.lexbor import LexborHTMLParser
 
-    paras = [re.sub(r"\s+", " ", p.text()).strip() for p in HTMLParser(art["html"]).css("p")]
+    paras = [re.sub(r"\s+", " ", p.text()).strip() for p in LexborHTMLParser(art["html"]).css("p")]
     text = re.sub(r"\[\d+\]", "", re.sub(r"\s+", " ", " ".join(p for p in paras if len(p) > 60))).strip()
     if not text or _DISCOVER_SKIP.search(text[:400]):
         return None

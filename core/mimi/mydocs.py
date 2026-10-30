@@ -35,9 +35,9 @@ def extract_text(path: Path) -> str:
         d = docx.Document(str(path))
         return "\n\n".join(p.text for p in d.paragraphs if p.text.strip())
     if ext in (".html", ".htm"):
-        from selectolax.parser import HTMLParser
+        from selectolax.lexbor import LexborHTMLParser
 
-        return HTMLParser(path.read_text("utf-8", errors="replace")).text(separator="\n")
+        return LexborHTMLParser(path.read_text("utf-8", errors="replace")).text(separator="\n")
     if ext in TEXT_EXT or ext == "":
         return path.read_text("utf-8", errors="replace")
     raise ValueError(f"Unsupported file type: {ext or 'unknown'}")
