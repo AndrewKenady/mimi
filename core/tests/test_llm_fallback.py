@@ -25,6 +25,7 @@ def _manager(ready_on: int | None, monkeypatch):
     m._switch_lock = asyncio.Lock()
     m.chat_model = m.chat_proc = None
     m.chat_attempt, m._chat_ladder = 0, (0, [])
+    m.chat_vision = False
     m._resume = {}
     m.context = 8192
     m.settings = SimpleNamespace(device=lambda section: SimpleNamespace(context=m.context, temperature=None))
@@ -32,10 +33,12 @@ def _manager(ready_on: int | None, monkeypatch):
     m.states = []
     m._set_state = lambda status, model=None, error=None: m.states.append(status)
     m.calls = []
+    m.visions = []
     m.procs = []
 
-    def args(spec, ctx, fit=768, cpu_only=False, v_cache="f16"):
+    def args(spec, ctx, fit=768, cpu_only=False, v_cache="f16", vision=False):
         m.calls.append((ctx, fit, cpu_only) if v_cache == "f16" else (ctx, fit, cpu_only, v_cache))
+        m.visions.append(vision)
         return ["llama-server"]
     m._chat_args = args
 
@@ -249,3 +252,72 @@ def test_build_dir_follows_the_detected_backend(tmp_path, backend, installed, ex
         (tmp_path / b / "llama-server").write_text("")
     assert m._build_dir() == expected
     assert m._build_dir(cpu_only=True) == "llama-cpu"
+
+
+def test_a_model_restarts_with_vision_for_a_photo_and_keeps_it(monkeypatch):
+    m = _manager(None, monkeypatch)
+
+    class Seeing(Spec):
+        vision = True
+        mmproj = "mmproj.gguf"
+
+    spec = Seeing(context=8192)
+
+    async def go():
+        await m.ensure(spec)                # started for text: no projector
+        await m.ensure(spec)                # still resident
+        await m.ensure(spec, vision=True)   # a photo: restarted with the projector
+        await m.ensure(spec)                # text again: no swap back
+        assert m.chat_vision and not m.procs[0].alive() and m.procs[1].alive()
+
+    asyncio.run(go())
+    assert m.visions == [False, True] and len(m.calls) == 2
+
+
+def test_a_vision_start_on_a_lighter_rung_goes_back_to_text_only_for_text(monkeypatch):
+    """On the F1 a photo walked the model down its ladder, and the text turns after it stayed there (97 s to the
+    first word on the CPU-only rung) when without the projector it starts at 8192. Vision rungs leave more free."""
+    m = _manager(None, monkeypatch)
+    up = [True, False, True, True, True]  # the first vision attempt doesn't come up
+
+    async def wait_ready(proc, port, timeout):
+        return up[len(m.calls) - 1]
+    m._wait_ready = wait_ready
+
+    class Seeing(Spec):
+        vision = True
+        mmproj = "mmproj.gguf"
+
+    spec = Seeing(context=8192)
+
+    async def go():
+        await m.ensure(spec)
+        await m.ensure(spec, vision=True)
+        assert m.chat_vision and m.chat_attempt == 1
+        assert m.serves(spec, vision=True) and not m.serves(spec)
+        m._answered(spec)     # the photo was answered on the second vision rung
+        await m.ensure(spec)  # a text turn: back to the full settings without the projector
+        await m.ensure(spec, vision=True)  # the next photo starts where the last one worked
+
+    asyncio.run(go())
+    assert m.calls == [(8192, 768, False), (8192, 1792, False), (4096, 2560, False), (8192, 768, False), (4096, 2560, False)]
+    assert m.visions == [False, True, True, False, True]
+
+
+def test_a_crash_with_vision_doesnt_move_the_text_start_down(monkeypatch):
+    m = _manager(None, monkeypatch)
+
+    class Seeing(Spec):
+        vision = True
+        mmproj = "mmproj.gguf"
+
+    spec = Seeing(context=8192)
+
+    async def go():
+        await m.ensure(spec, vision=True)
+        _crash(m)
+        assert m.crashed() and m._resume == {"m+vision": (8192, 1)}
+        await m.ensure(spec)  # text: its own ladder, from the top
+
+    asyncio.run(go())
+    assert m.calls == [(8192, 1792, False), (8192, 768, False)]

@@ -76,6 +76,16 @@ Measured on the F1 with `eval/run.py` + `eval/score.py` on the 166-question gold
 
 **Why this release is slower to answer.** With other apps open on the F1, an 8192-token context no longer fit in graphics memory, and both runs ran on the fallback ladder's 4096-token rung with a q8_0 V cache. That cache added about 3 s to every request that reuses the cached prompt, and a turn makes two or three. The 0.2.0 runs had an f16 V cache, as did this release's first runs on 2026-10-20, at the full context (TTFT p50 16.0 s). V is f16 again by default and q8_0 is only a fallback rung, so the slower start applies only when memory is that short. Generation was 6.4–8.0 tokens/s (p10–p90) at that rung, against 7.8–9.0 for 0.2.0.
 
+**With the vision projector loaded only for photos** (2026-10-22, after this run): on the F1, with the same apps open, Gemma 4 12B then started at the full context with an f16 V cache. The same 30 questions (medicine, general, survival) measured:
+
+| 30 questions | First token p50 / p90 | Total p50 / p90 | Prompt | Generation |
+|---|---|---|---|---|
+| Projector on demand | **15.7 s / 20.6 s** | **35.6 s / 54.5 s** | 105 tok/s | 8.5 tok/s |
+| This release's run (q8_0 rung) | 23.9 s / 47.4 s | 47.8 s / 70.0 s | 64 tok/s | 7.7 tok/s |
+| 0.2.0 | 17.0 s / 39.4 s | 40.5 s / 53.8 s | 89 tok/s | 8.5 tok/s |
+
+29 of 30 passed (26 in this release's run on the same questions), with no forbidden claims. A photo ("What does this sign say?") then takes 90–105 s to its answer on the F1, including the restart with the projector and a rung that runs out of memory; the text question after it, which waits for the model to restart without the projector, took 44 s.
+
 | Retrieval check (153 items, R@k over the 137 with expected titles) | R@1 | R@5 | R@10 | MRR | Search p50 / p90 |
 |---|---|---|---|---|---|
 | Keyword queries, this release | 38.0 % | 47.4 % | 49.6 % | 0.42 | 1.1 s / 2.6 s |

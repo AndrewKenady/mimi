@@ -207,6 +207,19 @@ def _status(state: str, label: str, t_start: float, **extra) -> dict:
     return {"event": "status", "data": data}
 
 
+def _text_only(messages: list[dict]) -> list[dict]:
+    """The messages with their images replaced by " [attachment]", as history replays them: the chat-title request
+    goes to whichever model is resident, which may have started without its vision projector."""
+    out = []
+    for m in messages:
+        c = m.get("content")
+        if isinstance(c, list):
+            text = " ".join(p.get("text", "") for p in c if p.get("type") == "text")
+            c = text + (" [attachment]" if any(p.get("type") == "image_url" for p in c) else "")
+        out.append({**m, "content": c})
+    return out
+
+
 def _fit_history(messages: list[dict], n_history: int, ctx: int, max_out: int) -> int:
     """Drop the oldest history (right after the system prompt) until the prompt fits `ctx`; returns how much is left."""
     while n_history and sum(est_tokens(m.get("content") or "") for m in messages) + max_out > ctx - 256:
@@ -559,7 +572,8 @@ class ChatService:
                                           "model": spec.id, "model_name": spec.name, "mode": mode_id, "title": chat.get("title") or ""}}
 
         state = tools.TurnState(ctx=ctx, chat_id=chat_id, message_id=asst_id, query=content, mode=mode_cfg,
-                                vision=spec.vision, temporary=bool(chat["temporary"]), voice=voice,
+                                # vision (the model's projector, and the reference-image tool) only in a turn with a photo
+                                vision=spec.vision and has_images, temporary=bool(chat["temporary"]), voice=voice,
                                 # an attached file or photo is outside text: from the first step, tools that act need the user to ask
                                 tainted=bool(attachments))
         t_start = time.time()
@@ -637,9 +651,9 @@ class ChatService:
                 if svc.models.waiting:
                     svc.models.waiting = max(0, svc.models.waiting - 1)
                 n_history = len(history)
-                if not (svc.models.chat_model and svc.models.chat_model.id == spec.id and svc.models.chat_proc and svc.models.chat_proc.alive()):
+                if not svc.models.serves(spec, state.vision):
                     yield _status("loading", tr("Waking up {name}…", name=spec.name), t_start)
-                    await svc.models.ensure(spec)
+                    await svc.models.ensure(spec, vision=state.vision)
                     # re-trim history if the model came up with a smaller context
                     n_history = _fit_history(messages, n_history, svc.models.chat_ctx, max_out)
                 yield _status("thinking", tr("Thinking…"), t_start)
@@ -662,7 +676,7 @@ class ChatService:
                                                          0.8 if squeezed else 1.0)
                         try:
                             async for ev in svc.models.chat_stream(spec, messages, tools=step_tools, max_tokens=step_out, think=bool(want_think),
-                                                                   cancel=cancel, tool_choice=choice):
+                                                                   cancel=cancel, tool_choice=choice, vision=state.vision):
                                 if ev["type"] == "content":
                                     if not step_text:
                                         yield _status("writing", tr("Writing the answer…"), t_start)
@@ -691,7 +705,7 @@ class ChatService:
                             restarted = True
                             L.warning("%s crashed while answering (%s); restarting it with lighter settings", spec.id, type(e).__name__)
                             yield _status("loading", tr("Restarting {name} with lighter settings…", name=spec.name), t_start)
-                            await svc.models.ensure(spec)
+                            await svc.models.ensure(spec, vision=state.vision)
                             n_history = _fit_history(messages, n_history, svc.models.chat_ctx, max_out)
                             yield _status("thinking", tr("Thinking…"), t_start)
                             continue
@@ -797,7 +811,8 @@ class ChatService:
             title = heuristic_title(content)
             self.db.execute("UPDATE chats SET title=? WHERE id=?", (title, chat_id))
             if base_messages and answer:
-                asyncio.create_task(self._smart_title(ctx, chat_id, spec, base_messages + [{"role": "assistant", "content": answer}], first_tools))
+                asyncio.create_task(self._smart_title(ctx, chat_id, spec, _text_only(base_messages) + [{"role": "assistant", "content": answer}],
+                                                      first_tools))
         final = self.thread(chat_id, asst_id)[-1]
         if error:
             yield {"event": "error", "data": {"message": error, "message_id": asst_id}}
@@ -869,7 +884,7 @@ class ChatService:
         ctx = Ctx(dict(owner), None, True)
         mode_id = svc.settings.user(ctx.id, "assistant", ctx.role).default_mode
         mode_id = mode_id if mode_id in self.modes else "everyday"
-        st = tools.TurnState(ctx=ctx, chat_id="", message_id="", query="", mode=self.modes[mode_id], vision=spec.vision)
+        st = tools.TurnState(ctx=ctx, chat_id="", message_id="", query="", mode=self.modes[mode_id], vision=False)  # as a text turn
         messages = [{"role": "system", "content": self._system_prompt(ctx, mode_id)}, {"role": "user", "content": "Hello"}]
         t0 = time.time()
         try:

@@ -46,11 +46,20 @@ class FakeModels:
         self.tools = []  # the tools offered on each call
         self.restarts = 0
         self.dead = False
+        self.chat_vision = False
+        self.ensured = []  # (spec id, vision) for each ensure() call
+        self.visions = []  # whether each chat_stream call asked for vision
 
     def model_for(self, role):
         return self.spec
 
-    async def ensure(self, spec):
+    def serves(self, spec, vision=False):
+        return not self.dead and (self.chat_vision or not vision)
+
+    async def ensure(self, spec, vision=False):
+        self.ensured.append((spec.id, vision))
+        if vision and not self.chat_vision:
+            self.chat_vision = True  # the real manager restarts it with the vision projector
         if self.dead:
             self.restarts += 1
             self.dead = False
@@ -65,6 +74,7 @@ class FakeModels:
     async def chat_stream(self, spec, messages, **kw):
         self.prompts.append(list(messages))
         self.tools.append(kw.get("tools"))
+        self.visions.append(kw.get("vision", False))
         step = self.steps.pop(0) if self.steps else {"text": "…"}
         if step.get("raise"):
             raise ModelError(step["raise"])
@@ -369,6 +379,36 @@ def test_stop_right_after_meta_is_not_lost(svc):
     assert evs[-1]["data"]["message"]["meta"]["cancelled"] is True
 
 
+class VisionSpec(Spec):
+    vision = True
+
+
+def test_only_a_turn_with_a_photo_starts_the_model_with_vision(svc, tmp_path):
+    """The vision projector takes graphics memory: on the F1, without it Gemma 4 12B started at the full context
+    with an f16 V cache. So it loads for the first photo, and stays for the text turns after it."""
+    from PIL import Image
+
+    photo = tmp_path / "sign.jpg"
+    Image.new("RGB", (64, 64), "white").save(photo)
+    svc.uploads.get = lambda ctx, upload_id: {"id": upload_id, "kind": "image", "name": "sign.jpg", "url": "/x", "size": 100,
+                                              "path": str(photo)}
+    models = FakeModels([{"text": "Hello!"}], spec=VisionSpec(context=8192))
+    svc.models = models
+
+    async def go(**kw):
+        return [ev async for ev in svc.chats.send(svc.ctx, None, mode="everyday", **kw)]
+
+    asyncio.run(go(content="Hi"))
+    assert models.ensured == [] and models.visions == [False]  # the resident text-only model answers
+    models.steps = [{"text": "It says STOP."}]
+    evs = asyncio.run(go(content="What does this sign say?", attachments=["u1"]))
+    assert models.ensured == [("gemma", True)] and models.visions == [False, True]
+    assert "loading" in [e["data"]["state"] for e in evs if e["event"] == "status"]  # "Waking up Gemma…"
+    models.steps = [{"text": "You're welcome."}]
+    asyncio.run(go(content="Thanks!"))
+    assert models.ensured == [("gemma", True)] and models.visions == [False, True, False]  # no swap back
+
+
 def test_attached_file_reaches_the_model_as_untrusted_data(svc):
     """A document someone attaches is reference text, not instructions: it is wrapped in UNTRUSTED
     markers, and a 'remember' it asks for becomes a suggestion rather than a saved memory."""
@@ -461,3 +501,14 @@ def test_a_missing_chat_is_reported_with_a_stable_code(svc):
     finally:
         i18n._current.reset(token)
     assert evs[0]["event"] == "error" and evs[0]["data"] == {"message": "Discussion introuvable", "code": "chat_not_found"}
+
+
+def test_the_title_request_gets_the_photo_as_text():
+    """It goes to whichever model is resident, which may have started without its vision projector."""
+    from mimi import chat
+
+    msgs = [{"role": "system", "content": "rules"},
+            {"role": "user", "content": [{"type": "text", "text": "What does this sign say?"},
+                                         {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,AAAA"}}]}]
+    assert chat._text_only(msgs) == [{"role": "system", "content": "rules"},
+                                     {"role": "user", "content": "What does this sign say? [attachment]"}]

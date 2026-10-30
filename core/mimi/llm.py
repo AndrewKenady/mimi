@@ -61,6 +61,16 @@ def _model_error(text: str) -> ModelError:
     return (ModelOutOfMemory if _OUT_OF_MEMORY.search(text) else ModelError)(f"model error: {text[:400]}")
 
 
+# MB more graphics memory left free on each rung when the vision projector loads, for the image encoder: on the
+# F1 a photo ran the model out of graphics memory on every GPU rung, and it answered from the CPU-only one.
+VISION_FIT_EXTRA = 1024
+
+
+def _resume_key(model_id: str, vision: bool) -> str:
+    """Where a model restarts on its ladder is kept apart for its starts with and without vision."""
+    return f"{model_id}+vision" if vision else model_id
+
+
 def _settings_text(ctx: int, fit: int, cpu_only: bool, v_cache: str = "f16") -> str:
     return f"ctx {ctx}, " + ("CPU only" if cpu_only else f"{fit} MB graphics memory kept free") + (
         f", {v_cache} V cache" if v_cache != "f16" else "")
@@ -81,6 +91,7 @@ class ModelManager:
         self.chat_attempt = 0
         # model id → (wanted context, first rung to try): set when a started model crashed
         self._resume: dict[str, tuple[int, int]] = {}
+        self.chat_vision = False  # the resident chat model was started with its vision projector
         self.embed_proc: ManagedProcess | None = None
         self.embed_model: ModelSpec | None = None
         self._embed_last_use = 0.0
@@ -165,7 +176,7 @@ class ModelManager:
 
     # ------------------------------------------------------------------ lifecycle
     def _chat_args(self, spec: ModelSpec, ctx: int, fit_target: int = 768, cpu_only: bool = False,
-                   v_cache: str = "f16") -> list[str]:
+                   v_cache: str = "f16", vision: bool = False) -> list[str]:
         build = self._build_dir(cpu_only=cpu_only)
         args = [
             str(self.paths.exe(build, "llama-server")),
@@ -189,13 +200,16 @@ class ModelManager:
             "--fit-target", str(fit_target),
             "--reasoning-format", "deepseek",
         ]
-        if spec.vision and spec.mmproj:
+        # The vision projector only for a turn that needs it (a photo). It takes graphics memory: on the F1,
+        # without it Gemma 4 12B started at the full context with an f16 V cache, where with it the model fell
+        # to the q8_0 rung.
+        if vision and spec.vision and spec.mmproj:
             args += ["--mmproj", str(spec.mmproj)]
         if build == "llama-cpu":
             args += ["-ngl", "0"]
         return args
 
-    def _ladder(self, spec: ModelSpec) -> tuple[int, list[tuple[int, int, bool, str]]]:
+    def _ladder(self, spec: ModelSpec, vision: bool = False) -> tuple[int, list[tuple[int, int, bool, str]]]:
         """The wanted context and the (ctx, MB of graphics memory kept free, CPU only, V cache type) settings to try,
         in order."""
         want_ctx = int(min(self.settings.device("models").context, spec.get("context", 8192)))
@@ -204,38 +218,52 @@ class ModelManager:
         # context, then a q8_0 V cache (smaller, but each request slower to start), then more memory left free,
         # so llama.cpp keeps more layers on the CPU (half the generation speed on the F1). The last resort is
         # the CPU build alone.
-        return want_ctx, [(want_ctx, 768, False, "f16"), (small, 1536, False, "f16"), (small, 1536, False, "q8_0"),
-                          (small, 3072, False, "f16"), (small, 0, True, "f16")]
+        x = VISION_FIT_EXTRA if vision else 0
+        return want_ctx, [(want_ctx, 768 + x, False, "f16"), (small, 1536 + x, False, "f16"), (small, 1536 + x, False, "q8_0"),
+                          (small, 3072 + x, False, "f16"), (small, 0, True, "f16")]
 
-    async def ensure(self, spec: ModelSpec) -> str:
-        """Make sure `spec` is the resident chat model; returns its base URL."""
+    def serves(self, spec: ModelSpec, vision: bool = False) -> bool:
+        """Whether the resident chat model answers a turn for `spec` as it is: the same model, up, with its vision
+        projector if the turn needs it. A model started with vision serves text turns too, unless it had to start
+        on a lighter rung: without the projector it starts higher (on the F1, at 8192 instead of CPU only)."""
+        if not (self.chat_model and self.chat_model.id == spec.id and self.chat_proc and self.chat_proc.alive()):
+            return False
+        if vision and spec.vision:
+            return self.chat_vision
+        return not self.chat_vision or self.chat_attempt == 0
+
+    async def ensure(self, spec: ModelSpec, vision: bool = False) -> str:
+        """Make sure `spec` is the resident chat model, with its vision projector when `vision`; returns its base URL.
+
+        See serves() for when a model started with vision answers text turns."""
+        vision = vision and spec.vision
         async with self._switch_lock:
             self.crashed()
-            if self.chat_model and self.chat_model.id == spec.id and self.chat_proc and self.chat_proc.alive():
+            if self.serves(spec, vision):
                 return f"http://127.0.0.1:{CHAT_PORT}"
             await self._stop_chat()
-            want_ctx, attempts = self._ladder(spec)
+            want_ctx, attempts = self._ladder(spec, vision)
             self._set_state("loading", spec)
             t0 = time.time()
             # After a crash, start where the crashed settings left off (same wanted context only).
-            resume_ctx, first = self._resume.get(spec.id, (want_ctx, 0))
+            resume_ctx, first = self._resume.get(_resume_key(spec.id, vision), (want_ctx, 0))
             first = min(first, len(attempts) - 1) if resume_ctx == want_ctx else 0
             for attempt in range(first, len(attempts)):
                 ctx, fit, cpu_only, v_cache = attempts[attempt]
                 self.chat_ctx = ctx
-                args = self._chat_args(spec, ctx, fit, cpu_only, v_cache)
+                args = self._chat_args(spec, ctx, fit, cpu_only, v_cache, vision)
                 proc = ManagedProcess(f"llama[{spec.id}]", args, cwd=self.paths.root, log_path=self.paths.logs / "llama-chat.log")
                 proc.start()
                 ok = await self._wait_ready(proc, CHAT_PORT, timeout=240)
                 if ok:
-                    self.chat_proc, self.chat_model = proc, spec
+                    self.chat_proc, self.chat_model, self.chat_vision = proc, spec, vision
                     self.chat_attempt, self._chat_ladder = attempt, (want_ctx, attempts)
                     try:
                         props = (await self.client.get(f"http://127.0.0.1:{CHAT_PORT}/props", timeout=10)).json()
                         self.chat_ctx = int(props.get("default_generation_settings", {}).get("n_ctx") or ctx)
                     except Exception:
                         pass
-                    L.info("%s ready in %.1fs (ctx %s)", spec.id, time.time() - t0, self.chat_ctx)
+                    L.info("%s ready in %.1fs (ctx %s%s)", spec.id, time.time() - t0, self.chat_ctx, ", with vision" if vision else "")
                     self._set_state("ready", spec)
                     return f"http://127.0.0.1:{CHAT_PORT}"
                 tail = proc.tail(12)
@@ -273,7 +301,7 @@ class ModelManager:
             self.chat_model = None  # ensure() clears away the dead process and starts it again
             want_ctx, attempts = self._chat_ladder  # as it was started (Settings may have changed since)
             nxt = min(self.chat_attempt + 1, len(attempts) - 1)
-            self._resume[spec.id] = (want_ctx, nxt)
+            self._resume[_resume_key(spec.id, self.chat_vision)] = (want_ctx, nxt)
             L.warning("%s exited unexpectedly with %s (attempt %s); it restarts with %s:\n%s", spec.id,
                       _settings_text(*attempts[self.chat_attempt]), self.chat_attempt + 1, _settings_text(*attempts[nxt]), proc.tail(12))
             self._set_state("error", error="The model stopped unexpectedly. It will restart on your next message.")
@@ -299,7 +327,7 @@ class ModelManager:
             return self.crashed()
         want_ctx, attempts = self._chat_ladder
         nxt = min(self.chat_attempt + 1, len(attempts) - 1)
-        self._resume[spec.id] = (want_ctx, nxt)
+        self._resume[_resume_key(spec.id, self.chat_vision)] = (want_ctx, nxt)
         L.warning("%s ran out of graphics memory with %s (attempt %s); it restarts with %s", spec.id,
                   _settings_text(*attempts[self.chat_attempt]), self.chat_attempt + 1, _settings_text(*attempts[nxt]))
         await self._stop_chat()
@@ -307,8 +335,14 @@ class ModelManager:
         return True
 
     def _answered(self, spec: ModelSpec) -> None:
-        # Its current settings work, so a later fresh start (after a model swap) tries the full ones again.
-        self._resume.pop(spec.id, None)
+        # Its current settings work, so a later fresh start (after a model swap) tries the full ones again. Not
+        # with vision: a photo is rare and a failed start slow (on the F1, two failed rungs cost 45 s), so the
+        # next photo starts where this one worked.
+        key = _resume_key(spec.id, self.chat_vision)
+        if self.chat_vision:
+            self._resume[key] = (self._chat_ladder[0], self.chat_attempt)
+        else:
+            self._resume.pop(key, None)
 
     async def _stop_chat(self) -> None:
         if self.chat_proc:
@@ -379,9 +413,10 @@ class ModelManager:
 
     async def chat_stream(self, spec: ModelSpec, messages: list[dict], *, tools: list[dict] | None = None,
                           max_tokens: int = 1024, temperature: float | None = None, think: bool = False,
-                          cancel: asyncio.Event | None = None, tool_choice: str = "auto") -> AsyncIterator[dict]:
-        """Yields {'type': 'content'|'reasoning'|'tool_calls'|'done', ...}. Caller must hold gen_lock."""
-        base = await self.ensure(spec)
+                          cancel: asyncio.Event | None = None, tool_choice: str = "auto", vision: bool = False) -> AsyncIterator[dict]:
+        """Yields {'type': 'content'|'reasoning'|'tool_calls'|'done', ...}. Caller must hold gen_lock.
+        `vision`: the messages hold images, so the model needs its vision projector."""
+        base = await self.ensure(spec, vision=vision)
         body = self._body(spec, messages, tools=tools, max_tokens=max_tokens, temperature=temperature, think=think, stream=True, tool_choice=tool_choice)
         calls: dict[int, dict] = {}
         finish = None
