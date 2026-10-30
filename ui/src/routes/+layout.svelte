@@ -1,20 +1,20 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { t } from '$lib/i18n/index.svelte';
-	import { startGamepad } from '$lib/gamepad';
-	import { toggleFullscreen } from '$lib/host';
-	import NavRail from '$components/NavRail.svelte';
-	import StatusStrip from '$components/StatusStrip.svelte';
-	import Toasts from '$components/Toasts.svelte';
-	import Onboarding from '$components/Onboarding.svelte';
-	import SignIn from '$components/SignIn.svelte';
-	import CommandPalette from '$components/CommandPalette.svelte';
-	import QuickMenu from '$components/QuickMenu.svelte';
-	import VoiceOverlay from '$components/VoiceOverlay.svelte';
-	import PairRequest from '$components/PairRequest.svelte';
-	import ConfirmDialog from '$components/ConfirmDialog.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { t } from '#lib/i18n/index.svelte.js';
+	import { startGamepad } from '#lib/gamepad.js';
+	import { toggleFullscreen } from '#lib/host.js';
+	import NavRail from '#components/NavRail.svelte';
+	import StatusStrip from '#components/StatusStrip.svelte';
+	import Toasts from '#components/Toasts.svelte';
+	import Onboarding from '#components/Onboarding.svelte';
+	import SignIn from '#components/SignIn.svelte';
+	import CommandPalette from '#components/CommandPalette.svelte';
+	import QuickMenu from '#components/QuickMenu.svelte';
+	import VoiceOverlay from '#components/VoiceOverlay.svelte';
+	import PairRequest from '#components/PairRequest.svelte';
+	import ConfirmDialog from '#components/ConfirmDialog.svelte';
 
 	let { children } = $props();
 

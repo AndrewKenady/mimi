@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { del, fmtBytes, get, timeAgo, upload } from '$lib/api';
-	import { t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { del, fmtBytes, get, timeAgo, upload } from '#lib/api.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 	import { ArrowLeft, Upload, FileText, Trash2, Loader, CircleAlert, CircleCheck, AudioLines, Search, NotebookPen } from '@lucide/svelte';
 
 	let files = $state<any[]>([]);

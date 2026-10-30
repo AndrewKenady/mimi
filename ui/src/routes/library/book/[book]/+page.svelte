@@ -4,8 +4,8 @@
 	// Core reads the ZIM's data files and this page lists the items natively.
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { fmtBytes, get } from '$lib/api';
-	import { t } from '$lib/i18n/index.svelte';
+	import { fmtBytes, get } from '#lib/api.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 	import { ArrowLeft, BookOpen, FileText, Film, Music, File, Search, X, Image as ImageIcon, BookText } from '@lucide/svelte';
 
 	const PAGE = 120;

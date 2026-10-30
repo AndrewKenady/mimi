@@ -6,11 +6,11 @@
 <script lang="ts">
 	import { fade, scale } from 'svelte/transition';
 	import { TriangleAlert, CircleHelp } from '@lucide/svelte';
-	import { confirmState } from '$lib/confirm.svelte';
-	import { dialog } from '$lib/dialog';
-	import { motion } from '$lib/motion';
-	import { app } from '$lib/app.svelte';
-	import { t } from '$lib/i18n/index.svelte';
+	import { confirmState } from '#lib/confirm.svelte.js';
+	import { dialog } from '#lib/dialog.js';
+	import { motion } from '#lib/motion.js';
+	import { app } from '#lib/app.svelte.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 
 	const ARM_MS = 600;
 	const c = $derived(confirmState.current);

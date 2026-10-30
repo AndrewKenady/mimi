@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
-	import { app } from '$lib/app.svelte';
-	import { api, post } from '$lib/api';
-	import { ACCENTS, DEFAULT_ACCENT, THEMES, accentName, applyTheme } from '$lib/theme';
-	import { motion } from '$lib/motion';
-	import { radioGroup } from '$lib/roving';
-	import { VoicePreview, voiceLanguage } from '$lib/voice-preview.svelte';
-	import { LOCALES, fmtNumber, i18n, setLocale, t, tIn, type Locale } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { api, post } from '#lib/api.js';
+	import { ACCENTS, DEFAULT_ACCENT, THEMES, accentName, applyTheme } from '#lib/theme.js';
+	import { motion } from '#lib/motion.js';
+	import { radioGroup } from '#lib/roving.js';
+	import { VoicePreview, voiceLanguage } from '#lib/voice-preview.svelte.js';
+	import { LOCALES, fmtNumber, i18n, setLocale, t, tIn, type Locale } from '#lib/i18n/index.svelte.js';
 	import Well from './Well.svelte';
 	import { ArrowLeft, ArrowRight, Check, Volume2, Lock, Sparkles, Keyboard, Gamepad2, AudioLines, Menu, Languages } from '@lucide/svelte';
 

@@ -2,9 +2,9 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { fmtBytes, get } from '$lib/api';
-	import { fmtLanguage, t, type Key } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { fmtBytes, get } from '#lib/api.js';
+	import { fmtLanguage, t, type Key } from '#lib/i18n/index.svelte.js';
 	import { Search, BookOpen, Sparkles, FolderOpen, X, Loader, FileText, TriangleAlert } from '@lucide/svelte';
 
 	let books = $state<any[]>([]);

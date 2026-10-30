@@ -2,10 +2,10 @@
 // app makes its first request it: restores a deep link that GitHub Pages' 404 page bounced
 // here, puts the recorded Core behind fetch() and the event socket, gives root-relative
 // links the base path, and mounts the demo banner.
-import { base } from '$app/paths';
+import { base } from '#lib/base.js';
 import { mount } from 'svelte';
-import { app } from '$lib/app.svelte';
-import { i18n, t } from '$lib/i18n/index.svelte';
+import { app } from '#lib/app.svelte.js';
+import { i18n, t } from '#lib/i18n/index.svelte.js';
 import { handle, R, S } from './core';
 import { installLinks } from './links';
 import { stripBase } from './paths';

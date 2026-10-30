@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { get, timeAgo } from '$lib/api';
-	import { fmtNumber, t } from '$lib/i18n/index.svelte';
-	import Well from '$components/Well.svelte';
-	import Composer from '$components/Composer.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { get, timeAgo } from '#lib/api.js';
+	import { fmtNumber, t } from '#lib/i18n/index.svelte.js';
+	import Well from '#components/Well.svelte';
+	import Composer from '#components/Composer.svelte';
 	import { Mic, ScanText, AudioLines, Compass, MapPin, ArrowRight, BookOpen, MessagesSquare, Shuffle, Library as LibIcon, Navigation, NotebookPen } from '@lucide/svelte';
 
 	let mode = $state(app.settings.user?.assistant?.default_mode || 'everyday');

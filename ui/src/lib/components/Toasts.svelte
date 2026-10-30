@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { app } from '$lib/app.svelte';
+	import { app } from '#lib/app.svelte.js';
 	import { fly } from 'svelte/transition';
-	import { motion } from '$lib/motion';
-	import { t } from '$lib/i18n/index.svelte';
+	import { motion } from '#lib/motion.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 	import { CircleCheck, CircleAlert, Info, X } from '@lucide/svelte';
 </script>
 

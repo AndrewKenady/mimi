@@ -7,13 +7,13 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
-	import { dialog } from '$lib/dialog';
-	import { motion } from '$lib/motion';
-	import { app } from '$lib/app.svelte';
-	import { post, stream } from '$lib/api';
-	import { Recorder, Speaker, transcribe } from '$lib/audio';
-	import { plain } from '$lib/markdown';
-	import { t, type Key } from '$lib/i18n/index.svelte';
+	import { dialog } from '#lib/dialog.js';
+	import { motion } from '#lib/motion.js';
+	import { app } from '#lib/app.svelte.js';
+	import { post, stream } from '#lib/api.js';
+	import { Recorder, Speaker, transcribe } from '#lib/audio.js';
+	import { plain } from '#lib/markdown.js';
+	import { t, type Key } from '#lib/i18n/index.svelte.js';
 	import Well from './Well.svelte';
 	import { X, Mic, Square, MessagesSquare, Keyboard, ArrowUp } from '@lucide/svelte';
 

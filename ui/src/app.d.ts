@@ -2,6 +2,8 @@
 declare global {
 	/** True only in the browser demo build (MIMI_DEMO=1); see vite.config.ts. */
 	const __MIMI_DEMO__: boolean;
+	/** The base path the app is served under ('' outside the demo); import it from $lib/base. */
+	const __MIMI_BASE__: string;
 	namespace App {}
 	interface Window {
 		mimiHost?: { available: boolean; post: (msg: unknown) => void };

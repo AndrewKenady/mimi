@@ -6,8 +6,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { i18n, t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { i18n, t } from '#lib/i18n/index.svelte.js';
 	import { ArrowRight, Check, ChevronUp, ExternalLink, Library, MessageCircle, Palette, Route } from '@lucide/svelte';
 	import { R } from './core';
 	import { demo } from './state.svelte';

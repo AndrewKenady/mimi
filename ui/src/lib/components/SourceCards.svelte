@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
-	import { sourceLabel } from '$lib/sources';
-	import { t } from '$lib/i18n/index.svelte';
+	import { sourceLabel } from '#lib/sources.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 
 	let {
 		sources,

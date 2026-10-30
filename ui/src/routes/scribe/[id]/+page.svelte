@@ -2,9 +2,9 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { del, get, patch } from '$lib/api';
-	import { fmtDate, t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { del, get, patch } from '#lib/api.js';
+	import { fmtDate, t } from '#lib/i18n/index.svelte.js';
 	import { ArrowLeft, Sparkles, Download, Trash2, Loader, CircleCheck, ListChecks, Lightbulb, FileText, Pencil } from '@lucide/svelte';
 
 	let note = $state<any>(null);
