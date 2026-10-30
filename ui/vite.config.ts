@@ -42,6 +42,9 @@ export default defineConfig({
 			preprocess: vitePreprocess(),
 			// Single-page app: MIMI Core serves index.html for every route.
 			adapter: adapter({ pages: out, assets: out, fallback: 'index.html', precompress: false, strict: false }),
+			// SvelteKit 3 polls for a new deployment hourly by default; nothing here reads `updated`, and the
+			// version of the app Core serves changes only when Core does.
+			version: { pollInterval: 0 },
 			// #lib and #components are subpath imports in package.json.
 			...(DEMO ? { paths: { base: BASE as `/${string}`, relative: false } } : {})
 		})
