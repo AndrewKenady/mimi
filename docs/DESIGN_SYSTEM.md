@@ -106,7 +106,7 @@ Toasts sit above dialogs on purpose: an Undo must stay reachable.
 | `--dur-slower` | 480 | hero morphs | | | |
 
 **Reduced motion** (the OS setting or Settings › Reduce motion) sets every `--dur-*` to
-0. `$lib/motion` hands the same tokens to Svelte transitions and strips movement:
+0. `#lib/motion` hands the same tokens to Svelte transitions and strips movement:
 
 ```svelte
 <div transition:fly={motion({ y: 24, duration: 'slow' })}>   <!-- fades only, instantly, when reduced -->
@@ -139,7 +139,7 @@ hue and chroma and moves only its OKLab lightness, in 1% steps, until it reaches
 16% tint. `--accent-ink` is a deep shade of the same hue, or white if that can't reach
 AA. Lagoon `#6EE7D2` stays itself on Deep water and becomes `#006959` on Daylight.
 
-**First paint.** `app.html` reads a snapshot that `$lib/theme` saves on every change and
+**First paint.** `app.html` reads a snapshot that `#lib/theme` saves on every change and
 applies the theme, accent and Well colors before any script or stylesheet loads, so a
 Daylight user never sees a dark flash.
 
@@ -173,7 +173,7 @@ Cancel focused, the confirm button armed after 600ms so a reflexive A can't fire
 
 **Toasts** pause while hovered or focused; errors are announced assertively.
 
-**Settings.** Nine sections from one list (`$lib/settings-sections`), with sub-section
+**Settings.** Nine sections from one list (`#lib/settings-sections`), with sub-section
 anchors, per-group reset (confirmed), and redirects from every old URL.
 
 ## Components
@@ -186,7 +186,7 @@ anchors, per-group reset (confirmed), and redirects from every old URL.
 | `.tag` (`.live`, `.err`) | Read-only status |
 | `.input`, `.field`, `.field-label` | Visible labels above fields |
 | `.card`, `.sheet`, `.scrim` | Surfaces; sheets for modals |
-| `Row`, `Toggle`, `Segmented`, `Slider` | Settings controls (`$components/settings`) |
+| `Row`, `Toggle`, `Segmented`, `Slider` | Settings controls (`#components/settings`) |
 | `ConfirmDialog`, `Toasts` | Mounted once in the layout |
 | `Well` | WebGL presence, see below |
 

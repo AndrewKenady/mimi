@@ -1,5 +1,5 @@
 <!--
-  The one confirmation dialog (see $lib/confirm). Cancel has focus, so pressing A or
+  The one confirmation dialog (see #lib/confirm). Cancel has focus, so pressing A or
   Enter by reflex never destroys anything, and the confirm button arms only after a
   beat for the same reason. B, Escape or tapping outside cancels.
 -->

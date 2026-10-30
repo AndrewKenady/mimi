@@ -3,7 +3,7 @@
 //
 // Reads src/app.css, resolves every theme (Deep water, Midnight, Daylight) with and
 // without high contrast, and checks each text token against each surface it can sit
-// on, plus every accent preset through the same solver the app runs ($lib/color).
+// on, plus every accent preset through the same solver the app runs (#lib/color).
 // Thresholds: WCAG AA 4.5:1 for text, 3:1 for UI indicators; 7:1 (AAA) for text in
 // high-contrast mode. Exits non-zero on any failure, so `npm run check` enforces it.
 //

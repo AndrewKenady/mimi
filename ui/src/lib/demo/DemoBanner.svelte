@@ -1,7 +1,7 @@
 <!--
   The browser demo's banner: what this is, a short guided path, questions to try, "Skip the
   wait", and the way out to the case study and the code. It folds into a small pill. Demo
-  build only (mounted by $lib/demo/install).
+  build only (mounted by #lib/demo/install).
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';

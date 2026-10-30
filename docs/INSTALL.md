@@ -27,7 +27,7 @@ else is newer.
 
 | Platform | Status |
 |---|---|
-| Windows 11 x64 (reference device: 16 GB RAM, Radeon 780M, Vulkan) | **Daily use** by the maintainer. `setup.ps1` (the version in this repo) has been reviewed and parsed, not yet re-run end to end on Windows. |
+| Windows 11 x64 (reference device: 16 GB RAM, Radeon 780M, Vulkan) | **Daily use** by the maintainer. `setup.ps1 -NoContent` has run end to end on Windows 11 from a fresh clone (Python, engines, app UI and MIMI.exe; Core then serves the app). A full tier's content download through `setup.ps1` hasn't been re-run since. |
 | Linux x64 (Debian 12, Ubuntu 24.04), CPU | **Tested**: `install.sh` from a bare Debian container (uv, Python, engines, Node, UI), the engines, Core startup with and without content, a real book download, a map extract, the places and routing builds. No GPU was available in testing. |
 | Docker (Linux x64) | **Tested**: both image targets build; compose, owner sign-in, content in the volume, clean shutdown. GPU passthrough is untested. |
 | Linux arm64 (Raspberry Pi 5, Ampere, Jetson…) | **Untested.** The engines are official upstream builds with pinned hashes. |
@@ -139,7 +139,7 @@ Useful options (`python3 scripts/install.py --help` lists them all):
 Start Mimi with `~/mimi/python/bin/mimi serve` and open http://localhost:7600 (or use
 the app-menu entry from `--desktop`). The first visit creates the owner account.
 
-Requirements: `curl` or `wget`, `tar`, and for the UI build either Node 20+ or nothing
+Requirements: `curl` or `wget`, `tar`, and for the UI build either Node 22.17+ or nothing
 (a pinned Node is fetched). Linux needs glibc 2.35+ (Ubuntu 22.04, Debian 12, Fedora 36,
 SteamOS 3 or newer). For a GPU on Linux, install your distribution's Vulkan driver
 (`mesa-vulkan-drivers` for AMD/Intel, the NVIDIA driver's Vulkan ICD for NVIDIA);
