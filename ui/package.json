@@ -1,7 +1,7 @@
 {
 	"name": "mimi-ui",
 	"private": true,
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"type": "module",
 	"description": "The MIMI app — Machine Intelligence, Minus the Internet",
 	"scripts": {

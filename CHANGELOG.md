@@ -2,7 +2,9 @@
 
 All notable changes to Mimi. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/) once 1.0 ships. Tagged releases publish the top section as their notes.
 
-## [Unreleased]
+## [0.2.2] — 2026-10-30
+
+Answers start sooner on the reference handheld now that the vision projector loads only for a photo, and the Windows setup is tested end to end: it no longer stumbles on Git's tar, MIMI.exe builds against a pinned SDK, and helpers really do stop with Core. Under the hood, the UI moves to SvelteKit 3 and Core to selectolax's Lexbor parser.
 
 ### Changed
 - **Answers start sooner on a 16 GB handheld.** Gemma 4 12B loaded its vision projector every time it started, and on the F1 that graphics memory pushed it down to the fallback rung with a 4096-token context and a q8_0 V cache, where each request starts about 3 s later. The projector now loads only for a turn with a photo: the model restarts with it, leaving 1 GB more graphics memory free on each rung for the image, and the next photo starts on the rung that worked. Text turns go back to the model without it unless vision got the full settings. On the F1 a photo answer took 90–105 s with its restarts, and a model sitting on a lower rung after a photo no longer slows the text turns that follow (97 s to the first word before). Without it the model starts at the full 8192-token context: on 30 golden-set questions the first word came after 15.7 s at the median instead of 23.9 s, and 20.6 s instead of 47.4 s for the slowest tenth; the whole answer after 35.6 s instead of 47.8 s.

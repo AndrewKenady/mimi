@@ -1,6 +1,6 @@
 [project]
 name = "mimi"
-version = "0.2.1"
+version = "0.2.2"
 description = "Mimi — Machine Intelligence, Minus the Internet. The offline AI field station."
 requires-python = ">=3.11"
 license = { text = "MIT" }
