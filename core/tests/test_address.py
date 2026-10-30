@@ -150,7 +150,8 @@ def test_grid_and_polyline_helpers():
     assert cell_of(39.8, -89.65) in cells and cell_of(39.86, -89.75) in cells and cell_of(40.5, -89.65) not in cells
     assert cell_of(0.05, 179.95) in cells_around(0.05, -179.95, 20)  # wraps the antimeridian
     pts = [(39.8012, -89.66), (39.8012, -89.65), (39.81, -89.649999)]
-    assert [(la, lo) for lo, la in decode_polyline6(encode_polyline(pts))] == pytest.approx(pts)
+    got = [v for lo, la in decode_polyline6(encode_polyline(pts)) for v in (la, lo)]
+    assert got == pytest.approx([v for p in pts for v in p])  # flat: newer pytest won't approx a list of tuples
 
 
 # --------------------------------------------------------------------------- fixture index
