@@ -70,7 +70,8 @@ Step "Node.js $NodeVersion (portable) + app UI"
 if (-not (Test-Path "$Tools\node\node.exe")) {
   Get-Verified "https://nodejs.org/dist/$NodeVersion/node-$NodeVersion-win-x64.zip" "$Tools\dl\node-$NodeVersion.zip" $NodeSha256
   if (Test-Path "$Tools\node-$NodeVersion-win-x64") { Remove-Item "$Tools\node-$NodeVersion-win-x64" -Recurse -Force }
-  tar.exe -xf "$Tools\dl\node-$NodeVersion.zip" -C $Tools; Check 'Unpacking Node.js'
+  # Windows' own tar by full path: a GNU tar earlier on PATH (Git for Windows' Unix tools) reads "C:\..." as host:path.
+  & "$env:SystemRoot\System32\tar.exe" -xf "$Tools\dl\node-$NodeVersion.zip" -C $Tools; Check 'Unpacking Node.js'
   Rename-Item "$Tools\node-$NodeVersion-win-x64" 'node'
 }
 $env:PATH = "$Tools\node;$env:PATH"

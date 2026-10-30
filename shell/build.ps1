@@ -3,9 +3,9 @@
     Builds MIMI.exe - the native Windows shell for Mimi (WinForms + Microsoft Edge WebView2).
 
 .DESCRIPTION
-    1. Fetches the Microsoft.Web.WebView2 NuGet package (latest stable unless a version is
-       pinned) into <root>\.tools\webview2sdk\<version>\ and caches it there. When nuget.org
-       cannot be reached, the newest cached copy is used, so rebuilding works offline.
+    1. Fetches the Microsoft.Web.WebView2 NuGet package (the pinned version below, checked
+       against its SHA-256) into <root>\.tools\webview2sdk\<version>\ and caches it there. When
+       nuget.org cannot be reached, the newest cached copy is used, so rebuilding works offline.
     2. Copies Microsoft.Web.WebView2.Core.dll and Microsoft.Web.WebView2.WinForms.dll
        (lib\net462) plus WebView2Loader.dll (runtimes\win-x64\native) into the app root.
     3. Compiles MimiShell.cs with the in-box .NET Framework C# compiler (C# 5) into
@@ -15,7 +15,8 @@
     No Visual Studio, no SDKs, no admin rights. All paths derive from this script's location.
 
 .PARAMETER WebView2Version
-    NuGet package version to build against, e.g. 1.0.4191.47. Default: latest stable.
+    NuGet package version to build against, e.g. 1.0.4191.47, or 'latest' for the latest stable.
+    Default: the pinned version, the only one whose download is checked against a known hash.
 
 .PARAMETER Offline
     Do not touch the network; build against the newest SDK already in the cache.
@@ -25,7 +26,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$WebView2Version = 'latest',
+    [string]$WebView2Version = '',
     [switch]$Offline
 )
 
@@ -34,6 +35,10 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # the PS 5.1 progress bar makes downloads crawl
 
 $PackageId = 'Microsoft.Web.WebView2'
+# Pinned like every other download (update version and hash together; the hash is of the .nupkg).
+$PinnedVersion = '1.0.4314.35'
+$PinnedSha256  = '90778deb1b77e36292828b4b5833c9255c27533f40e0ddd55891ae718944edc4'
+if (-not $WebView2Version) { $WebView2Version = $PinnedVersion }
 $ShellDir  = $PSScriptRoot
 $Root      = Split-Path -Parent $ShellDir
 $SdkCache  = Join-Path $Root '.tools\webview2sdk'
@@ -81,6 +86,13 @@ function Get-WebView2Sdk([string]$Version) {
         Write-Host "    downloading $url"
         $partial = "$nupkg.partial"
         Invoke-WebRequest -Uri $url -OutFile $partial -UseBasicParsing
+        if ($Version -eq $PinnedVersion) {
+            $got = (Get-FileHash -Algorithm SHA256 -Path $partial).Hash.ToLower()
+            if ($got -ne $PinnedSha256) {
+                Remove-Item -Force $partial
+                throw "$url failed its checksum (got $got). Build again."
+            }
+        }
         Move-Item -Force -Path $partial -Destination $nupkg
     }
     # A .nupkg is a zip. Expand-Archive in PS 5.1 insists on a .zip extension, so use the
@@ -137,6 +149,8 @@ if (-not (Test-Path $IconFile)) {
 # --- 1. WebView2 SDK -------------------------------------------------------------------------
 Write-Step "Resolving $PackageId"
 $version = $WebView2Version
+# -Offline promises no network: a version that isn't cached yet falls back to the newest cached one.
+if ($Offline -and $version -ne 'latest' -and -not (Test-Path (Join-Path $SdkCache "$version\lib"))) { $version = 'latest' }
 if ($version -eq 'latest') {
     if ($Offline) {
         $version = $null
