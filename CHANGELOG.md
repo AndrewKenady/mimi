@@ -9,6 +9,9 @@ All notable changes to Mimi. The format follows [Keep a Changelog](https://keepa
 - **Core reads HTML with selectolax's Lexbor backend** and accepts selectolax 1.x, which removed the Modest backend Core used. Lexbor follows the HTML5 parsing rules browsers use, and gets fixes Modest no longer does. With selectolax 1.x installed, `eval/run.py` had fallen back to stripping tags with a regex, so a script's text could reach the scored sources; it now uses Lexbor too.
 - **Library pictures only with a photo.** Mimi can look at an article's main picture only in a turn where you attached a photo, so it still compares your photo of a mushroom or plant with the library's, but a text-only question like "what does a death cap look like?" is answered from the article's text.
 
+### Fixed
+- **The CPU-only fallback stays on the CPU.** When a model runs out of graphics memory at every other setting, Core tries it on the CPU alone. If the CPU build of llama.cpp was missing (an interrupted download, say), a GPU build stood in for it without being told to keep the layers off the GPU, so the last attempt could run out of graphics memory the same way. It now always runs with `-ngl 0`.
+
 ## [0.2.1] — 2026-10-22
 
 The release from the first full eval on the reference handheld: long sessions no longer run out of memory, the bleach answer is safe, and library search finds the article that is the topic, measured on the device ([docs/BENCHMARKS.md](docs/BENCHMARKS.md#answer-quality-eval-harness)).
