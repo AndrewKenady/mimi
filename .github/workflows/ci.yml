@@ -91,7 +91,7 @@ jobs:
         run: npm run test:e2e
       - name: Live demo (build, then test it served as on GitHub Pages)
         run: npm run build:demo && npm run test:demo
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
@@ -108,7 +108,7 @@ jobs:
       - name: Build with the in-box C# compiler
         shell: powershell
         run: powershell -ExecutionPolicy Bypass -File shell\build.ps1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: MIMI.exe
           path: MIMI.exe
