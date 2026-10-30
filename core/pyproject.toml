@@ -16,7 +16,7 @@ dependencies = [
   "orjson",
   "pypdf",
   "python-docx",
-  "selectolax>=0.3.21,<1.0",  # 1.0 removed the Modest backend we import
+  "selectolax>=0.4.13,<2.0",  # the Lexbor backend; 1.0 removed Modest
   "zeroconf",
   "cryptography",
   "qrcode",

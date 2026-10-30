@@ -205,7 +205,8 @@ class ModelManager:
         # to the q8_0 rung.
         if vision and spec.vision and spec.mmproj:
             args += ["--mmproj", str(spec.mmproj)]
-        if build == "llama-cpu":
+        # The CPU-only rung stays on the CPU even when llama-cpu is missing and a GPU build stands in for it.
+        if cpu_only or build == "llama-cpu":
             args += ["-ngl", "0"]
         return args
 

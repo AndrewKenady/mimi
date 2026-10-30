@@ -69,3 +69,13 @@ def test_the_vision_projector_is_loaded_only_when_asked_for():
     args = m._chat_args(Seeing(), 8192, vision=True)
     assert args[args.index("--mmproj") + 1] == "mmproj.gguf"
     assert "--mmproj" not in m._chat_args(Spec(), 8192, vision=True)  # a model without vision has no projector
+
+
+def test_the_cpu_only_rung_stays_on_the_cpu_without_the_cpu_build():
+    """Only llama-vulkan is installed here, so it stands in for llama-cpu; the last rung must not offload to the GPU."""
+    m = llm.ModelManager.__new__(llm.ModelManager)
+    m.hw = {"backend": "vulkan", "cores": 8, "ram_installed_gb": 16}
+    m.paths = SimpleNamespace(exe=lambda build, name: Exe(build))
+    assert "-ngl" not in m._chat_args(Spec(), 8192)
+    args = m._chat_args(Spec(), 4096, 0, True)
+    assert args[0] == "bin/llama-vulkan/llama-server" and args[args.index("-ngl") + 1] == "0"
