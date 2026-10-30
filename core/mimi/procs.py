@@ -126,7 +126,16 @@ def _job():
                 ("PeakJobMemoryUsed", ctypes.c_size_t),
             ]
 
+        # Full signatures: without argtypes ctypes passes ints as C int, and GetCurrentProcess()'s
+        # pseudo-handle (-1, read back as 2**64 - 1 through HANDLE) overflows it on 64-bit Python.
+        k32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
         k32.CreateJobObjectW.restype = wintypes.HANDLE
+        k32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+        k32.SetInformationJobObject.restype = wintypes.BOOL
+        k32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+        k32.AssignProcessToJobObject.restype = wintypes.BOOL
+        k32.GetCurrentProcess.argtypes = []
+        k32.GetCurrentProcess.restype = wintypes.HANDLE
         h = k32.CreateJobObjectW(None, None)
         if not h:
             return None
@@ -150,9 +159,7 @@ def contain_self() -> bool:
     k32, h = j
     try:
         import ctypes
-        from ctypes import wintypes
 
-        k32.GetCurrentProcess.restype = wintypes.HANDLE
         if k32.AssignProcessToJobObject(h, k32.GetCurrentProcess()):
             return True
         L.warning("could not put Core in its job (error %s); helpers may outlive a killed Core", ctypes.get_last_error())
