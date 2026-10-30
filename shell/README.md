@@ -21,16 +21,17 @@ no admin rights.
 ## Build
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File shell\build.ps1              # latest stable WebView2 SDK
+powershell -ExecutionPolicy Bypass -File shell\build.ps1              # the pinned WebView2 SDK
 powershell -ExecutionPolicy Bypass -File shell\build.ps1 -Offline     # use the cached SDK only
-powershell -ExecutionPolicy Bypass -File shell\build.ps1 -WebView2Version 1.0.4191.47
+powershell -ExecutionPolicy Bypass -File shell\build.ps1 -WebView2Version latest   # or a version, e.g. 1.0.4191.47
 ```
 
 `build.ps1` (PowerShell 5.1, all paths relative to its own location):
 
-1. Resolves the latest stable `Microsoft.Web.WebView2` package from nuget.org (or the pinned
-   version), downloads the `.nupkg` into `.tools\webview2sdk\` and unzips it to
-   `.tools\webview2sdk\<version>\`. Cached; without network it falls back to the newest cached SDK.
+1. Downloads the pinned `Microsoft.Web.WebView2` package from nuget.org (`$PinnedVersion` in the
+   script, checked against `$PinnedSha256`; `-WebView2Version` picks another, unchecked) into
+   `.tools\webview2sdk\` and unzips it to `.tools\webview2sdk\<version>\`. Cached; without network
+   it falls back to the newest cached SDK.
 2. Copies `Microsoft.Web.WebView2.Core.dll`, `Microsoft.Web.WebView2.WinForms.dll`
    (`lib\net462`) and `WebView2Loader.dll` (`runtimes\win-x64\native`) into the Mimi root.
 3. Checks that `MimiShell.cs` and `splash.html` are pure ASCII (see *Text encoding*), then compiles
