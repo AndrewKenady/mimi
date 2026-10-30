@@ -2,9 +2,9 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { tick } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { fmtBytes, get } from '$lib/api';
-	import { t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { fmtBytes, get } from '#lib/api.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 	import { ArrowLeft, Sparkles, List, BookOpen, Type, Download, ExternalLink, FileText } from '@lucide/svelte';
 
 	let art = $state<any>(null);
@@ -30,7 +30,7 @@
 		art = null;
 		try {
 			art = await get(`/api/library/article/${encodeURIComponent(book)}/${path.split('/').map(encodeURIComponent).join('/')}`);
-			if (art.kind === 'collection') return goto(`/library/book/${art.alias}`, { replaceState: true });
+			if (art.kind === 'collection') return goto(`/library/book/${art.alias}`, { replace: true });
 			if (art.kind && art.kind !== 'article') return;
 			await tick();
 			const hash = decodeURIComponent(location.hash.slice(1));

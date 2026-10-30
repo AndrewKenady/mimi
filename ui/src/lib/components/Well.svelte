@@ -5,8 +5,8 @@
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { parseColor } from '$lib/color';
-	import { reducedMotion } from '$lib/motion';
+	import { parseColor } from '#lib/color.js';
+	import { reducedMotion } from '#lib/motion.js';
 
 	type WellState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'sleep';
 	let {

@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { fade, scale } from 'svelte/transition';
-	import { app } from '$lib/app.svelte';
-	import { get } from '$lib/api';
-	import { toggleFullscreen } from '$lib/host';
-	import { SETTINGS_SECTIONS, settingsHref } from '$lib/settings-sections';
-	import { LOCALES, i18n, t, type Locale } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { get } from '#lib/api.js';
+	import { toggleFullscreen } from '#lib/host.js';
+	import { SETTINGS_SECTIONS, settingsHref } from '#lib/settings-sections.js';
+	import { LOCALES, i18n, t, type Locale } from '#lib/i18n/index.svelte.js';
 	import { Search, House, MessageSquarePlus, Library, Map, AudioLines, ScanText, Brain, Settings, Moon, Maximize, QrCode, MessagesSquare, CornerDownLeft, NotebookPen, Languages } from '@lucide/svelte';
 
 	// `group` is a stable id (it also names the group's element); GROUPS gives its words.

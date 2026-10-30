@@ -1,7 +1,7 @@
 // Gamepad support: spatial navigation with the D-pad / left stick, and
 // configurable button actions (see Settings → Controls).
 import { goto } from '$app/navigation';
-import { base } from '$app/paths';
+import { base } from '#lib/base.js';
 import { app } from './app.svelte';
 import { scrollBehavior } from './motion';
 

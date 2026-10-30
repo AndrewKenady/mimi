@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { del, get, patch, post, timeAgo } from '$lib/api';
-	import { confirmDialog } from '$lib/confirm.svelte';
-	import { t, type Key } from '$lib/i18n/index.svelte';
-	import Segmented from '$components/settings/Segmented.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { del, get, patch, post, timeAgo } from '#lib/api.js';
+	import { confirmDialog } from '#lib/confirm.svelte.js';
+	import { t, type Key } from '#lib/i18n/index.svelte.js';
+	import Segmented from '#components/settings/Segmented.svelte';
 	import { Brain, Pin, PinOff, Trash2, Check, X, Plus, Search, Download, Pause, Play, Pencil, MessagesSquare } from '@lucide/svelte';
 
 	let items = $state<any[]>([]);

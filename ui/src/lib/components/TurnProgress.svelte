@@ -12,7 +12,7 @@
 
 <script lang="ts">
 	import { Check } from '@lucide/svelte';
-	import { t } from '$lib/i18n/index.svelte';
+	import { t } from '#lib/i18n/index.svelte.js';
 
 	let { progress, compact = false }: { progress: Progress; compact?: boolean } = $props();
 

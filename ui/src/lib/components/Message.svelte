@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onDestroy, tick } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { app } from '$lib/app.svelte';
-	import { del, post } from '$lib/api';
-	import { renderBlocks } from '$lib/markdown';
-	import { Speaker } from '$lib/audio';
-	import { fmtNumber, i18n, t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { del, post } from '#lib/api.js';
+	import { renderBlocks } from '#lib/markdown.js';
+	import { Speaker } from '#lib/audio.js';
+	import { fmtNumber, i18n, t } from '#lib/i18n/index.svelte.js';
 	import SourceCards from './SourceCards.svelte';
 	import SourcePreview from './SourcePreview.svelte';
 	import TurnProgress, { type Progress } from './TurnProgress.svelte';

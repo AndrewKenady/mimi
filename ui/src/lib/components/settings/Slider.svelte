@@ -4,7 +4,7 @@
   for unitless scales, the position between the two end labels.
 -->
 <script lang="ts">
-	import { fmtNumber, t } from '$lib/i18n/index.svelte';
+	import { fmtNumber, t } from '#lib/i18n/index.svelte.js';
 	let {
 		value,
 		min = 0,

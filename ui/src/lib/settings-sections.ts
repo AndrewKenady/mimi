@@ -11,7 +11,7 @@
 // Keywords hold English, Spanish and French words at once, so search finds a section
 // whichever language someone types in.
 import { SlidersHorizontal, Palette, Sparkles, Cpu, MapPin, Share2, Users, Gamepad2, HardDrive } from '@lucide/svelte';
-import { t } from '$lib/i18n/index.svelte';
+import { t } from '#lib/i18n/index.svelte.js';
 
 export type SettingsSub = { id: string; label: string; keywords: string };
 export type SettingsSection = {

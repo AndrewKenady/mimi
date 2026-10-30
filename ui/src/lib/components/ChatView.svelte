@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onDestroy, onMount, tick } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { del, get, patch, post, stream, timeAgo } from '$lib/api';
-	import { Speaker } from '$lib/audio';
-	import { t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { del, get, patch, post, stream, timeAgo } from '#lib/api.js';
+	import { Speaker } from '#lib/audio.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 	import Composer from './Composer.svelte';
 	import Message from './Message.svelte';
 	import Well from './Well.svelte';
@@ -115,7 +115,7 @@
 			scrollBottom(true);
 		} catch {
 			app.toast(t('chat.chatGone'), 'error');
-			goto('/chat', { replaceState: true });
+			goto('/chat', { replace: true });
 		}
 	}
 
@@ -238,7 +238,7 @@
 					if (!chat) {
 						chat = { id: d.chat_id, title: d.title };
 						loadedId = d.chat_id;
-						goto(`/chat/${d.chat_id}`, { replaceState: true, noScroll: true, keepFocus: true });
+						goto(`/chat/${d.chat_id}`, { replace: true, reset: false });
 					}
 					const pi = messages.findIndex((x) => x.id === 'pending');
 					if (pi >= 0 && d.user_message) messages[pi] = d.user_message;

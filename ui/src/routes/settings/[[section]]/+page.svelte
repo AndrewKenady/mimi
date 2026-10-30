@@ -1,22 +1,22 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { app } from '$lib/app.svelte';
-	import { api, del, fmtBytes, get, patch, post } from '$lib/api';
-	import { inShell } from '$lib/host';
-	import { confirmDialog } from '$lib/confirm.svelte';
-	import { inkOn } from '$lib/color';
-	import { DEFAULT_ACCENT } from '$lib/accents';
-	import { scrollBehavior } from '$lib/motion';
-	import { radioGroup } from '$lib/roving';
-	import { SETTINGS_REDIRECTS, SETTINGS_SECTIONS, settingsHref, visibleSections } from '$lib/settings-sections';
-	import { ACCENTS, THEMES, WELL_STYLES, accentName } from '$lib/theme';
-	import { VoicePreview, voiceLanguage } from '$lib/voice-preview.svelte';
-	import { LOCALES, fmtNumber, resolveLocale, t, tIn } from '$lib/i18n/index.svelte';
-	import Row from '$components/settings/Row.svelte';
-	import Toggle from '$components/settings/Toggle.svelte';
-	import Segmented from '$components/settings/Segmented.svelte';
-	import Slider from '$components/settings/Slider.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { api, del, fmtBytes, get, patch, post } from '#lib/api.js';
+	import { inShell } from '#lib/host.js';
+	import { confirmDialog } from '#lib/confirm.svelte.js';
+	import { inkOn } from '#lib/color.js';
+	import { DEFAULT_ACCENT } from '#lib/accents.js';
+	import { scrollBehavior } from '#lib/motion.js';
+	import { radioGroup } from '#lib/roving.js';
+	import { SETTINGS_REDIRECTS, SETTINGS_SECTIONS, settingsHref, visibleSections } from '#lib/settings-sections.js';
+	import { ACCENTS, THEMES, WELL_STYLES, accentName } from '#lib/theme.js';
+	import { VoicePreview, voiceLanguage } from '#lib/voice-preview.svelte.js';
+	import { LOCALES, fmtNumber, resolveLocale, t, tIn } from '#lib/i18n/index.svelte.js';
+	import Row from '#components/settings/Row.svelte';
+	import Toggle from '#components/settings/Toggle.svelte';
+	import Segmented from '#components/settings/Segmented.svelte';
+	import Slider from '#components/settings/Slider.svelte';
 	import { Search, Volume2, Check, Download, Upload, RotateCcw, ShieldCheck, Wifi, FolderOpen, Trash2, Plus, Copy, Eye, EyeOff, Info, RefreshCw, TriangleAlert } from '@lucide/svelte';
 
 	let filter = $state('');
@@ -25,7 +25,7 @@
 	const requested = $derived(page.params.section || fallback);
 	// Old slugs (/settings/models …) redirect to their new home, keeping a working deep link.
 	$effect(() => {
-		if (SETTINGS_REDIRECTS[requested]) goto(settingsHref(requested), { replaceState: true, noScroll: true });
+		if (SETTINGS_REDIRECTS[requested]) goto(settingsHref(requested), { replace: true, reset: false });
 	});
 	const section = $derived.by(() => {
 		const id = SETTINGS_REDIRECTS[requested]?.section ?? requested;

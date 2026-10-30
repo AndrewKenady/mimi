@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { base } from '$app/paths';
+	import { base } from '#lib/base.js';
 	import { page } from '$app/state';
-	import { app } from '$lib/app.svelte';
-	import { inkOn } from '$lib/color';
-	import { DEFAULT_ACCENT } from '$lib/accents';
-	import { t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { inkOn } from '#lib/color.js';
+	import { DEFAULT_ACCENT } from '#lib/accents.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 	import { House, MessagesSquare, Library, Map, AudioLines, ScanText, Brain, Settings, Menu, Mic, NotebookPen } from '@lucide/svelte';
 
 	// Labels are message keys, read at render time so they follow the interface language.

@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { fade, fly } from 'svelte/transition';
-	import { app } from '$lib/app.svelte';
-	import { post } from '$lib/api';
-	import { hostPost, inShell, toggleFullscreen } from '$lib/host';
-	import { dialog } from '$lib/dialog';
-	import { motion } from '$lib/motion';
-	import { inkOn } from '$lib/color';
-	import { DEFAULT_ACCENT } from '$lib/accents';
-	import { t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { post } from '#lib/api.js';
+	import { hostPost, inShell, toggleFullscreen } from '#lib/host.js';
+	import { dialog } from '#lib/dialog.js';
+	import { motion } from '#lib/motion.js';
+	import { inkOn } from '#lib/color.js';
+	import { DEFAULT_ACCENT } from '#lib/accents.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 	import { ScanText, AudioLines, Map, MessageSquarePlus, QrCode, Moon, Sun, Maximize, LogOut, MonitorDown, Search, UserCog, NotebookPen, Brain, Settings } from '@lucide/svelte';
 
 	const light = $derived(document.documentElement.dataset.theme === 'light' || app.settings.user?.appearance?.theme === 'light');

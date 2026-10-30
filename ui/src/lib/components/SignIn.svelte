@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { app } from '$lib/app.svelte';
-	import { api, post } from '$lib/api';
-	import { t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { api, post } from '#lib/api.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 	import Well from './Well.svelte';
 	import { ArrowRight, Lock, MonitorSmartphone } from '@lucide/svelte';
 

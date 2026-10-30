@@ -7,9 +7,9 @@
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import { PMTiles, Protocol } from 'pmtiles';
 	import { layers, namedFlavor } from '@protomaps/basemaps';
-	import { app } from '$lib/app.svelte';
-	import { ApiError, del, get, post } from '$lib/api';
-	import { fmtNumber, i18n, t, type Key } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { ApiError, del, get, post } from '#lib/api.js';
+	import { fmtNumber, i18n, t, type Key } from '#lib/i18n/index.svelte.js';
 	import { Search, MapPin, Navigation, Crosshair, BookOpen, Sparkles, X, LocateFixed, Trees, Landmark, Building2, Waves, Mountain, Compass, Route, Loader, Radio, House, Signpost, Mailbox, Info, RotateCw, Fuel, Hospital, Pill, Phone, Clock, Siren } from '@lucide/svelte';
 
 	let el: HTMLDivElement;

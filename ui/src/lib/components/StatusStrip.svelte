@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { app } from '$lib/app.svelte';
-	import { fmtDate, fmtNumber, t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { fmtDate, fmtNumber, t } from '#lib/i18n/index.svelte.js';
 	import { WifiOff, Cpu, BatteryFull, BatteryMedium, BatteryLow, BatteryCharging, MapPin, Users, Leaf, Radio } from '@lucide/svelte';
 
 	const model = $derived(app.model);

@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { upload } from '$lib/api';
-	import { Recorder, transcribe } from '$lib/audio';
+	import { app } from '#lib/app.svelte.js';
+	import { upload } from '#lib/api.js';
+	import { Recorder, transcribe } from '#lib/audio.js';
 	import { ArrowUp, Square, Paperclip, Mic, X, FileText, Sparkles, Car, HeartPulse, Wrench, GraduationCap, BookOpen, Check, Loader, Slash } from '@lucide/svelte';
-	import { COMMANDS, expandCommand, matchCommands, modeName } from '$lib/commands';
-	import { t } from '$lib/i18n/index.svelte';
+	import { COMMANDS, expandCommand, matchCommands, modeName } from '#lib/commands.js';
+	import { t } from '#lib/i18n/index.svelte.js';
 
 	type Att = { id: string; name: string; kind: string; url: string; preview?: string };
 	let {

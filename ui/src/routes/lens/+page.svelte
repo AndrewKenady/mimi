@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onDestroy } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { upload } from '$lib/api';
-	import { fmtNumber, t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { upload } from '#lib/api.js';
+	import { fmtNumber, t } from '#lib/i18n/index.svelte.js';
 	import { Camera, ImageUp, ScanText, Sparkles, Languages, HelpCircle, Copy, Check, RotateCcw, Loader, SwitchCamera, BookImage } from '@lucide/svelte';
 
 	let video: HTMLVideoElement | undefined = $state();

@@ -1,7 +1,7 @@
 // Markdown → safe HTML, with inline citation pills.
 import DOMPurify from 'dompurify';
 import { Marked, type Token } from 'marked';
-import { i18n, t } from '$lib/i18n/index.svelte';
+import { i18n, t } from '#lib/i18n/index.svelte.js';
 
 const md = new Marked({ gfm: true, breaks: false });
 

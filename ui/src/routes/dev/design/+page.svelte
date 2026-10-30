@@ -6,16 +6,16 @@
 -->
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { accentTokens, contrast, parseColor, type RGB } from '$lib/color';
-	import { confirmDialog } from '$lib/confirm.svelte';
-	import { reducedMotion } from '$lib/motion';
-	import { ACCENTS, THEMES, WELL_STYLES } from '$lib/theme';
-	import Well from '$components/Well.svelte';
-	import Row from '$components/settings/Row.svelte';
-	import Toggle from '$components/settings/Toggle.svelte';
-	import Segmented from '$components/settings/Segmented.svelte';
-	import Slider from '$components/settings/Slider.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { accentTokens, contrast, parseColor, type RGB } from '#lib/color.js';
+	import { confirmDialog } from '#lib/confirm.svelte.js';
+	import { reducedMotion } from '#lib/motion.js';
+	import { ACCENTS, THEMES, WELL_STYLES } from '#lib/theme.js';
+	import Well from '#components/Well.svelte';
+	import Row from '#components/settings/Row.svelte';
+	import Toggle from '#components/settings/Toggle.svelte';
+	import Segmented from '#components/settings/Segmented.svelte';
+	import Slider from '#components/settings/Slider.svelte';
 	import { Sparkles, Trash2, Check, Search, Play, Gamepad2, Feather, WifiOff, Eye } from '@lucide/svelte';
 
 	type ThemeId = 'dark' | 'oled' | 'light';

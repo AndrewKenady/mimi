@@ -1,5 +1,5 @@
 // Base-path helpers for the browser demo (served at e.g. /mimi/demo instead of /).
-import { base } from '$app/paths';
+import { base } from '#lib/base.js';
 
 /** Paths that belong to the (recorded) Core, not to the app's pages. */
 const CORE = /^\/(api|kiwix|maps|cert)(\/|$)/;

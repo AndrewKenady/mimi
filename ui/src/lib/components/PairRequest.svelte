@@ -5,11 +5,11 @@
 -->
 <script lang="ts">
 	import { fade, scale } from 'svelte/transition';
-	import { app } from '$lib/app.svelte';
-	import { post } from '$lib/api';
-	import { dialog } from '$lib/dialog';
-	import { motion } from '$lib/motion';
-	import { fmtNumber, t } from '$lib/i18n/index.svelte';
+	import { app } from '#lib/app.svelte.js';
+	import { post } from '#lib/api.js';
+	import { dialog } from '#lib/dialog.js';
+	import { motion } from '#lib/motion.js';
+	import { fmtNumber, t } from '#lib/i18n/index.svelte.js';
 	import { MonitorSmartphone, Check, X, BellOff } from '@lucide/svelte';
 
 	const req = $derived(app.pairRequests[0]);

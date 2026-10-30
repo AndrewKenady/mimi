@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onDestroy, onMount } from 'svelte';
-	import { app } from '$lib/app.svelte';
-	import { get, timeAgo, upload } from '$lib/api';
-	import { fmtNumber, t } from '$lib/i18n/index.svelte';
-	import { Recorder } from '$lib/audio';
+	import { app } from '#lib/app.svelte.js';
+	import { get, timeAgo, upload } from '#lib/api.js';
+	import { fmtNumber, t } from '#lib/i18n/index.svelte.js';
+	import { Recorder } from '#lib/audio.js';
 	import { Mic, Square, Upload, AudioLines, Loader, CircleAlert, ChevronRight, NotebookPen } from '@lucide/svelte';
 
 	let notes = $state<any[]>([]);

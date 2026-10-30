@@ -4,7 +4,7 @@
  * The command names and the prompts stay in English (the model understands them); the
  * label and hint shown in the menu follow the interface language.
  */
-import { t } from '$lib/i18n/index.svelte';
+import { t } from '#lib/i18n/index.svelte.js';
 
 export type Command = {
 	cmd: string;
