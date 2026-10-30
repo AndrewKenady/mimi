@@ -10,6 +10,7 @@ All notable changes to Mimi. The format follows [Keep a Changelog](https://keepa
 - **Library pictures only with a photo.** Mimi can look at an article's main picture only in a turn where you attached a photo, so it still compares your photo of a mushroom or plant with the library's, but a text-only question like "what does a death cap look like?" is answered from the article's text.
 
 ### Fixed
+- **On Windows, helpers die with Core.** Core is meant to put itself in a kill-on-close job, so plugin workers and PDF extractors can't outlive it even when it is killed outright, but on 64-bit Python that step always failed ("could not put Core in its job: … OverflowError") and only the engines Core starts itself were covered. Found by running `setup.ps1` end to end on Windows 11.
 - **The CPU-only fallback stays on the CPU.** When a model runs out of graphics memory at every other setting, Core tries it on the CPU alone. If the CPU build of llama.cpp was missing (an interrupted download, say), a GPU build stood in for it without being told to keep the layers off the GPU, so the last attempt could run out of graphics memory the same way. It now always runs with `-ngl 0`.
 
 ## [0.2.1] — 2026-10-22
