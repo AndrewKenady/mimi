@@ -41,7 +41,7 @@ jobs:
           cp -r ui/build-demo _site/demo
           python3 eval/publish.py _site/scoreboard
           du -sh _site _site/demo
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
