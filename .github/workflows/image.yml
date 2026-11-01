@@ -87,7 +87,7 @@ jobs:
             ${{ runner.temp }}/boot-test/*.png
           if-no-files-found: ignore
 
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         if: github.event_name != 'pull_request'   # a pull request's image is for trying, not publishing
         with:
           subject-path: ${{ env.IMG }}
