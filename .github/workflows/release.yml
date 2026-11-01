@@ -78,7 +78,7 @@ jobs:
           password: ${{ github.token }}
       - id: push
         if: steps.has.outputs.yes
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
